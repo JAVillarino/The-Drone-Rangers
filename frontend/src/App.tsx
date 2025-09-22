@@ -1,10 +1,26 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    const fetchState = () => {
+      fetch("http://127.0.0.1:5000/state")
+        .then((response) => response.json())
+        .then((data) => {
+          console.log(data);
+          // setState(data)
+        })
+        .catch((err) => console.error("Error fetching state:", err));
+    };
+  
+    fetchState();
+    const intervalId = setInterval(fetchState, 500);
+    return () => clearInterval(intervalId);
+  }, []);
 
   return (
     <>
