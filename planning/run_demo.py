@@ -3,7 +3,8 @@ import numpy as np
 import matplotlib as mpl
 mpl.use("TkAgg")  # helpful on macOS; harmless elsewhere
 import matplotlib.pyplot as plt
-from herding import World
+from simulation import world
+from herding import policy
 
 # ---------- spawn helpers ----------
 
@@ -77,7 +78,6 @@ if __name__ == "__main__":
     p.add_argument("--steps", type=int, default=10000)
     # world/behavior tweaks (override if you want)
     p.add_argument("--rs", type=float, default=14.0)
-    p.add_argument("--umax", type=float, default=2.2)
     p.add_argument("--wa", type=float, default=0.7)
     p.add_argument("--ws", type=float, default=1.0)
     p.add_argument("--w_align", type=float, default=0.5)
@@ -112,7 +112,6 @@ if __name__ == "__main__":
     world_kwargs = {
         # geometry / behavior you actually tweak from the CLI
         "rs": args.rs,
-        "umax": args.umax,
         "wa": args.wa,
         "ws": args.ws,
         "w_align": args.w_align,
@@ -129,7 +128,14 @@ if __name__ == "__main__":
         "seed": args.seed,
     }
 
-    W = World(sheep_xy, dog_xy, target_xy, **world_kwargs)
+    W = world.World(sheep_xy, dog_xy, target_xy, **world_kwargs)
+    shepherd_policy = policy.ShepherdPolicy(
+        fN=W.ra * W.N ** (2.0/3.0),
+        umax=2.2,
+        too_close=3*W.ra,
+        collect_standoff = 1.2 * W.ra, # collect standoff behind stray far-from-dog grazing (random walk)
+        drive_standoff = 0.8 * W.ra * np.sqrt(sheep_xy.shape[0])
+    )
 
     # --- live plot ---
     plt.ion()
@@ -139,17 +145,19 @@ if __name__ == "__main__":
     # draw fence
     ax.plot([xmin,xmax,xmax,xmin,xmin],[ymin,ymin,ymax,ymax,ymin], linestyle="--")
 
-    P, D, T = W.pack_positions()
-    sheep_sc = ax.scatter(P[:,0], P[:,1], s=20)
-    dog_sc   = ax.scatter([D[0]],[D[1]], marker='x')
-    targ_sc  = ax.scatter([T[0]],[T[1]], marker='*')
+    state = W.get_state()
+    sheep_sc = ax.scatter(state.flock[:,0], state.flock[:,1], s=20)
+    dog_sc   = ax.scatter([state.drone[0]],[state.drone[1]], marker='x')
+    targ_sc  = ax.scatter([state.target[0]],[state.target[1]], marker='*')
 
     for t in range(args.steps):
-        W.step()
+        plan = shepherd_policy.plan(W.get_state(), W.dt)
+        W.step(plan)
+        
         if t % 2 == 0:
-            P, D, T = W.pack_positions()
-            sheep_sc.set_offsets(P)
-            dog_sc.set_offsets([D])
+            state = W.get_state()
+            sheep_sc.set_offsets(state.flock)
+            dog_sc.set_offsets([state.drone])
             ax.set_title(f"Step {t}  |  spawn={args.spawn}")
             fig.canvas.draw_idle()
             plt.pause(0.01)

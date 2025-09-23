@@ -1,8 +1,8 @@
 from __future__ import annotations
 import numpy as np
 from .utils import norm
-import plan_type
-import state
+from planning.plan_type import DoNothing, DronePosition, Plan
+from planning import state
 
 class ShepherdPolicy:
     """
@@ -20,10 +20,10 @@ class ShepherdPolicy:
     
     def _gcm(self, world: state.State) -> np.ndarray:
         # TODO: Should this maybe be transposed?
-        return np.mean([s for s in world.flock], axis=1)
+        return np.mean([s for s in world.flock], axis=0)
 
     def _cohesive(self, world: state.State, G: np.ndarray) -> bool:
-        r = np.max([np.linalg.norm(s - G) for s in world.flock], axis=1)
+        r = np.max([np.linalg.norm(s - G) for s in world.flock])
         return r <= self.fN
 
     def _drive_point(self, world: state.State, G: np.ndarray) -> np.ndarray:
@@ -36,15 +36,15 @@ class ShepherdPolicy:
         c = norm(G - world.flock[j])
         return world.flock[j] - c * self.collect_standoff
 
-    def plan(self, world: state.State, dt: float) -> plan_type.Plan:
+    def plan(self, world: state.State, dt: float) -> Plan:
         """Return None if no update should be made."""
         # safety stop if too close to any flock (prevents splitting)
         if any(np.linalg.norm(s - world.drone) < self.too_close for s in world.flock):
-            return plan_type.DoNothing()
+            return DoNothing()
 
         G = self._gcm(world)
         P = self._drive_point(world, G) if self._cohesive(world, G) else self._collect_point(world, G)
 
         # move toward chosen point and apply boundary
-        return plan_type.DronePosition(world.drone + self.umax * dt * norm(P - world.drone))
+        return DronePosition(world.drone + self.umax * dt * norm(P - world.drone))
         

@@ -12,3 +12,10 @@ class State:
 
     # 1-by-2 of the position of the drone.
     target: np.ndarray | None
+    
+    def to_dict(self) -> dict:
+        return {
+            "flock": self.flock.tolist(),
+            "drone": self.drone.tolist(),
+            "target": None if self.target is None else self.target.tolist(),
+        }

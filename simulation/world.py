@@ -1,8 +1,14 @@
 from __future__ import annotations
 import numpy as np
-from planning.herding.agents import Sheep, Shepherd
 from planning.herding.utils import norm, smooth_push
-from planning import plan_type, state
+from planning import state
+from planning.plan_type import DoNothing, DronePosition, Plan
+
+class Sheep:
+    __slots__ = ("pos", "vel")
+    def __init__(self, pos, vel=None):
+        self.pos = np.asarray(pos, float)
+        self.vel = np.zeros(2) if vel is None else np.asarray(vel, float)
 
 class World:
     """
@@ -16,7 +22,9 @@ class World:
     """
     def __init__(
         self,
-        initial_state: state.State,
+        sheep_xy: np.ndarray,
+        shepherd_xy: list[float],
+        target_xy: list[float],
         *,
         # geometry
         ra: float = 2.0,            # neighbor repulsion radius
@@ -51,9 +59,9 @@ class World:
         # rng seed
         seed: int = 0,
     ):
-        self.N = initial_state.flock.shape[0]
+        self.N = sheep_xy.shape[0]
         self.sheep = [Sheep(sheep_xy[i]) for i in range(self.N)]
-        self.dog = Shepherd(np.asarray(shepherd_xy, float))
+        self.dog = np.asarray(shepherd_xy, float)
         self.target = np.asarray(target_xy, float)
 
         # params
@@ -165,7 +173,7 @@ class World:
         return np.mean([s.pos for s in self.sheep], axis=0)
 
     def _sheep_step(self):
-        D = self.dog.pos
+        D = self.dog
         G = self._gcm()
         for i, s in enumerate(self.sheep):
             dSD = np.linalg.norm(s.pos - D)
@@ -222,19 +230,24 @@ class World:
             s.pos, s.vel = self._apply_bounds_sheep(s.pos, s.vel)
 
     # ---------- public API ----------
-    def step(self, plan: plan_type.Plan):
+    def step(self, plan: Plan):
         self._sheep_step()
         
         # Use the plan to update the position of the shepherd.
         match plan:
-            case plan_type.DoNothing():
+            case DoNothing():
                 pass
-            case plan_type.DronePosition(position=pos):
-                self.dog.pos = self._apply_bounds_point(pos)
+            case DronePosition(position=pos):
+                self.dog = self._apply_bounds_point(pos)
+            case _ as unexpected_plan:
+                raise Exception("Unexpected plan type", unexpected_plan)
 
-    def pack_positions(self):
-        P = np.stack([s.pos for s in self.sheep], axis=0)
-        return P, self.dog.pos.copy(), self.target.copy()
+    def get_state(self) -> state.State:
+        return state.State(
+            flock=np.stack([s.pos for s in self.sheep], axis=0),
+            drone=self.dog.copy(),
+            target=self.target.copy(),
+        )
 
     def get_bounds(self):
         return (self.xmin, self.xmax, self.ymin, self.ymax)
