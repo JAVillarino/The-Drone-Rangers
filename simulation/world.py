@@ -248,6 +248,3 @@ class World:
             drone=self.dog.copy(),
             target=self.target.copy(),
         )
-
-    def get_bounds(self):
-        return (self.xmin, self.xmax, self.ymin, self.ymax)
