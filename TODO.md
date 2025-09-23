@@ -10,5 +10,5 @@ Random Ideas:
     - Ability to pause.
 
 
-
+We should just be able to submit the benchmark on the scenarios for every weekly check-in. Hopefully we'll gradually improve, and we can gradually add more benchmarks.
 
