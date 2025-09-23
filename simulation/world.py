@@ -236,7 +236,8 @@ class World:
     # ---------- public API ----------
     def step(self):
         self._sheep_step()
-        self.policy.step(self)
+        self.policy.st
+        ep(self)
 
     def pack_positions(self):
         P = np.stack([s.pos for s in self.sheep], axis=0)
