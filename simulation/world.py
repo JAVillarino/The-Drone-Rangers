@@ -1,8 +1,8 @@
 from __future__ import annotations
 import numpy as np
-from .agents import Sheep, Shepherd
-from .utils import norm, smooth_push
-from .policy import ShepherdPolicy
+from planning.herding.agents import Sheep, Shepherd
+from planning.herding.utils import norm, smooth_push
+from planning import plan_type, state
 
 class World:
     """
@@ -16,9 +16,7 @@ class World:
     """
     def __init__(
         self,
-        sheep_xy: np.ndarray,
-        shepherd_xy,
-        target_xy,
+        initial_state: state.State,
         *,
         # geometry
         ra: float = 2.0,            # neighbor repulsion radius
@@ -27,16 +25,12 @@ class World:
         # timing & speeds
         dt: float = 0.2,
         vmax: float = 0.9,          # sheep max speed (m/s)
-        umax: float = 2.2,          # shepherd max speed (m/s)
         # weights (sheep near-dog branch)
         wr: float = 1.2,            # repel close neighbors
         wa: float = 0.7,            # attract to local COM
         ws: float = 1.0,            # repel from shepherd (scaled by distance)
         wm: float = 0.15,           # inertia (previous velocity)
         w_align: float = 0.5,       # align with neighbors' average velocity
-        # point factors
-        drive_k: float = 0.8,       # drive standoff = drive_k * ra * sqrt(N)
-        collect_k: float = 1.2,     # collect standoff behind stray
         # far-from-dog grazing (random walk)
         graze_alpha: float = 0.05,  # gentle random wander
         inertia_alpha: float = 0.15,# mild inertia while grazing
@@ -56,19 +50,16 @@ class World:
         restitution: float = 0.85,
         # rng seed
         seed: int = 0,
-        # policy
-        policy: ShepherdPolicy | None = None,
     ):
-        self.N = sheep_xy.shape[0]
+        self.N = initial_state.flock.shape[0]
         self.sheep = [Sheep(sheep_xy[i]) for i in range(self.N)]
         self.dog = Shepherd(np.asarray(shepherd_xy, float))
         self.target = np.asarray(target_xy, float)
 
         # params
         self.ra, self.rs, self.k_nn = ra, rs, k_nn
-        self.dt, self.vmax, self.umax = dt, vmax, umax
+        self.dt, self.vmax = dt, vmax
         self.wr, self.wa, self.ws, self.wm, self.w_align = wr, wa, ws, wm, w_align
-        self.drive_k, self.collect_k = drive_k, collect_k
         self.graze_alpha, self.inertia_alpha = graze_alpha, inertia_alpha
         self.g_tug, self.sigma = g_tug, sigma
 
@@ -83,9 +74,6 @@ class World:
         self.restitution = float(np.clip(restitution, 0.0, 1.0))
 
         self.rng = np.random.default_rng(seed)
-
-        # policy
-        self.policy = ShepherdPolicy() if policy is None else policy
 
     # ---------- neighbor ops ----------
     def _kNN(self, i: int, K: int) -> np.ndarray:
@@ -234,10 +222,15 @@ class World:
             s.pos, s.vel = self._apply_bounds_sheep(s.pos, s.vel)
 
     # ---------- public API ----------
-    def step(self):
+    def step(self, plan: plan_type.Plan):
         self._sheep_step()
-        self.policy.st
-        ep(self)
+        
+        # Use the plan to update the position of the shepherd.
+        match plan:
+            case plan_type.DoNothing():
+                pass
+            case plan_type.DronePosition(position=pos):
+                self.dog.pos = self._apply_bounds_point(pos)
 
     def pack_positions(self):
         P = np.stack([s.pos for s in self.sheep], axis=0)
