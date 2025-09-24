@@ -18,13 +18,14 @@ backend_adapter = world.World(
     sheep_xy=np.array([[random.uniform(-100, 100), random.uniform(-100, 100)] for _ in range(flock_size)]),
     shepherd_xy=[0.0, 0.0],
     target_xy=[5, 5],
+    ra=2,
 )
 policy = herding.ShepherdPolicy(
     fN=backend_adapter.ra * backend_adapter.N ** (2.0/3.0),
-    umax=2.2,
+    umax=1.5,
     too_close=3*backend_adapter.ra,
-    collect_standoff = 1.2 * backend_adapter.ra, # collect standoff behind stray far-from-dog grazing (random walk)
-    drive_standoff = 0.8 * backend_adapter.ra * np.sqrt(flock_size)
+    collect_standoff = backend_adapter.ra,
+    drive_standoff = backend_adapter.ra * np.sqrt(flock_size),
 )
 
 @app.route("/state", methods=["GET"])
