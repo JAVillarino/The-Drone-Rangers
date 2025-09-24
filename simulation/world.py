@@ -56,6 +56,8 @@ class World:
         boundary: str = "reflect",  # "reflect" | "wrap" | "none"
         bounds: tuple[float,float,float,float] = (-25.0, 65.0, -40.0, 35.0),
         restitution: float = 0.85,
+        # obstacles
+        obstacles: np.ndarray | None = None,  # n-by-2 array of obstacle positions
         # rng seed
         seed: int = 0,
     ):
@@ -63,6 +65,9 @@ class World:
         self.sheep = [Sheep(sheep_xy[i]) for i in range(self.N)]
         self.dog = np.asarray(shepherd_xy, float)
         self.target = np.asarray(target_xy, float)
+        
+        # obstacles
+        self.obstacles = obstacles if obstacles is not None else np.empty((0, 2))
 
         # params
         self.ra, self.rs, self.k_nn = ra, rs, k_nn
@@ -82,6 +87,41 @@ class World:
         self.restitution = float(np.clip(restitution, 0.0, 1.0))
 
         self.rng = np.random.default_rng(seed)
+
+    # ---------- obstacle management ----------
+    def add_obstacle(self, position: np.ndarray) -> None:
+        """Add a single obstacle at the given position."""
+        pos = np.asarray(position, float).reshape(1, -1)
+        if self.obstacles.size == 0:
+            self.obstacles = pos
+        else:
+            self.obstacles = np.vstack([self.obstacles, pos])
+    
+    def add_obstacles(self, positions: np.ndarray) -> None:
+        """Add multiple obstacles at the given positions."""
+        if positions.size == 0:
+            return
+        positions = np.asarray(positions, float)
+        if positions.ndim == 1:
+            positions = positions.reshape(1, -1)
+        
+        if self.obstacles.size == 0:
+            self.obstacles = positions
+        else:
+            self.obstacles = np.vstack([self.obstacles, positions])
+    
+    def remove_obstacle(self, index: int) -> None:
+        """Remove obstacle at the given index."""
+        if 0 <= index < len(self.obstacles):
+            self.obstacles = np.delete(self.obstacles, index, axis=0)
+    
+    def clear_obstacles(self) -> None:
+        """Remove all obstacles."""
+        self.obstacles = np.empty((0, 2))
+    
+    def get_obstacles(self) -> np.ndarray:
+        """Get current obstacle positions."""
+        return self.obstacles.copy()
 
     # ---------- neighbor ops ----------
     def _kNN(self, i: int, K: int) -> np.ndarray:
@@ -247,4 +287,5 @@ class World:
             flock=np.stack([s.pos for s in self.sheep], axis=0),
             drone=self.dog.copy(),
             target=self.target.copy(),
+            obstacles=self.obstacles.copy() if self.obstacles.size > 0 else None,
         )
