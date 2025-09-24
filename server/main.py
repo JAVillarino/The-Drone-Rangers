@@ -18,7 +18,8 @@ backend_adapter = world.World(
     sheep_xy=np.array([[random.uniform(-100, 100), random.uniform(-100, 100)] for _ in range(flock_size)]),
     shepherd_xy=[0.0, 0.0],
     target_xy=[5, 5],
-    ra=2,
+    boundary="none",
+    dt=0.1,
 )
 policy = herding.ShepherdPolicy(
     fN=backend_adapter.ra * backend_adapter.N ** (2.0/3.0),
@@ -46,12 +47,13 @@ def run_flask():
 
 
 if __name__ == "__main__":
-    # Start Flask in a background thread
+    # Start Flask in a background thread.
     threading.Thread(target=run_flask, daemon=True).start()
     
     while True:
         # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
-        plan = policy.plan(backend_adapter.get_state(), backend_adapter.dt)
-        backend_adapter.step(plan)
+        for _ in range(10):
+            plan = policy.plan(backend_adapter.get_state(), backend_adapter.dt)
+            backend_adapter.step(plan)
         
         time.sleep(0.1)
