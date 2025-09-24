@@ -26,39 +26,54 @@ class World:
         shepherd_xy: list[float],
         target_xy: list[float],
         *,
-        # geometry
-        ra: float = 2.0,            # neighbor repulsion radius
-        rs: float = 14.0,           # dog influence radius (≥ drive standoff)
-        k_nn: int = 12,             # k-NN for LCM & alignment
-        # timing & speeds
-        dt: float = 0.2,
-        vmax: float = 0.9,          # sheep max speed (m/s)
-        # weights (sheep near-dog branch)
-        wr: float = 1.2,            # repel close neighbors
-        wa: float = 0.7,            # attract to local COM
-        ws: float = 1.0,            # repel from shepherd (scaled by distance)
-        wm: float = 0.15,           # inertia (previous velocity)
-        w_align: float = 0.5,       # align with neighbors' average velocity
-        # far-from-dog grazing (random walk)
-        graze_alpha: float = 0.05,  # gentle random wander
-        inertia_alpha: float = 0.15,# mild inertia while grazing
-        # tiny global cohesion tug (near & far controlled below)
-        g_tug: float = 0.15,
-        # noise
-        sigma: float = 0.02,
-        # --- NEW: Far-field knobs ---
-        wa_far: float = 0.0,        # local cohesion when dog is far (0 = none)
-        g_tug_far: float = 0.0,     # global tug when dog is far (0 = none)
-        wr_far: float = 0.25,       # anti-crowding during far grazing
-        pre_gather: bool = False,   # ramp up wa_far/g_tug_far as dog approaches
-        pre_gather_scale: float = 1.5,  # ramp distance multiplier on rs
-        # boundaries
-        boundary: str = "reflect",  # "reflect" | "wrap" | "none"
-        bounds: tuple[float,float,float,float] = (-25.0, 65.0, -40.0, 35.0),
+        # geometry (paper)
+        ra: float = 2.0,          # agent-agent distance
+        rs: float = 40.0,         # shepherd detection
+        k_nn: int = 51,           # nearest neighbors
+
+        # timing & speeds (paper: 1 m/ts, dog 1.5 m/ts)
+        dt: float = 1.0,
+        vmax: float = 1.0,
+        umax: float = 1.5,
+
+        # weights (paper-ish)
+        wr: float = 2.0,          # ρ_a repulsion
+        wa: float = 1.05,         # c attraction
+        ws: float = 1.0,          # ρ_s dog repulsion
+        wm: float = 0.5,          # h inertia
+        w_align: float = 0.0,     # no alignment in base paper
+
+        # far-field grazing
+        graze_alpha: float = 0.0,   # paper doesn’t add separate wander
+        inertia_alpha: float = 0.0, # while grazing
+
+        # global tug
+        g_tug: float = 0.0,       # off in base paper
+
+        # noise (use vector noise as your stand-in for angular e≈0.3)
+        sigma: float = 0.3,
+
+        # far-field knobs off (paper)
+        wa_far: float = 0.0,
+        g_tug_far: float = 0.0,
+        wr_far: float = 0.0,
+        pre_gather: bool = False,
+        pre_gather_scale: float = 1.5,
+
+        # boundaries (paper: 150×150 field)
+        boundary: str = "reflect",
+        bounds: tuple[float,float,float,float] = (0.0, 250.0, 0.0, 250.0),
         restitution: float = 0.85,
         # obstacles
         obstacles: np.ndarray | None = None,  # n-by-2 array of obstacle positions
-        # rng seed
+
+        # shepherd standoffs (paper)
+        drive_k: float = 1.0,     # r_a * sqrt(N)
+        collect_k: float = 1.0,   # r_a behind stray
+
+        graze_p: float = 0.05,
+
+        # rng
         seed: int = 0,
     ):
         self.N = sheep_xy.shape[0]
@@ -71,7 +86,7 @@ class World:
 
         # params
         self.ra, self.rs, self.k_nn = ra, rs, k_nn
-        self.dt, self.vmax = dt, vmax
+        self.dt, self.vmax, self.umax = dt, vmax, umax
         self.wr, self.wa, self.ws, self.wm, self.w_align = wr, wa, ws, wm, w_align
         self.graze_alpha, self.inertia_alpha = graze_alpha, inertia_alpha
         self.g_tug, self.sigma = g_tug, sigma
@@ -85,6 +100,8 @@ class World:
         self.boundary = boundary
         self.xmin, self.xmax, self.ymin, self.ymax = bounds
         self.restitution = float(np.clip(restitution, 0.0, 1.0))
+
+        self.graze_p = graze_p
 
         self.rng = np.random.default_rng(seed)
 
@@ -219,27 +236,19 @@ class World:
             dSD = np.linalg.norm(s.pos - D)
 
             if dSD > self.rs:
-                # FAR: free grazing — by default, no self-gathering (wa_far=g_tug_far=0)
-                R_far = self._repel_close(i)
-                base = (
-                    self.wr_far * norm(R_far) +
-                    self.graze_alpha * norm(self.rng.normal(size=2))
-                )
-                if np.linalg.norm(s.vel) > 0:
-                    base += self.inertia_alpha * norm(s.vel)
+                # Bernoulli: move with probability p while grazing (paper)
+                if self.graze_p < 1.0 and self.rng.random() > self.graze_p:
+                    s.vel *= 0.0
+                    s.pos, s.vel = self._apply_bounds_sheep(s.pos, s.vel)
+                    continue
 
-                # Optional pre-gather ramp as the dog gets within ~1.5*rs
-                if self.pre_gather and (self.wa_far > 0.0 or self.g_tug_far > 0.0):
-                    pre = max(0.0, 1.0 - dSD / (self.pre_gather_scale * self.rs))
-                else:
-                    pre = 1.0
+                # Start with a random unit heading so motion never vanishes when far
+                rnd = self.rng.normal(size=2)
+                h = rnd / (np.linalg.norm(rnd) + 1e-9)
 
-                if self.wa_far > 0.0 or self.g_tug_far > 0.0:
-                    L = self._lcm(i) - s.pos
-                    base += pre * ( self.wa_far * norm(L) + self.g_tug_far * norm(G - s.pos) )
-
-                h = norm(base)
-                step = 0.4 * self.vmax * self.dt       # cap grazing at 40% speed
+                # Normalize final heading and move a FULL grazing step (paper)
+                h = h / (np.linalg.norm(h) + 1e-9)
+                step = self.vmax * self.dt   # full step when grazing moves
             else:
                 # NEAR: full flocking under pressure (distance-scaled dog push)
                 R  = self._repel_close(i)
