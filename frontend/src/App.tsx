@@ -1,12 +1,48 @@
-import { useState, useEffect } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { fetchState, setTarget } from './api/state'
+import MapPlot from './components/MapPlot'
 import './App.css'
 
-function App() {
-  const [count, setCount] = useState(0)
+type LocData = [number, number];
 
-  useEffect(() => {
+interface ObjectData {
+    flock: LocData[],
+    drone: LocData,
+    target: LocData
+}
+
+function App() {
+  //const [count, setCount] = useState(0);
+  const queryClient = useQueryClient();
+
+  const CANVAS_SIZE = 500;
+
+  const worldMin = -40;
+  const worldMax = 40;
+
+  const { data, isLoading, error } = useQuery<ObjectData>({
+    queryKey: ["objects"],
+    queryFn: fetchState,
+    refetchInterval: 25
+  });
+
+  const mutation = useMutation({
+    mutationFn: setTarget,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["objects"]});
+    }
+  });
+
+  function handleSetTarget(coords: {x: number; y: number}) {
+    mutation.mutate(coords);
+  }
+
+  
+  if (isLoading) return <p>Loading...</p>;
+  if (error instanceof Error) return <p>Error: {error.message}</p>;
+  if (!data) return <p>No data</p>;
+
+  /*useEffect(() => {
     const fetchState = () => {
       fetch("http://127.0.0.1:5000/state")
         .then((response) => response.json())
@@ -20,30 +56,11 @@ function App() {
     fetchState();
     const intervalId = setInterval(fetchState, 500);
     return () => clearInterval(intervalId);
-  }, []);
+  }, []);*/
 
   return (
     <>
-      <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax}/>
     </>
   )
 }
