@@ -15,7 +15,7 @@ CORS(app, origins=["http://localhost:5173"])
 flock_size = 50
 
 backend_adapter = world.World(
-    sheep_xy=np.array([[random.uniform(-100, 100), random.uniform(-100, 100)] for _ in range(flock_size)]),
+    sheep_xy=np.array([[random.uniform(0, 200), random.uniform(0, 200)] for _ in range(flock_size)]),
     shepherd_xy=[0.0, 0.0],
     target_xy=[5, 5],
     boundary="none",
