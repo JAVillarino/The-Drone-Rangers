@@ -104,6 +104,9 @@ class World:
         self.graze_p = graze_p
 
         self.rng = np.random.default_rng(seed)
+        
+        # The -2 is because every sheep has n - 1 neighbors and k_nn is 0 indexed.
+        assert(self.k_nn <= self.N - 2)
 
     # ---------- obstacle management ----------
     def add_obstacle(self, position: np.ndarray) -> None:
@@ -144,7 +147,6 @@ class World:
     def _kNN(self, i: int, K: int) -> np.ndarray:
         P = np.stack([s.pos for s in self.sheep], axis=0)
         d = np.linalg.norm(P - P[i], axis=1)
-        K = min(self.N - 2, K)
         idx = np.argpartition(d, K+1)[:K+1]   # includes self
         idx = idx[d[idx] > 0]                 # drop self
         return idx[:K]

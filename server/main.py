@@ -20,6 +20,7 @@ backend_adapter = world.World(
     target_xy=[5, 5],
     boundary="none",
     dt=0.1,
+    k_nn=48,
 )
 policy = herding.ShepherdPolicy(
     fN=backend_adapter.ra * backend_adapter.N ** (2.0/3.0),
