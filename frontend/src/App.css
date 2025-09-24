@@ -1,7 +1,7 @@
 #root {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 0;
   text-align: center;
 }
 
@@ -39,4 +39,52 @@
 
 .read-the-docs {
   color: #888;
+}
+
+
+circle.animal {
+
+  width: 16px;
+  height: 16px;
+
+
+  stroke: rgba(141, 140, 140, 0.5);
+  stroke-width: 1;
+  filter: drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.25));
+
+  fill: #FFE732;
+
+}
+
+polygon.drone {
+  /*position: absolute;*/
+  width: 25px;
+  height: 25px;
+
+
+  fill: #32ADFF;
+  stroke: rgba(0, 0, 0, 0.59);
+  stroke-width: 1;
+  transform: rotate(180deg);
+  transform-box: fill-box;
+  transform-origin: center;
+  filter: drop-shadow(0px 4px 16px rgba(0, 0, 0, 0.25));
+}
+
+.target {
+  height: 30px;
+  width: 30px;
+}
+
+.map {
+  height: 100vh;
+  width: 100vw;
+}
+
+#choose-target-btn {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background-color: rgba(0, 0, 0, 0);
+  color: white;
 }
