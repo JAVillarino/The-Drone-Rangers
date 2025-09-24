@@ -144,6 +144,7 @@ class World:
     def _kNN(self, i: int, K: int) -> np.ndarray:
         P = np.stack([s.pos for s in self.sheep], axis=0)
         d = np.linalg.norm(P - P[i], axis=1)
+        K = min(self.N - 2, K+1)
         idx = np.argpartition(d, K+1)[:K+1]   # includes self
         idx = idx[d[idx] > 0]                 # drop self
         return idx[:K]
