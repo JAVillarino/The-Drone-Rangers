@@ -1,5 +1,7 @@
 import ObjectMarker from "./ObjectMarker";
 import map_bg from "../../img/King_Ranch_Zoom.png"
+import pause_btn from "../../img/pause_button.jpg"
+import play_btn from "../../img/play_button.jpg"
 import { useState } from "react";
 /*interface ObjectData {
     id: number,
@@ -26,16 +28,18 @@ interface MapPlotProps {
     onSetTarget: (coords: {x: number, y: number}) => void
     zoomMin: number,
     zoomMax: number,
-    CANVAS_SIZE: number
+    CANVAS_SIZE: number,
+    onPlayPause: () => void
 }
 
 
-export default function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE }: MapPlotProps) {
+export default function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPlayPause }: MapPlotProps) {
     //const width = 1000;
     //const height = 1000;
     if (!data) return <p>No data yet</p>;
 
     const [choosingTarget, setChoosingTarget] = useState(false);
+    const [paused, setPaused] = useState(false);
 
     function scaleCoord(val: number) {
         return ((val - zoomMin) / (zoomMax - zoomMin)) * CANVAS_SIZE;
@@ -43,6 +47,11 @@ export default function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SI
 
     const inverseScaleCoord = (val: number) =>
         (val / CANVAS_SIZE) * (zoomMax - zoomMin) + zoomMin;
+
+    function handlePause() {
+        setPaused(!paused);
+        onPlayPause();
+    }
     
     function handleClick(e: React.MouseEvent<SVGSVGElement, MouseEvent>) {
         if (!e.target) {
@@ -61,8 +70,10 @@ export default function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SI
             <button id="choose-target-btn" onClick={() => setChoosingTarget(true)}>
                 {choosingTarget ? "Click target location on map." : "Choose Target"}
             </button>
+            <button id="play-pause-btn" onClick={handlePause}>
+                {paused ? (<img src={play_btn}/>): (<img src={pause_btn}/>)}
+            </button>
             <svg className="map"  onClick={handleClick}>
-                <image href={map_bg} x={0} y={0} width="100vw" height="100vh" preserveAspectRatio="xMidYMid slice" />
                 {data.flock.map((a, i) => (
                     <ObjectMarker key={`animal-${i}`} type="animal" x={scaleCoord(a[0])} y={scaleCoord(a[1])} />
                 ))}

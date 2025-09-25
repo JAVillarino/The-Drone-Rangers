@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { fetchState, setTarget } from './api/state'
+import { fetchState, setTarget, setPlayPause } from './api/state'
 import MapPlot from './components/MapPlot'
 import './App.css'
 
@@ -60,7 +60,7 @@ function App() {
 
   return (
     <>
-      <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax}/>
+      <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax} onPlayPause={setPlayPause}/>
     </>
   )
 }

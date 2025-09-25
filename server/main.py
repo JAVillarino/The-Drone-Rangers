@@ -12,6 +12,8 @@ app = Flask(__name__)
 
 CORS(app, origins=["http://localhost:5173"])
 
+play = False
+
 flock_size = 50
 
 backend_adapter = world.World(
@@ -39,6 +41,10 @@ def set_target():
 
     backend_adapter.target = np.asarray(data["position"], float)
     return jsonify(backend_adapter.get_state().to_dict())
+
+@app.route("/pause", methods=["POST"])
+def play_pause():
+    backend_adapter.pause()
 
 def run_flask():
     app.run(debug=True, use_reloader=False)  # disable reloader for threads

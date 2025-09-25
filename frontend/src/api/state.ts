@@ -39,3 +39,19 @@ export async function setTarget(coords: {x: number, y: number}) {
         return console.error("Error sending target coords:", err);
     }
 }
+
+export async function setPlayPause() {
+    try {
+        const response = await fetch(`${backendURL}/pause`,
+            {
+                method: "POST",
+                headers: {"Content-Length": "0"},
+
+            }
+
+        );
+        return await response.json()
+    } catch (err) {
+        return console.error("Error playing/pausing.", err);
+    }
+}
