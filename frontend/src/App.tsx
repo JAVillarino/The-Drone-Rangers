@@ -41,22 +41,6 @@ function App() {
   if (error instanceof Error) return <p>Error: {error.message}</p>;
   if (!data) return <p>No data</p>;
 
-  /*useEffect(() => {
-    const fetchState = () => {
-      fetch("http://127.0.0.1:5000/state")
-        .then((response) => response.json())
-        .then((data) => {
-          console.log(data);
-          // setState(data)
-        })
-        .catch((err) => console.error("Error fetching state:", err));
-    };
-  
-    fetchState();
-    const intervalId = setInterval(fetchState, 500);
-    return () => clearInterval(intervalId);
-  }, []);*/
-
   return (
     <>
       <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax}/>

@@ -60,6 +60,8 @@ class World:
         pre_gather: bool = False,
         pre_gather_scale: float = 1.5,
 
+        graze_p: float = 0.05,
+        
         # boundaries (paper: 150×150 field)
         boundary: str = "reflect",
         bounds: tuple[float,float,float,float] = (0.0, 250.0, 0.0, 250.0),
@@ -67,11 +69,6 @@ class World:
         # obstacles
         obstacles: np.ndarray | None = None,  # n-by-2 array of obstacle positions
 
-        # shepherd standoffs (paper)
-        drive_k: float = 1.0,     # r_a * sqrt(N)
-        collect_k: float = 1.0,   # r_a behind stray
-
-        graze_p: float = 0.05,
 
         # rng
         seed: int = 0,
