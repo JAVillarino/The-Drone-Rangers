@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
 from simulation import world
 from planning.herding import policy
 from simulation.scenarios import *
@@ -36,7 +37,48 @@ if __name__ == "__main__":
     dog_xy    = np.array([0.0, 0.0])
     target_xy = np.array([240.0, 240.0])
 
-    W = world.World(sheep_xy, dog_xy, target_xy, seed=args.seed)
+    # Create example polygon obstacles
+    # Rectangle
+    # rect = np.array([
+    #     [80.0, 80.0],
+    #     [120.0, 80.0],
+    #     [120.0, 120.0],
+    #     [80.0, 120.0]
+    # ])
+    
+    # # Triangle
+    # triangle = np.array([
+    #     [150.0, 50.0],
+    #     [180.0, 50.0],
+    #     [165.0, 80.0]
+    # ])
+    
+    # # L-shape
+    # l_shape = np.array([
+    #     [50.0, 150.0],
+    #     [90.0, 150.0],
+    #     [90.0, 170.0],
+    #     [70.0, 170.0],
+    #     [70.0, 200.0],
+    #     [50.0, 200.0]
+    # ])
+    
+    # obstacles_polygons = [rect, triangle, l_shape]
+
+    W = world.World(
+        sheep_xy, dog_xy, target_xy, 
+        seed=args.seed,
+        # # obstacles_polygons=obstacles_polygons,
+        # obstacle_influence=30.0,
+        w_obs=5.0,
+        w_tan=12.0,
+        keep_out=5.0,
+        world_keep_out=5.0,
+        wall_follow_boost=6.0,
+        stuck_speed_ratio=0.08,
+        near_wall_ratio=0.8,
+        microsteps_max=3
+    )
 
     shepherd_policy = policy.ShepherdPolicy(
         fN = W.ra * (W.N ** (2.0/3.0)),   # cohesion radius
@@ -54,6 +96,15 @@ if __name__ == "__main__":
     # draw fence
     ax.plot([xmin,xmax,xmax,xmin,xmin],[ymin,ymin,ymax,ymax,ymin], linestyle="--")
 
+    # # Draw polygon obstacles
+    # polygon_patches = []
+    # for poly in obstacles_polygons:
+    #     # Close the polygon by adding the first vertex at the end
+    #     closed_poly = np.vstack([poly, poly[0]])
+    #     patch = Polygon(closed_poly[:-1], facecolor='red', alpha=0.3, edgecolor='red')
+    #     ax.add_patch(patch)
+        # polygon_patches.append(patch)
+
     state = W.get_state()
     sheep_sc = ax.scatter(state.flock[:,0], state.flock[:,1], s=20)
     dog_sc   = ax.scatter([state.drone[0]],[state.drone[1]], marker='x')
@@ -67,7 +118,7 @@ if __name__ == "__main__":
         state = W.get_state()
         sheep_sc.set_offsets(state.flock)
         dog_sc.set_offsets([state.drone])
-        ax.set_title(f"Step {t}  |  spawn={args.spawn}")
+        ax.set_title(f"Step {t}  |  spawn={args.spawn}  |  {len(state.polygons)} polygons")
         fig.canvas.draw_idle()
         plt.pause(0.01)
 
