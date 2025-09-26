@@ -60,6 +60,8 @@ class World:
         pre_gather: bool = False,
         pre_gather_scale: float = 1.5,
 
+        graze_p: float = 0.05,
+        
         # boundaries (paper: 150×150 field)
         boundary: str = "reflect",
         bounds: tuple[float,float,float,float] = (0.0, 250.0, 0.0, 250.0),
@@ -67,11 +69,6 @@ class World:
         # obstacles
         obstacles: np.ndarray | None = None,  # n-by-2 array of obstacle positions
 
-        # shepherd standoffs (paper)
-        drive_k: float = 1.0,     # r_a * sqrt(N)
-        collect_k: float = 1.0,   # r_a behind stray
-
-        graze_p: float = 0.05,
 
         # rng
         seed: int = 0,
@@ -105,6 +102,9 @@ class World:
         self.graze_p = graze_p
 
         self.rng = np.random.default_rng(seed)
+        
+        # The -2 is because every sheep has n - 1 neighbors and k_nn is 0 indexed.
+        assert(self.k_nn <= self.N - 2)
 
     # ---------- obstacle management ----------
     def add_obstacle(self, position: np.ndarray) -> None:
@@ -145,7 +145,6 @@ class World:
     def _kNN(self, i: int, K: int) -> np.ndarray:
         P = np.stack([s.pos for s in self.sheep], axis=0)
         d = np.linalg.norm(P - P[i], axis=1)
-        K = min(self.N - 2, K+1)
         idx = np.argpartition(d, K+1)[:K+1]   # includes self
         idx = idx[d[idx] > 0]                 # drop self
         return idx[:K]

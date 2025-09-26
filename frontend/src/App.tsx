@@ -12,7 +12,6 @@ interface ObjectData {
 }
 
 function App() {
-  //const [count, setCount] = useState(0);
   const queryClient = useQueryClient();
 
   const CANVAS_SIZE = 500;
@@ -41,22 +40,6 @@ function App() {
   if (isLoading) return <p>Loading...</p>;
   if (error instanceof Error) return <p>Error: {error.message}</p>;
   if (!data) return <p>No data</p>;
-
-  /*useEffect(() => {
-    const fetchState = () => {
-      fetch("http://127.0.0.1:5000/state")
-        .then((response) => response.json())
-        .then((data) => {
-          console.log(data);
-          // setState(data)
-        })
-        .catch((err) => console.error("Error fetching state:", err));
-    };
-  
-    fetchState();
-    const intervalId = setInterval(fetchState, 500);
-    return () => clearInterval(intervalId);
-  }, []);*/
 
   return (
     <>
