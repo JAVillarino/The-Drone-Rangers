@@ -1,4 +1,4 @@
-Okay, now see if I can run the demo. Once I get the demo working, I should see if I can run the overall backend.
+Try to make the aversion work properly.
 
 
 

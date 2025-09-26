@@ -11,7 +11,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--N", type=int, default=100)
     p.add_argument("--spawn", choices=["circle","uniform","clusters","corners","line"],
-                   default="uniform", help="initial sheep distribution")
+                   default="circle", help="initial sheep distribution")
     p.add_argument("--clusters", type=int, default=3, help="#clusters for spawn=clusters")
     p.add_argument("--seed", type=int, default=2)
     p.add_argument("--steps", type=int, default=10000)
@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     # --- choose spawn pattern ---
     if args.spawn == "circle":
-        sheep_xy = spawn_circle(args.N, center=(0,0), radius=5.0, seed=args.seed)
+        sheep_xy = spawn_circle(args.N, center=(100,100), radius=5.0, seed=args.seed)
     elif args.spawn == "uniform":
         sheep_xy = spawn_uniform(args.N, bounds, seed=args.seed)
     elif args.spawn == "clusters":
@@ -38,12 +38,15 @@ if __name__ == "__main__":
 
     W = world.World(sheep_xy, dog_xy, target_xy, seed=args.seed)
 
+    total_area = 0.5 * W.N * (W.ra ** 2)
+    # area = pi * r^2 => r = sqrt(area / pi) (but pi's cancel.)
+    collected_herd_radius = np.sqrt(total_area)
     shepherd_policy = policy.ShepherdPolicy(
-        fN = W.ra * (W.N ** (2.0/3.0)),   # cohesion radius
+        fN = collected_herd_radius,   # cohesion radius
         umax = W.umax,                    # keep in sync with world
-        too_close = 3 * W.ra,             # safety stop
+        too_close = 1.5 * W.ra,             # safety stop
         collect_standoff = 1.0 * W.ra,    # paper: r_a behind the stray
-        drive_standoff   = 1.0 * W.ra * np.sqrt(W.N),  # paper: r_a * sqrt(N) behind COM
+        drive_standoff   = 1.0 * W.ra + collected_herd_radius,  # paper: r_a * sqrt(N) behind COM
     )
 
     # --- live plot ---

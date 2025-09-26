@@ -27,9 +27,9 @@ class World:
         target_xy: list[float],
         *,
         # geometry (paper)
-        ra: float = 2.0,          # agent-agent distance
-        rs: float = 40.0,         # shepherd detection
-        k_nn: int = 51,           # nearest neighbors
+        ra: float = 5.0,          # agent-agent distance
+        rs: float = 65.0,         # shepherd detection
+        k_nn: int = 21,           # nearest neighbors
 
         # timing & speeds (paper: 1 m/ts, dog 1.5 m/ts)
         dt: float = 1.0,
@@ -37,10 +37,10 @@ class World:
         umax: float = 1.5,
 
         # weights (paper-ish)
-        wr: float = 2.0,          # ρ_a repulsion
+        wr: float = 50.0,          # ρ_a repulsion
         wa: float = 1.05,         # c attraction
-        ws: float = 1.0,          # ρ_s dog repulsion
-        wm: float = 0.5,          # h inertia
+        ws: float = 10.0,          # ρ_s dog repulsion
+        wm: float = 20,          # h inertia
         w_align: float = 0.0,     # no alignment in base paper
 
         # far-field grazing
@@ -155,7 +155,9 @@ class World:
         mask = (d > 1e-9) & (d < self.ra)
         if not np.any(mask): 
             return np.zeros(2)
-        vecs = (P[i] - P[mask]) / (d[mask][:, None] + 1e-9)
+        
+        # TODO: Not sure if it's better to do inversely proportional here or just decrease ra and increase the weight that's used. In the paper it looks like they use some kind of relative distance thing.
+        vecs = (P[i] - P[mask]) / (d[mask][:, None] ** 2 + 1)
         return vecs.sum(axis=0)
 
     def _lcm(self, i: int) -> np.ndarray:
@@ -244,11 +246,12 @@ class World:
                     continue
 
                 # Start with a random unit heading so motion never vanishes when far
-                rnd = self.rng.normal(size=2)
-                h = rnd / (np.linalg.norm(rnd) + 1e-9)
+                rnd = self.rng.normal(size=2) * 0.2
+                R  = self._repel_close(i)
+                H = self.wr * R + rnd
 
                 # Normalize final heading and move a FULL grazing step (paper)
-                h = h / (np.linalg.norm(h) + 1e-9)
+                h = norm(H)
                 step = self.vmax * self.dt   # full step when grazing moves
             else:
                 # NEAR: full flocking under pressure (distance-scaled dog push)
