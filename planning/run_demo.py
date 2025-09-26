@@ -9,7 +9,7 @@ from simulation.scenarios import *
 # ---------- main ----------
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--N", type=int, default=100)
+    p.add_argument("--N", type=int, default=200)
     p.add_argument("--spawn", choices=["circle","uniform","clusters","corners","line"],
                    default="circle", help="initial sheep distribution")
     p.add_argument("--clusters", type=int, default=3, help="#clusters for spawn=clusters")
