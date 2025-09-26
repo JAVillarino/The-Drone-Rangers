@@ -1,5 +1,8 @@
 #root {
-  margin: 0;
+  /*max-width: 1280px;*/
+  height: 100vh;
+  width: 100vw;
+  margin: 0 auto;
   padding: 0;
 }
 
@@ -38,14 +41,37 @@ polygon.drone {
 }
 
 .map {
-  height: 100vh;
-  width: 100vw;
+  height: 95%;
+  width: 100%;
+}
+
+.map-container {
+  height: 100%;
+  width: 100%;
+  background-image: url("../img/King_Ranch_Zoom.png");
+  background-size: cover;
 }
 
 #choose-target-btn {
-  position: absolute;
+  position:relative;
   top: 0;
   left: 0;
   background-color: rgba(0, 0, 0, 0);
   color: white;
+  height: 5%;
+}
+
+#play-pause-btn {
+  max-height: 30px;
+  max-width: 30px;
+  padding: 0;
+  border-radius: 0;
+}
+
+#play-pause-btn img {
+  align-items: center;
+  justify-content: center;
+
+  max-height: 20px;
+  max-width: 20px;
 }

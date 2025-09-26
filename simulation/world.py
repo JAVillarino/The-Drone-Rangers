@@ -60,18 +60,15 @@ class World:
         pre_gather: bool = False,
         pre_gather_scale: float = 1.5,
 
-        # boundaries (paper: 150×150 field)
+        graze_p: float = 0.05,
+        
+        # boundaries
         boundary: str = "reflect",
         bounds: tuple[float,float,float,float] = (0.0, 250.0, 0.0, 250.0),
         restitution: float = 0.85,
         # obstacles
         obstacles: np.ndarray | None = None,  # n-by-2 array of obstacle positions
 
-        # shepherd standoffs (paper)
-        drive_k: float = 1.0,     # r_a * sqrt(N)
-        collect_k: float = 1.0,   # r_a behind stray
-
-        graze_p: float = 0.05,
 
         # rng
         seed: int = 0,
@@ -80,6 +77,7 @@ class World:
         self.sheep = [Sheep(sheep_xy[i]) for i in range(self.N)]
         self.dog = np.asarray(shepherd_xy, float)
         self.target = np.asarray(target_xy, float)
+        self.paused = False
         
         # obstacles
         self.obstacles = obstacles if obstacles is not None else np.empty((0, 2))
@@ -283,16 +281,17 @@ class World:
 
     # ---------- public API ----------
     def step(self, plan: Plan):
-        self._sheep_step()
+        if not self.paused:
+            self._sheep_step()
         
-        # Use the plan to update the position of the shepherd.
-        match plan:
-            case DoNothing():
-                pass
-            case DronePosition(position=pos):
-                self.dog = self._apply_bounds_point(pos)
-            case _ as unexpected_plan:
-                raise Exception("Unexpected plan type", unexpected_plan)
+            # Use the plan to update the position of the shepherd.
+            match plan:
+                case DoNothing():
+                    pass
+                case DronePosition(position=pos):
+                    self.dog = self._apply_bounds_point(pos)
+                case _ as unexpected_plan:
+                    raise Exception("Unexpected plan type", unexpected_plan)
 
     def get_state(self) -> state.State:
         return state.State(
@@ -300,4 +299,8 @@ class World:
             drone=self.dog.copy(),
             target=self.target.copy(),
             obstacles=self.obstacles.copy() if self.obstacles.size > 0 else None,
+            #paused=self.paused
         )
+    
+    def pause(self):
+        self.paused = not self.paused

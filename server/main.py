@@ -6,11 +6,12 @@ from simulation import world
 import time
 import threading
 import numpy as np
-from dataclasses import asdict
 
 app = Flask(__name__)
 
 CORS(app, origins=["http://localhost:5173"])
+
+play = False
 
 flock_size = 50
 
@@ -21,6 +22,7 @@ backend_adapter = world.World(
     boundary="none",
     dt=0.1,
     k_nn=48,
+    wa=10,
 )
 policy = herding.ShepherdPolicy(
     fN=backend_adapter.ra * backend_adapter.N ** (2.0/3.0),
@@ -42,6 +44,10 @@ def set_target():
 
     backend_adapter.target = np.asarray(data["position"], float)
     return jsonify(backend_adapter.get_state().to_dict())
+
+@app.route("/pause", methods=["POST"])
+def play_pause():
+    backend_adapter.pause()
 
 def run_flask():
     app.run(debug=True, use_reloader=False)  # disable reloader for threads
