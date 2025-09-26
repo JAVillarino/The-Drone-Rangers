@@ -30,7 +30,9 @@ export async function setTarget(coords: {x: number, y: number}) {
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(coords)
+                body: JSON.stringify({
+                    "position": [coords.x, coords.y]
+                })
             }
         );
         
