@@ -31,10 +31,19 @@ class ShepherdPolicy:
         return G - ghat * self.drive_standoff
 
     def _collect_point(self, world: state.State, G: np.ndarray) -> np.ndarray:
-        dists = np.array([np.linalg.norm(s - G) for s in world.flock])
-        j = int(np.argmax(dists))
-        c = norm(G - world.flock[j])
-        return world.flock[j] - c * self.collect_standoff
+        P = world.flock                         # (N,2)
+        D = world.drone                         # (2,)
+
+        dG = np.linalg.norm(P - G, axis=1)      # distance to global COM
+        dD = np.linalg.norm(P - D, axis=1)      # distance to dog
+
+        score = dG - 0.5 * dD    # your trade-off
+        j = int(np.argmax(score))               # winning sheep index
+
+        # point behind that sheep, pointing toward G
+        dir_to_G = G - P[j]
+        c = dir_to_G / (np.linalg.norm(dir_to_G) + 1e-9)
+        return P[j] - c * self.collect_standoff
 
     def plan(self, world: state.State, dt: float) -> Plan:
         """Return None if no update should be made."""
