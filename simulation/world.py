@@ -62,7 +62,7 @@ class World:
 
         graze_p: float = 0.05,
         
-        # boundaries (paper: 150×150 field)
+        # boundaries
         boundary: str = "reflect",
         bounds: tuple[float,float,float,float] = (0.0, 250.0, 0.0, 250.0),
         restitution: float = 0.85,
