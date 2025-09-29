@@ -51,7 +51,11 @@ class World:
 
         # far-field grazing
         graze_alpha: float = 0.0,   # paper doesn't add separate wander
-        inertia_alpha: float = 0.0, # while grazing
+
+        ##
+        inertia_far: float = 1.0, # while grazing
+        inertia_drop_far: float = 0.05, 
+        ##
 
         # global tug
         g_tug: float = 0.0,       # off in base paper
@@ -109,7 +113,7 @@ class World:
         self.ra, self.rs, self.k_nn = ra, rs, k_nn
         self.dt, self.vmax, self.umax = dt, vmax, umax
         self.wr, self.wa, self.ws, self.wm, self.w_align = wr, wa, ws, wm, w_align
-        self.graze_alpha, self.inertia_alpha = graze_alpha, inertia_alpha
+        self.graze_alpha, self.inertia_far, self.inertia_drop_far = graze_alpha, inertia_far, inertia_drop_far
         self.g_tug, self.sigma = g_tug, sigma
 
         # Cache squared distances for performance
@@ -510,13 +514,16 @@ class World:
     def _handle_far_sheep(self, far_mask: np.ndarray, G: np.ndarray):
         """Handle sheep that are far from the dog (grazing behavior)."""
         far_indices = np.where(far_mask)[0]
-        
+
+        alpha = np.exp(-self.dt / 7.0)
+
         for i in far_indices:
-            # Bernoulli: move with probability p while grazing  
+            # Bernoulli: move with probability p while grazing
             if self.graze_p < 1.0 and self.rng.random() > self.graze_p:
-                self.V[i] = 0.0
+                self.V[i] *= alpha  # smooth decay
+                self.P[i] += self.V[i] * self.dt
                 continue
-            
+
             # Start with a random unit heading so motion never vanishes when far
             rnd = self.rng.normal(size=2) * 0.2
             R  = self._repel_close_vec(i)
@@ -524,7 +531,6 @@ class World:
 
             # Normalize final heading and move a FULL grazing step (paper)
             h = norm(H)
-            step = self.vmax * self.dt   # full step when grazing moves
             
             # Obstacle handling for far sheep
             if self.polys:
@@ -558,11 +564,15 @@ class World:
             if Hn > 0:
                 h = H / Hn
             
-            # Full grazing step
-            step = self.vmax * self.dt
-            new_pos = self.P[i] + step * h
-            self.V[i] = (new_pos - self.P[i]) / self.dt
-            self.P[i] = new_pos
+            # Momentum update
+            v_des = self.vmax * h
+            v_new = alpha * self.V[i] + (1.0 - alpha) * v_des
+            sp = np.linalg.norm(v_new)
+            if sp > self.vmax:
+                v_new *= (self.vmax / sp)
+
+            self.P[i] += v_new * self.dt
+            self.V[i]  = v_new
     
     def _handle_near_sheep(self, near_mask: np.ndarray, D: np.ndarray, G: np.ndarray, near_distances: np.ndarray):
         """Handle sheep that are near the dog (flocking behavior)."""
