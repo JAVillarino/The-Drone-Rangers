@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import List, Optional
 
 import numpy as np
 
@@ -13,14 +14,14 @@ class State:
     # 1-by-2 of the position of the drone.
     target: np.ndarray | None
     
-    # n-by-2 of the positions of dynamic obstacles.
-    obstacles: np.ndarray | None = None
+    # List of polygon obstacles, each polygon is (m,2) array of vertices.
+    polygons: List[np.ndarray]
     
     def to_dict(self) -> dict:
         return {
             "flock": self.flock.tolist(),
             "drone": self.drone.tolist(),
             "target": None if self.target is None else self.target.tolist(),
-            "obstacles": None if self.obstacles is None else self.obstacles.tolist(),
+            "polygons": [poly.tolist() for poly in self.polygons],
         }
 

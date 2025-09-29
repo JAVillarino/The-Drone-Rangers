@@ -6,7 +6,6 @@ from simulation import world
 import time
 import threading
 import numpy as np
-from dataclasses import asdict
 
 app = Flask(__name__)
 
