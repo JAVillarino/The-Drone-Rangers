@@ -604,9 +604,6 @@ class World:
             # Combine forces
             H = self.wr*R + self.wa*A + self.ws*S + self.wm*prev + self.w_align*AL
             
-            # Add soft push *and* tangent only if heading into the wall
-            H_raw = H.copy()
-
             # Normal push (already weighted by distance ramp)
             H += self.w_obs * nrm[idx]
 
