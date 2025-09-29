@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { fetchState, setTarget, setPlayPause } from './api/state'
+import { fetchState, setTarget, setPlayPause, requestRestart } from './api/state'
 import MapPlot from './components/MapPlot'
 import './App.css'
 
@@ -14,10 +14,10 @@ interface ObjectData {
 function App() {
   const queryClient = useQueryClient();
 
-  const CANVAS_SIZE = 500;
+  const CANVAS_SIZE = 600;
 
-  const worldMin = -40;
-  const worldMax = 40;
+  const worldMin = -60;
+  const worldMax = 60;
 
   const { data, isLoading, error } = useQuery<ObjectData>({
     queryKey: ["objects"],
@@ -43,9 +43,10 @@ function App() {
 
   return (
     <>
-      <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax} onPlayPause={setPlayPause}/>
+      <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax} onPlayPause={setPlayPause} onRestart={requestRestart}/>
     </>
   )
+
 }
 
 export default App
