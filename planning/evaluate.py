@@ -14,40 +14,19 @@ from simulation.scenarios import spawn_circle, spawn_uniform, spawn_clusters, sp
 from datetime import datetime
 import os
 import time
+from itertools import product
 
-# TODO: N varies for different configs.
-config = {
+import matplotlib.pyplot as plt
+
+base_config = {
     ## Evaluation Parameters
-    "trials": 5,
     "max_steps": 6000,
-    "success_radius": 10.0,
-
-    ## Simulation Parameters
-    "N": 40,
+    "boundary": "none",
     "clusters": 3,
-
-    ## World/Behavior Tweaks
-    "rs": 14.0,
-    "wa": 0.7,
-    "ws": 1.0,
-    "w_align": 0.5,
-    "boundary": "reflect",
-
-    ## Far-Field Knobs (usually off to prevent self-gathering)
-    "wa_far": 0.0,
-    "g_tug_far": 0.0,
-    "wr_far": 0.25,
-    "pre_gather": False,
-
-    ## Shepherd Policy Parameters
-    "umax": 2.2,
-    "too_close_factor": 3.0,
-    "collect_standoff_factor": 1.2,
-    "drive_standoff_factor": 0.8,
 }
 
 
-def run_one_trial(config, spawn_type, seed, current_trial, total_trials):
+def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visualize=False):
     """
     Initializes and runs a single simulation trial for one scenario and seed.
     Returns a tuple: (was_successful, steps_taken).
@@ -58,114 +37,120 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials):
 
     # Spawn sheep based on the specified scenario
     if spawn_type == "circle":
-        sheep_xy = spawn_circle(config.N, center=(0, 0), radius=5.0, seed=seed)
+        sheep_xy = spawn_circle(config["N"], center=(0, 0), radius=5.0, seed=seed)
     elif spawn_type == "uniform":
-        sheep_xy = spawn_uniform(config.N, bounds, seed=seed)
+        sheep_xy = spawn_uniform(config["N"], bounds, seed=seed)
     elif spawn_type == "clusters":
-        sheep_xy = spawn_clusters(config.N, config.clusters, bounds, spread=4.0, seed=seed)
+        sheep_xy = spawn_clusters(config["N"], config["clusters"], bounds, spread=4.0, seed=seed)
     elif spawn_type == "corners":
-        sheep_xy = spawn_corners(config.N, bounds, jitter=2.0, seed=seed)
+        sheep_xy = spawn_corners(config["N"], bounds, jitter=2.0, seed=seed)
     else:  # line
-        sheep_xy = spawn_line(config.N, bounds, seed=seed)
+        sheep_xy = spawn_line(config["N"], bounds, seed=seed)
 
-    dog_xy = np.array([xmin + 5.0, 0.0])
+    dog_xy = np.array([xmin + 5.0, ymin + 5.0])
     target_xy = np.array([xmax - 5.0, ymax - 5.0])
 
     # Build world with simulation parameters
     world_kwargs = {
-        "rs": config.rs, "wa": config.wa, "ws": config.ws, "w_align": config.w_align,
-        "wa_far": config.wa_far, "g_tug_far": config.g_tug_far, "wr_far": config.wr_far,
-        "pre_gather": config.pre_gather, "boundary": config.boundary, "bounds": bounds,
-        "seed": seed,
+        **config, "bounds": bounds, "seed": seed,
     }
     W = world.World(sheep_xy, dog_xy, target_xy, **world_kwargs)
 
     # Initialize the herding policy
+    total_area = 0.5 * W.N * (W.ra ** 2)
+    # area = pi * r^2 => r = sqrt(area / pi) (but pi's cancel.)
+    collected_herd_radius = np.sqrt(total_area)
     shepherd_policy = policy.ShepherdPolicy(
-        fN=W.ra * W.N ** (2.0 / 3.0),
-        umax=config.umax,
-        too_close=config.too_close_factor * W.ra,
-        collect_standoff=config.collect_standoff_factor * W.ra,
-        drive_standoff=config.drive_standoff_factor * W.ra * np.sqrt(sheep_xy.shape[0])
+        fN = collected_herd_radius,
+        umax = W.umax,
+        # TODO: Initialize these from the config.
+        too_close = 1.5 * W.ra,
+        collect_standoff = 1.0 * W.ra,
+        drive_standoff   = 1.0 * W.ra + collected_herd_radius,
     )
+    
+    if visualize:
+        plt.ion()
+        fig, ax = plt.subplots(figsize=(6,6))
+        ax.set_aspect('equal'); ax.grid(True)
+        ax.set_xlim(xmin, xmax); ax.set_ylim(ymin, ymax)
+        # draw fence
+        ax.plot([xmin,xmax,xmax,xmin,xmin],[ymin,ymin,ymax,ymax,ymin], linestyle="--")
+
+        state = W.get_state()
+        sheep_sc = ax.scatter(state.flock[:,0], state.flock[:,1], s=20)
+        dog_sc   = ax.scatter([state.drone[0]],[state.drone[1]], marker='x')
+        targ_sc  = ax.scatter([state.target[0]],[state.target[1]], marker='*')
+
 
     # Main simulation loop for this trial
-    for t in range(config.max_steps):
-        # Print the progress on a single line
-        progress_str = (
-            f"  Trial {current_trial + 1:>2}/{total_trials} | "
-            f"Step: {t + 1:<5}/{config.max_steps}"
-        )
-        print(progress_str, end='\r', flush=True)
-
+    for t in range(config["max_steps"]):
         plan = shepherd_policy.plan(W.get_state(), W.dt)
         W.step(plan)
 
         # Check for success condition
         state = W.get_state()
-        flock_com = np.mean(state.flock, axis=0)
-        dist_to_target = np.linalg.norm(flock_com - state.target)
+        farthest = np.max(np.linalg.norm(state.flock - state.target, axis=0))
 
-        if dist_to_target < config.success_radius:
+        if farthest < config["success_radius"]:
             return True, t  # Success!
+        
+        if visualize:
+            state = W.get_state()
+            sheep_sc.set_offsets(state.flock)
+            dog_sc.set_offsets([state.drone])
+            fig.canvas.draw_idle()
+            plt.pause(0.05)
+            
+        # Print the progress on a single line
+        progress_str = (
+            f"  Trial {current_trial + 1:>2}/{total_trials} | "
+            f"Step: {t + 1:<5}/{config['max_steps']}, "
+            f"Flock Distance: {farthest:.0f}/{config['success_radius']:.0f}"
+        )
+        print(progress_str, end='\r', flush=True)
+    
+    plt.ioff()
+    plt.show()
 
-    return False, config.max_steps  # Failure due to timeout
 
-# ---------- Main Execution Block ----------
+    return False, config["max_steps"]  # Failure due to timeout
+
 
 if __name__ == "__main__":
-    trials = 5
     out_dir = "./planning/results"
     os.makedirs(out_dir, exist_ok=True)
 
     date = datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
-    params_log_file = f"{out_dir}/{date}--evaluation_params.log"
-    with open(params_log_file, "w+") as f:
-        f.write("--- Evaluation Parameters ---\n")
-        config_vars = {k: v for k, v in vars(config).items() if not k.startswith('__')}
-        for key, value in config_vars.items():
-            f.write(f"{key:<25}: {value}\n")
-    print(f"Parameters for this run have been saved to '{params_log_file}'")
 
     # Run the evaluation and collect trial-by-trial data
+    Ns = [40, 80, 120]
+    spawn_types = ["uniform", "circle", "clusters"]
+    seeds = range(5)
     scenarios_to_run = [
-        "uniform",
-        "clusters",
-        # "corners",
-        # "line",
-        # "circle"
+        {**base_config, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (2/3) * 6 }
+        for N, pattern, seed in product(Ns, spawn_types, seeds)
     ]
-    trial_results_list = []
-    total_trials_to_run = len(scenarios_to_run) * trials
 
-    print(f"\nRunning evaluation: {len(scenarios_to_run)} scenarios, {trials} trials each ({total_trials_to_run} total).")
+    trial_results_list = []
+
+    print(f"\nRunning evaluation: {len(scenarios_to_run)} scenarios.")
     print("-" * 65)
 
-    for s_idx, spawn_type in enumerate(scenarios_to_run):
-        print(f"Running Scenario: {spawn_type.upper()}...")
-        for i in range(trials):
-            # Time the execution of a single trial
-            start_time = time.perf_counter()
-            success, completion_steps = run_one_trial(config, spawn_type, seed=i, current_trial=i, total_trials=trials)
-            end_time = time.perf_counter()
-            trial_duration = end_time - start_time
+    for s_idx, config in enumerate(scenarios_to_run):
+        # print(f"Running Scenario: {spawn_type.upper()}...")
+        # Time the execution of a single trial
+        start_time = time.perf_counter()
+        success, completion_steps = run_one_trial(config, config["spawn_type"], config["seed"], s_idx, len(scenarios_to_run))
+        end_time = time.perf_counter()
+        trial_duration = end_time - start_time
 
-            trial_results_list.append({
-                "Scenario": spawn_type,
-                "Seed": i,
-                "Success": success,
-                "Completion Steps": completion_steps if success else np.nan,
-                "Wall Time (s)": trial_duration,
-            })
-
-            # After the very first trial, compute and print the ETA
-            if i == 0 and s_idx == 0:
-                estimated_total_seconds = trial_duration * total_trials_to_run
-                mins, secs = divmod(estimated_total_seconds, 60)
-                print(f"  First trial took {trial_duration:.2f}s. Estimated total runtime: ~{int(mins)}m {int(secs)}s")
-
-        print(f"  Finished all {trials} trials for {spawn_type}.{' '*20}")
-
+        trial_results_list.append({
+            "Success": success,
+            "Completion Steps": completion_steps if success else np.nan,
+            "Wall Time (s)": trial_duration,
+            **config
+        })
 
     # Create and save the detailed, trial-by-trial DataFrame
     trials_df = pd.DataFrame(trial_results_list)
@@ -174,8 +159,8 @@ if __name__ == "__main__":
     print(f"\nTrial-by-trial results saved to '{output_csv_file}'")
 
     # Generate and print the aggregate summary from the detailed DataFrame
-    summary_df = trials_df.groupby('Scenario').agg(
-        Trials=('Seed', 'count'),
+    summary_df = trials_df.groupby('spawn_type').agg(
+        Trials=('seed', 'count'),
         Successes=('Success', 'sum'),
         Avg_Steps=('Completion Steps', 'mean'),
         Avg_Wall_Time=('Wall Time (s)', 'mean')
@@ -184,7 +169,7 @@ if __name__ == "__main__":
     # Format for printing
     summary_df['Success Rate'] = (summary_df['Successes'] / summary_df['Trials'])
     summary_df['Successes'] = summary_df.apply(lambda row: f"{row['Successes']}/{row['Trials']}", axis=1)
-    summary_df = summary_df[['Scenario', 'Successes', 'Success Rate', 'Avg_Steps', 'Avg_Wall_Time']]
+    summary_df = summary_df[['spawn_type', 'Successes', 'Success Rate', 'Avg_Steps', 'Avg_Wall_Time']]
     summary_df.rename(columns={'Avg_Steps': 'Avg Steps', 'Avg_Wall_Time': 'Avg Time (s)'}, inplace=True)
 
     print("\n" + "="*85)

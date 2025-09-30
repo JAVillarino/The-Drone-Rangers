@@ -33,7 +33,7 @@ class World:
         target_xy: list[float],
         *,
         # geometry (paper)
-        ra: float = 5.0,          # agent-agent distance
+        ra: float = 4.0,          # agent-agent distance
         rs: float = 65.0,         # shepherd detection
         k_nn: int = 21,           # nearest neighbors
 
@@ -69,7 +69,7 @@ class World:
         graze_p: float = 0.05,
         
         # boundaries
-        boundary: str = "reflect",
+        boundary: str = "none",
         bounds: tuple[float,float,float,float] = (0.0, 250.0, 0.0, 250.0),
         restitution: float = 0.85,
         
@@ -87,6 +87,7 @@ class World:
 
         # rng
         seed: int = 0,
+        **_kw_ignore,
     ):
         self.N = sheep_xy.shape[0]
         
