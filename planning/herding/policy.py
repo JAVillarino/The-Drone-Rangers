@@ -54,7 +54,6 @@ class ShepherdPolicy:
 
         G = self._gcm(world)
         is_cohesive = self._cohesive(world, G)
-        print(is_cohesive)
         P = self._drive_point(world, G) if is_cohesive else self._collect_point(world, G)
 
         # move toward chosen point and apply boundary
