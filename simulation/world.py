@@ -146,11 +146,19 @@ class World:
         self.rng = np.random.default_rng(seed)
         
         # The -2 is because every sheep has n - 1 neighbors and k_nn is 0 indexed.
-        assert(self.k_nn <= self.N - 2)
+        assert self.k_nn <= self.N - 1
         
         # Sanitize initial positions if polygons exist
         if self.polys:
             self._sanitize_initial_positions()
+
+        # Neighbor cache and movement tracking
+        self.nb_idx = -np.ones((self.N, self.k_nn), dtype=np.int32)
+        self.prev_P = self.P.copy()
+        self._rr_cursor = 0
+        self.eps_move = max(1e-6, 0.4*self.ra)
+        # Auto-toggle: enable cache for large flocks only
+        self.use_neighbor_cache = (self.N >= 512)
 
     # ---------- polygon management ----------
     def add_polygon(self, polygon: np.ndarray) -> None:
@@ -366,19 +374,20 @@ class World:
         d_wall, n_wall = self._rect_signed_distance(self.P)
         penetration = self.world_keep_out - d_wall  # positive when inside band
         mask = penetration > 0.0
+        if not np.any(mask):
+            return
         
-        if np.any(mask):
-            # Cap correction to a fraction of a normal step to avoid jumps
-            max_corr = 0.25 * (self.vmax * self.dt)  # 25% of a frame's move
-            corr = np.minimum(penetration[mask], max_corr)
-            
-            self.P[mask] += corr[:, None] * n_wall[mask]
-            
-            # Reflect only if velocity is heading into the wall
-            v_into = np.sum(self.V[mask] * n_wall[mask], axis=1)
-            neg = v_into < 0.0
-            if np.any(neg):
-                self.V[mask][neg] -= (1.0 + self.restitution) * v_into[neg, None] * n_wall[mask][neg]
+        # Cap correction to a fraction of a normal step to avoid jumps
+        max_corr = 0.25 * (self.vmax * self.dt)  # 25% of a frame's move
+        corr = np.minimum(penetration[mask], max_corr)
+        
+        self.P[mask] += corr[:, None] * n_wall[mask]
+        
+        # Reflect only if velocity is heading into the wall
+        v_into = np.sum(self.V[mask] * n_wall[mask], axis=1)
+        neg = v_into < 0.0
+        if np.any(neg):
+            self.V[mask][neg] -= (1.0 + self.restitution) * v_into[neg, None] * n_wall[mask][neg]
 
 
 
@@ -393,42 +402,65 @@ class World:
         if NUMBA_AVAILABLE:
             return _kNN_numba(self.P, i, K)
         else:
-            d = np.sqrt(np.sum((self.P - self.P[i])**2, axis=1))
-            idx = np.argpartition(d, K+1)[:K+1]   # includes self
-            idx = idx[d[idx] > 0]                 # drop self
+            d2 = np.sum((self.P - self.P[i])**2, axis=1)
+            idx = np.argpartition(d2, K+1)[:K+1]
+            idx = idx[d2[idx] > 0]
             return idx[:K]
+        return idx[:K]
 
     def _repel_close_vec(self, i: int) -> np.ndarray:
         """Vectorized repulsion from close neighbors using contiguous arrays."""
         if NUMBA_AVAILABLE:
             return _repel_close_numba(self.P, i, self.ra)
         else:
-            # Calculate squared distances to all other agents (avoid sqrt)
             d_sq = np.sum((self.P - self.P[i])**2, axis=1)
             mask = (d_sq > 1e-18) & (d_sq < self.ra_sq)
-            
-            if not np.any(mask): 
+            if not np.any(mask):
                 return np.zeros(2)
-            
-            # TODO: Not sure if it's better to do inversely proportional here or just decrease ra and increase the weight that's used. In the paper it looks like they use some kind of relative distance thing. Right now the magnitude of the repulsion is d / (d^2 + 1), which is kind of a random function to pick.
-            inv_d = 1.0 / (d_sq + 1)
-            vecs = (self.P[i] - self.P[mask]) * inv_d[:, None]
+            d_vec = self.P[mask] - self.P[i]
+            d = np.sqrt(np.sum(d_vec**2, axis=1)) + 1e-9
+            inv_d = 1.0 / d
+            vecs = -(d_vec * inv_d[:, None])
             return vecs.sum(axis=0)
+        d = np.sqrt(np.sum(d_vec**2, axis=1)) + 1e-9
+        inv_d = 1.0 / d
+        vecs = -(d_vec * inv_d[:, None])
+        return vecs.sum(axis=0)
 
     def _lcm_vec(self, i: int) -> np.ndarray:
         """Vectorized local center of mass calculation using contiguous arrays."""
-        idx = self._kNN_vec(i, self.k_nn)
-        if idx.size == 0:
-            return self.P[i].copy()
-        return np.mean(self.P[idx], axis=0)
+        if self.use_neighbor_cache:
+            idx = self.nb_idx[i]; k = np.count_nonzero(idx >= 0)
+            if k == 0:
+                # Fallback to base path if cache empty
+                idx2 = self._kNN_vec(i, self.k_nn)
+                if idx2.size == 0:
+                    return self.P[i].copy()
+                return np.mean(self.P[idx2], axis=0)
+            return np.mean(self.P[idx[:k]], axis=0)
+        else:
+            idx = self._kNN_vec(i, self.k_nn)
+            if idx.size == 0:
+                return self.P[i].copy()
+            return np.mean(self.P[idx], axis=0)
 
     def _align_vec(self, i: int) -> np.ndarray:
         """Vectorized velocity alignment calculation using contiguous arrays."""
-        idx = self._kNN_vec(i, self.k_nn)
-        if idx.size == 0:
-            return np.zeros(2)
-        
-        vbar = np.mean(self.V[idx], axis=0)
+        if self.use_neighbor_cache:
+            idx = self.nb_idx[i]; k = np.count_nonzero(idx >= 0)
+            if k == 0:
+                # Fallback to base path if cache empty
+                idx2 = self._kNN_vec(i, self.k_nn)
+                if idx2.size == 0:
+                    return np.zeros(2)
+                vbar = np.mean(self.V[idx2], axis=0)
+            else:
+                vbar = np.mean(self.V[idx[:k]], axis=0)
+        else:
+            idx = self._kNN_vec(i, self.k_nn)
+            if idx.size == 0:
+                return np.zeros(2)
+            vbar = np.mean(self.V[idx], axis=0)
         vbar_norm = np.sqrt(np.sum(vbar**2))
         
         if vbar_norm == 0:
@@ -663,6 +695,8 @@ class World:
     # ---------- public API ----------
     def step(self, plan: Plan):
         if not self.paused:
+            if self.use_neighbor_cache:
+                self._refresh_neighbors()
             self._sheep_step()
         
             # Use the plan to update the position of the shepherd.
@@ -685,61 +719,27 @@ class World:
     def pause(self):
         self.paused = not self.paused
 
-
-# Numba-optimized functions (defined outside class)
-@njit
-def _kNN_numba(P: np.ndarray, i: int, K: int) -> np.ndarray:
-    """Numba-optimized k-nearest neighbors."""
-    N = P.shape[0]
-    distances = np.empty(N, dtype=np.float64)
-    
-    # Calculate squared distances to avoid sqrt
-    for j in range(N):
-        dx = P[j, 0] - P[i, 0]
-        dy = P[j, 1] - P[i, 1]
-        distances[j] = dx*dx + dy*dy
-    
-    # Find K+1 smallest (includes self)
-    indices = np.empty(K, dtype=np.int32)
-    count = 0
-    
-    for _ in range(K+1):
-        min_idx = -1
-        min_dist = np.inf
-        for j in range(N):
-            if distances[j] < min_dist:
-                min_dist = distances[j]
-                min_idx = j
-        
-        if min_idx != i and count < K:  # skip self
-            indices[count] = min_idx
-            count += 1
-        distances[min_idx] = np.inf  # mark as used
-        
-    return indices[:count]
-
-@njit
-def _repel_close_numba(P: np.ndarray, i: int, ra: float) -> np.ndarray:
-    """Numba-optimized repulsion calculation using squared distances."""
-    repulsion = np.zeros(2, dtype=np.float64)
-    pos_i = P[i]
-    ra_sq = ra * ra
-    
-    for j in range(P.shape[0]):
-        if i == j:
-            continue
-            
-        dx = pos_i[0] - P[j, 0]
-        dy = pos_i[1] - P[j, 1]
-        d_sq = dx*dx + dy*dy
-        
-        if d_sq > 1e-18 and d_sq < ra_sq:
-            d = np.sqrt(d_sq)
-            inv_d = 1.0 / (d + 1e-9)
-            repulsion[0] += dx * inv_d
-            repulsion[1] += dy * inv_d
-            
-    return repulsion
+    def _refresh_neighbors(self):
+        if not self.use_neighbor_cache:
+            return
+        moved = np.sqrt(np.sum((self.P - self.prev_P)**2, axis=1)) > self.eps_move
+        batch = np.zeros(self.N, dtype=bool)
+        half = max(1, self.N // 12)
+        # If very few moved, shrink batch further
+        if np.count_nonzero(moved) < max(2, self.N // 20):
+            half = max(1, self.N // 16)
+        start = self._rr_cursor
+        end = min(self._rr_cursor + half, self.N)
+        batch[start:end] = True
+        self._rr_cursor = 0 if end >= self.N else end
+        need = moved | batch
+        if not np.any(need):
+            return
+        idxs = np.where(need)[0]
+        # Use fast NumPy argpartition path for kNN refresh to minimize overhead
+        for i in idxs:
+            self.nb_idx[i, :self.k_nn] = self._kNN_vec(i, self.k_nn)
+        self.prev_P[need] = self.P[need]
 
 
 @njit
@@ -817,3 +817,58 @@ def _closest_point_on_polygon_numba(P: np.ndarray, V: np.ndarray, E: np.ndarray,
             s[i] = -s[i]
     
     return Q, n, s
+
+# Numba-optimized functions (defined outside class)
+@njit
+def _kNN_numba(P: np.ndarray, i: int, K: int) -> np.ndarray:
+    """Numba-optimized k-nearest neighbors."""
+    N = P.shape[0]
+    distances = np.empty(N, dtype=np.float64)
+    
+    # Calculate squared distances to avoid sqrt
+    for j in range(N):
+        dx = P[j, 0] - P[i, 0]
+        dy = P[j, 1] - P[i, 1]
+        distances[j] = dx*dx + dy*dy
+    
+    # Find K+1 smallest (includes self)
+    indices = np.empty(K, dtype=np.int32)
+    count = 0
+    
+    for _ in range(K+1):
+        min_idx = -1
+        min_dist = np.inf
+        for j in range(N):
+            if distances[j] < min_dist:
+                min_dist = distances[j]
+                min_idx = j
+        
+        if min_idx != i and count < K:  # skip self
+            indices[count] = min_idx
+            count += 1
+        distances[min_idx] = np.inf  # mark as used
+        
+    return indices[:count]
+
+@njit
+def _repel_close_numba(P: np.ndarray, i: int, ra: float) -> np.ndarray:
+    """Numba-optimized repulsion calculation using squared distances."""
+    repulsion = np.zeros(2, dtype=np.float64)
+    pos_i = P[i]
+    ra_sq = ra * ra
+    
+    for j in range(P.shape[0]):
+        if i == j:
+            continue
+            
+        dx = pos_i[0] - P[j, 0]
+        dy = pos_i[1] - P[j, 1]
+        d_sq = dx*dx + dy*dy
+        
+        if d_sq > 1e-18 and d_sq < ra_sq:
+            d = np.sqrt(d_sq)
+            inv_d = 1.0 / (d + 1e-9)
+            repulsion[0] += dx * inv_d
+            repulsion[1] += dy * inv_d
+            
+    return repulsion
