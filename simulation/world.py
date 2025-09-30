@@ -52,11 +52,6 @@ class World:
         # far-field grazing
         graze_alpha: float = 0.0,   # paper doesn't add separate wander
 
-        ##
-        inertia_far: float = 1.0, # while grazing
-        inertia_drop_far: float = 0.05, 
-        ##
-
         # global tug
         g_tug: float = 0.0,       # off in base paper
 
@@ -114,7 +109,7 @@ class World:
         self.ra, self.rs, self.k_nn = ra, rs, k_nn
         self.dt, self.vmax, self.umax = dt, vmax, umax
         self.wr, self.wa, self.ws, self.wm, self.w_align = wr, wa, ws, wm, w_align
-        self.graze_alpha, self.inertia_far, self.inertia_drop_far = graze_alpha, inertia_far, inertia_drop_far
+        self.graze_alpha = graze_alpha
         self.g_tug, self.sigma = g_tug, sigma
 
         # Cache squared distances for performance
@@ -516,12 +511,12 @@ class World:
         """Handle sheep that are far from the dog (grazing behavior)."""
         far_indices = np.where(far_mask)[0]
 
-        alpha = np.exp(-self.dt / 7.0)
+        decay = 0.80
 
         for i in far_indices:
             # Bernoulli: move with probability p while grazing
             if self.graze_p < 1.0 and self.rng.random() > self.graze_p:
-                self.V[i] *= alpha  # smooth decay
+                self.V[i] *= decay  # smooth decay
                 self.P[i] += self.V[i] * self.dt
                 continue
 
@@ -567,7 +562,7 @@ class World:
             
             # Momentum update
             v_des = self.vmax * h
-            v_new = alpha * self.V[i] + (1.0 - alpha) * v_des
+            v_new = decay * self.V[i] + (1.0 - decay) * v_des
             sp = np.linalg.norm(v_new)
             if sp > self.vmax:
                 v_new *= (self.vmax / sp)
