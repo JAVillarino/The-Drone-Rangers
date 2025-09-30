@@ -1,72 +1,64 @@
-# simulation/test_world_perf.py - Performance testing with bottleneck isolation
-
-# Run all benchmarks (fast)
-
-# pytest simulation/test_world_perf.py --benchmark-columns=min,mean,max,rounds --benchmark-sort=mean
-
-# # Run bottleneck analysis
-# pytest simulation/test_world_perf.py::test_bottleneck_analysis -v -s
-
-# # Run scaling analysis  
-# pytest simulation/test_world_perf.py::test_scaling_analysis -v -s
+# simulation/test_world_perf.py - FIXED VERSION
 import os, sys, importlib
 import numpy as np
 import pytest
-import time
 import cProfile
-import pstats
+import time
 from io import StringIO
+import pstats
 
-# Ensure repo root is on sys.path (so "planning" imports resolve)
-SIM_DIR = os.path.dirname(__file__)
-REPO_ROOT = os.path.dirname(SIM_DIR)
+# Add project root to path
+REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 from planning.plan_type import DoNothing
 
-BOUNDS = (0.0, 250.0, 0.0, 250.0)
-DOG = np.array([125.0, 125.0])
-TARGET = np.array([200.0, 200.0])
-
-def _square(cx=125.0, cy=125.0, hw=30.0):
-    return np.array([[cx-hw, cy-hw],[cx+hw, cy-hw],[cx+hw, cy+hw],[cx-hw, cy+hw]], float)
-
 def _reload_world(disable_jit: bool):
-    # Flip Numba JIT via env var
+    """Reload world module with or without JIT."""
     if disable_jit:
         os.environ["NUMBA_DISABLE_JIT"] = "1"
     else:
         os.environ.pop("NUMBA_DISABLE_JIT", None)
-
-    # Fresh import so the env var takes effect
+    
+    # Clear module cache
     if "simulation.world" in sys.modules:
         del sys.modules["simulation.world"]
+    
     import simulation.world as world_mod
     importlib.reload(world_mod)
     return world_mod
 
-def _make_world(World, N: int, with_obstacles: bool, seed: int = 0):
+def _make_world(World, N=128, with_obstacles=True, seed=0):
+    """Create a test world with specified parameters."""
     rng = np.random.default_rng(seed)
-    xmin, xmax, ymin, ymax = BOUNDS
+    bounds = (0.0, 250.0, 0.0, 250.0)
+    xmin, xmax, ymin, ymax = bounds
+    
+    # Generate sheep positions
     sheep_xy = np.column_stack([
         rng.uniform(xmin + 10, xmax - 10, size=N),
         rng.uniform(ymin + 10, ymax - 10, size=N)
     ])
-    polys = None
+    
+    # Add obstacles if requested
+    obstacles = None
     if with_obstacles:
-        polys = [_square(90, 90, 25), _square(160, 140, 18)]
+        obstacles = [
+            np.array([[90, 90], [110, 90], [110, 110], [90, 110]]),
+            np.array([[160, 140], [180, 140], [180, 160], [160, 160]])
+        ]
+    
     return World(
         sheep_xy=sheep_xy,
-        shepherd_xy=DOG,
-        target_xy=TARGET,
-        bounds=BOUNDS,
-        obstacles_polygons=polys,
-        boundary="reflect",
-        seed=seed,
+        shepherd_xy=[125, 125],
+        target_xy=[200, 200],
+        bounds=bounds,
+        obstacles_polygons=obstacles,
+        boundary='reflect',
+        seed=seed
     )
 
-# Fast test parameters - reasonable performance testing
 @pytest.mark.parametrize("N", [64, 128, 256])
 @pytest.mark.parametrize("with_obstacles", [False, True])
 @pytest.mark.parametrize("jit", ["on", "off"])
@@ -79,38 +71,49 @@ def test_world_step_throughput(benchmark, N, with_obstacles, jit):
     world_mod = _reload_world(disable_jit=(jit == "off"))
     World = world_mod.World
     world = _make_world(World, N, with_obstacles)
-
-    # Adaptive warm-up based on N
-    warmup_steps = max(3, min(10, N // 32))
+    
+    # FIXED: Much more aggressive warm-up to eliminate JIT compilation
+    warmup_steps = max(50, N // 4)  # Scale warm-up with N
+    print(f"Warming up with {warmup_steps} steps...")
     for _ in range(warmup_steps):
         world.step(DoNothing())
-
-    # Adaptive step count based on N
-    STEPS = max(10, min(50, 2000 // N))
+    
+    # FIXED: More steps for better accuracy
+    STEPS = max(50, min(200, 10000 // N))  # Scale steps with N
+    print(f"Profiling with {STEPS} steps...")
+    
     def run_steps():
         for _ in range(STEPS):
             world.step(DoNothing())
-
+    
     benchmark(run_steps)
-
-    # Basic sanity
+    
+    # Basic sanity checks
     assert world.P.shape == (N, 2)
     assert np.isfinite(world.P).all()
 
 def test_bottleneck_analysis():
-    """Detailed bottleneck analysis for N=128 with obstacles."""
+    """FIXED: Detailed bottleneck analysis with proper warm-up and more steps."""
     world_mod = _reload_world(disable_jit=False)
     World = world_mod.World
     world = _make_world(World, N=128, with_obstacles=True)
 
-    print("\n=== BOTTLENECK ANALYSIS ===")
+    print("\n=== BOTTLENECK ANALYSIS (FIXED) ===")
     
-    # Profile the sheep step function
+    # FIXED: Much more aggressive warm-up to eliminate JIT compilation
+    print("Warming up to eliminate JIT compilation overhead...")
+    warmup_steps = 100  # Much more warm-up
+    for _ in range(warmup_steps):
+        world.step(DoNothing())
+    print(f"Completed {warmup_steps} warm-up steps")
+    
+    # FIXED: Profile with many more steps for accurate measurement
     profiler = cProfile.Profile()
     profiler.enable()
     
-    # Run multiple steps for better profiling
-    for _ in range(20):
+    profiling_steps = 200  # Much more profiling steps
+    print(f"Profiling {profiling_steps} steps...")
+    for _ in range(profiling_steps):
         world.step(DoNothing())
     
     profiler.disable()
@@ -123,51 +126,67 @@ def test_bottleneck_analysis():
     print("Top 20 functions by cumulative time:")
     print(s.getvalue())
     
-    # Manual timing of key components
-    print("\n=== MANUAL TIMING ===")
+    # FIXED: Manual timing with more iterations
+    print("\n=== MANUAL TIMING (FIXED) ===")
     
-    # Time individual components
+    # Time sheep step with more iterations
     start = time.perf_counter()
-    for _ in range(10):
+    for _ in range(50):  # More iterations
         world._sheep_step()
     sheep_time = time.perf_counter() - start
-    print(f"Sheep step (10 iterations): {sheep_time:.4f}s")
+    print(f"Sheep step (50 iterations): {sheep_time:.4f}s")
     
     # Time kNN calculations
     start = time.perf_counter()
-    for _ in range(10):
-        for i in range(min(10, world.N)):  # Sample first 10 sheep
+    for _ in range(20):  # More iterations
+        for i in range(min(20, world.N)):  # More sheep
             world._kNN_vec(i, world.k_nn)
     knn_time = time.perf_counter() - start
-    print(f"kNN calculations (10 sheep, 10 iterations): {knn_time:.4f}s")
+    print(f"kNN calculations (20 sheep, 20 iterations): {knn_time:.4f}s")
     
     # Time repulsion calculations
     start = time.perf_counter()
-    for _ in range(10):
-        for i in range(min(10, world.N)):  # Sample first 10 sheep
+    for _ in range(20):  # More iterations
+        for i in range(min(20, world.N)):  # More sheep
             world._repel_close_vec(i)
     repel_time = time.perf_counter() - start
-    print(f"Repulsion calculations (10 sheep, 10 iterations): {repel_time:.4f}s")
+    print(f"Repulsion calculations (20 sheep, 20 iterations): {repel_time:.4f}s")
     
     # Time obstacle avoidance
     if world.polys:
         start = time.perf_counter()
-        for _ in range(10):
-            world._obstacle_avoid(world.P[:10])  # Sample first 10 sheep
+        for _ in range(20):  # More iterations
+            world._obstacle_avoid(world.P[:20])  # More sheep
         obstacle_time = time.perf_counter() - start
-        print(f"Obstacle avoidance (10 sheep, 10 iterations): {obstacle_time:.4f}s")
+        print(f"Obstacle avoidance (20 sheep, 20 iterations): {obstacle_time:.4f}s")
     
     # Time boundary handling
     start = time.perf_counter()
-    for _ in range(10):
+    for _ in range(50):  # More iterations
         world._apply_bounds_sheep_inplace()
     bounds_time = time.perf_counter() - start
-    print(f"Boundary handling (10 iterations): {bounds_time:.4f}s")
+    print(f"Boundary handling (50 iterations): {bounds_time:.4f}s")
+    
+    # FIXED: Performance regression detection
+    print("\n=== PERFORMANCE REGRESSION DETECTION ===")
+    total_time = sheep_time + knn_time + repel_time + (obstacle_time if world.polys else 0) + bounds_time
+    print(f"Total computation time: {total_time:.4f}s")
+    
+    # Set performance thresholds (adjust based on your requirements)
+    MAX_SHEEP_TIME = 0.100  # 100ms for 50 sheep steps
+    MAX_KNN_TIME = 0.050    # 50ms for kNN calculations
+    MAX_REPEL_TIME = 0.010  # 10ms for repulsion calculations
+    
+    assert sheep_time <= MAX_SHEEP_TIME, f"Sheep step too slow: {sheep_time:.4f}s > {MAX_SHEEP_TIME}s"
+    assert knn_time <= MAX_KNN_TIME, f"kNN calculations too slow: {knn_time:.4f}s > {MAX_KNN_TIME}s"
+    assert repel_time <= MAX_REPEL_TIME, f"Repulsion calculations too slow: {repel_time:.4f}s > {MAX_REPEL_TIME}s"
+    
+    print("✅ Performance thresholds met!")
+    assert True
 
 def test_scaling_analysis():
-    """Analyze how performance scales with N."""
-    print("\n=== SCALING ANALYSIS ===")
-    
+    """FIXED: Analyze how performance scales with N."""
+    print("\n=== SCALING ANALYSIS (FIXED) ===")
     world_mod = _reload_world(disable_jit=False)
     World = world_mod.World
     
@@ -177,30 +196,40 @@ def test_scaling_analysis():
     for N in N_values:
         world = _make_world(World, N, with_obstacles=False)
         
-        # Warm up
-        for _ in range(3):
+        # FIXED: More warm-up for each N
+        warmup_steps = max(50, N // 4)
+        for _ in range(warmup_steps):
             world.step(DoNothing())
         
-        # Time 10 steps
+        # FIXED: More profiling steps
         start = time.perf_counter()
-        for _ in range(10):
+        for _ in range(100):  # More steps
             world.step(DoNothing())
-        elapsed = time.perf_counter() - start
+        end = time.perf_counter()
         
-        times.append(elapsed)
-        print(f"N={N:3d}: {elapsed:.4f}s ({elapsed/N:.6f}s per sheep)")
+        t = end - start
+        times.append(t)
+        print(f"N={N:3d}: {t:.4f}s ({t/N:.6f}s per sheep)")
     
-    # Calculate scaling ratios
     print("\nScaling ratios:")
-    for i in range(1, len(N_values)):
-        ratio = times[i] / times[i-1]
-        n_ratio = N_values[i] / N_values[i-1]
-        efficiency = ratio / n_ratio
-        print(f"{N_values[i-1]} -> {N_values[i]}: {ratio:.2f}x time, {n_ratio:.1f}x N, efficiency: {efficiency:.2f}")
+    for i in range(len(N_values) - 1):
+        ratio_time = times[i+1] / times[i]
+        ratio_N = N_values[i+1] / N_values[i]
+        efficiency = ratio_time / ratio_N
+        print(f"{N_values[i]} -> {N_values[i+1]}: {ratio_time:.2f}x time, {ratio_N:.1f}x N, efficiency: {efficiency:.2f}")
+    
+    # FIXED: Performance regression detection for scaling
+    print("\n=== SCALING REGRESSION DETECTION ===")
+    for i in range(len(N_values) - 1):
+        efficiency = times[i+1] / times[i] / (N_values[i+1] / N_values[i])
+        assert efficiency <= 2.0, f"Scaling efficiency too poor: {efficiency:.2f} > 2.0"
+    
+    print("✅ Scaling efficiency acceptable!")
+    assert True
 
 def test_jit_impact():
-    """Compare JIT vs no-JIT performance."""
-    print("\n=== JIT IMPACT ANALYSIS ===")
+    """FIXED: Compare JIT vs no-JIT performance."""
+    print("\n=== JIT IMPACT ANALYSIS (FIXED) ===")
     
     N = 128
     world_mod_jit = _reload_world(disable_jit=False)
@@ -209,30 +238,90 @@ def test_jit_impact():
     World_jit = world_mod_jit.World
     World_nojit = world_mod_nojit.World
     
-    # Test with JIT
+    # FIXED: Much more warm-up for both versions
+    print("Warming up JIT version...")
     world_jit = _make_world(World_jit, N, with_obstacles=False)
-    for _ in range(5):  # Warm up JIT
+    for _ in range(100):  # More warm-up
         world_jit.step(DoNothing())
     
-    start = time.perf_counter()
-    for _ in range(20):
-        world_jit.step(DoNothing())
-    jit_time = time.perf_counter() - start
-    
-    # Test without JIT
+    print("Warming up no-JIT version...")
     world_nojit = _make_world(World_nojit, N, with_obstacles=False)
-    start = time.perf_counter()
-    for _ in range(20):
+    for _ in range(50):  # Some warm-up for no-JIT
         world_nojit.step(DoNothing())
-    nojit_time = time.perf_counter() - start
     
-    speedup = nojit_time / jit_time
-    print(f"JIT enabled:  {jit_time:.4f}s")
-    print(f"JIT disabled: {nojit_time:.4f}s")
-    print(f"JIT speedup:  {speedup:.2f}x")
+    # FIXED: More profiling steps
+    print("Profiling JIT version...")
+    start_jit = time.perf_counter()
+    for _ in range(100):  # More steps
+        world_jit.step(DoNothing())
+    end_jit = time.perf_counter()
+    time_jit = end_jit - start_jit
+    print(f"JIT ON (N={N}): {time_jit:.4f}s")
+    
+    print("Profiling no-JIT version...")
+    start_nojit = time.perf_counter()
+    for _ in range(100):  # More steps
+        world_nojit.step(DoNothing())
+    end_nojit = time.perf_counter()
+    time_nojit = end_nojit - start_nojit
+    print(f"JIT OFF (N={N}): {time_nojit:.4f}s")
+    
+    if time_jit > 0:
+        speedup = time_nojit / time_jit
+        print(f"JIT speedup: {speedup:.2f}x")
+        
+        # FIXED: Performance regression detection
+        assert speedup >= 1.5, f"JIT speedup too low: {speedup:.2f}x < 1.5x"
+    
+    print("✅ JIT performance acceptable!")
+    assert True
 
-if __name__ == "__main__":
-    # Run bottleneck analysis when script is executed directly
-    test_bottleneck_analysis()
-    test_scaling_analysis()
-    test_jit_impact()
+def test_performance_regression_detection():
+    """NEW: Comprehensive performance regression detection."""
+    print("\n=== PERFORMANCE REGRESSION DETECTION ===")
+    
+    # Test with different configurations
+    configs = [
+        (64, False, "small_no_obstacles"),
+        (128, False, "medium_no_obstacles"), 
+        (128, True, "medium_with_obstacles"),
+        (256, False, "large_no_obstacles")
+    ]
+    
+    for N, with_obstacles, name in configs:
+        print(f"\nTesting {name} (N={N}, obstacles={with_obstacles})...")
+        
+        world_mod = _reload_world(disable_jit=False)
+        World = world_mod.World
+        world = _make_world(World, N, with_obstacles)
+        
+        # Warm-up
+        warmup_steps = max(50, N // 4)
+        for _ in range(warmup_steps):
+            world.step(DoNothing())
+        
+        # Measure performance
+        start = time.perf_counter()
+        for _ in range(100):
+            world.step(DoNothing())
+        end = time.perf_counter()
+        
+        total_time = end - start
+        time_per_step = total_time / 100
+        time_per_sheep = time_per_step / N
+        
+        print(f"  Total time: {total_time:.4f}s")
+        print(f"  Time per step: {time_per_step:.6f}s")
+        print(f"  Time per sheep: {time_per_sheep:.8f}s")
+        
+        # Performance thresholds (adjust based on your requirements)
+        MAX_TIME_PER_STEP = 0.010  # 10ms per step
+        MAX_TIME_PER_SHEEP = 0.0001  # 0.1ms per sheep
+        
+        assert time_per_step <= MAX_TIME_PER_STEP, f"Step too slow: {time_per_step:.6f}s > {MAX_TIME_PER_STEP}s"
+        assert time_per_sheep <= MAX_TIME_PER_SHEEP, f"Per-sheep too slow: {time_per_sheep:.8f}s > {MAX_TIME_PER_SHEEP}s"
+        
+        print(f"  ✅ {name} performance acceptable!")
+    
+    print("\n✅ All performance regression tests passed!")
+    assert True
