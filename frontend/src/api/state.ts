@@ -52,8 +52,22 @@ export async function setPlayPause() {
             }
 
         );
-        return await response.json()
+        return await response.json();
     } catch (err) {
         return console.error("Error playing/pausing.", err);
+    }
+}
+
+export async function requestRestart() {
+    try {
+        const response = await fetch(`${backendURL}/restart`,
+            {
+                method: "POST",
+                headers: {"Content-Length": "0"}
+            }
+        );
+        return await response.json();
+    } catch (err) {
+        return console.error("Error sending restart request:", err);
     }
 }
