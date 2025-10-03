@@ -17,7 +17,7 @@ class ShepherdPolicy:
         self.too_close = too_close
         self.collect_standoff = collect_standoff
         self.drive_standoff = drive_standoff
-        self.flyover_on_collect = bool(flyover_on_collect)
+        self.flyover_on_collect = flyover_on_collect
     
     def _gcm(self, world: state.State) -> np.ndarray:
         return np.mean([s for s in world.flock], axis=0)

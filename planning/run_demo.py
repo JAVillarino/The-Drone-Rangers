@@ -151,7 +151,6 @@ if __name__ == "__main__":
         # polygon_patches.append(patch)
     
     renderer = Renderer(W)
-
     for t in range(args.steps):
         plan = shepherd_policy.plan(W.get_state(), W.dt)
         W.step(plan)

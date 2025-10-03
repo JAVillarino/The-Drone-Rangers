@@ -19,8 +19,7 @@ from itertools import product
 import matplotlib.pyplot as plt
 
 base_config = {
-    ## Evaluation Parameters
-    "max_steps": 6000,
+    "max_steps": 2000,
     "boundary": "none",
     "clusters": 3,
 }
@@ -126,10 +125,10 @@ if __name__ == "__main__":
     # Run the evaluation and collect trial-by-trial data
     Ns = [40, 80, 120]
     spawn_types = ["uniform", "circle", "clusters"]
-    seeds = range(5)
+    seeds = range(1)
     scenarios_to_run = [
-        {**base_config, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (2/3) * 6 }
-        for N, pattern, seed in product(Ns, spawn_types, seeds)
+        {**base_config, "flyover_on_collect": flyover, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (2/3) * 6 }
+        for N, pattern, flyover, seed in product(Ns, spawn_types, (False, True), seeds)
     ]
 
     trial_results_list = []
