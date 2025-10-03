@@ -7,6 +7,7 @@ import numpy as np
 @dataclass
 class DronePosition:
     position: np.ndarray
+    ignore_repulsion: bool = False
 
 @dataclass
 class DoNothing:
