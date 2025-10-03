@@ -19,7 +19,6 @@ class ShepherdPolicy:
         self.drive_standoff = drive_standoff
     
     def _gcm(self, world: state.State) -> np.ndarray:
-        # TODO: Should this maybe be transposed?
         return np.mean([s for s in world.flock], axis=0)
 
     def _cohesive(self, world: state.State, G: np.ndarray) -> bool:
@@ -30,7 +29,8 @@ class ShepherdPolicy:
         ghat = norm(world.target - G)
         return G - ghat * self.drive_standoff
 
-    def _collect_point(self, world: state.State, G: np.ndarray) -> np.ndarray:
+    def _collect_point(self, world: state.State, G: np.ndarray) -> tuple[np.ndarray, int]:
+        """Returns the target point and the target sheep index."""
         P = world.flock                         # (N,2)
         D = world.drone                         # (2,)
 
@@ -44,7 +44,7 @@ class ShepherdPolicy:
         # point behind that sheep, pointing toward G
         dir_to_G = G - P[j]
         c = dir_to_G / (np.linalg.norm(dir_to_G) + 1e-9)
-        return P[j] - c * self.collect_standoff
+        return P[j] - c * self.collect_standoff, j
 
     def plan(self, world: state.State, dt: float) -> Plan:
         """Return None if no update should be made."""
@@ -54,8 +54,12 @@ class ShepherdPolicy:
 
         G = self._gcm(world)
         is_cohesive = self._cohesive(world, G)
-        P = self._drive_point(world, G) if is_cohesive else self._collect_point(world, G)
+        if is_cohesive:
+            P = self._drive_point(world, G) 
+            target_sheep_index = None
+        else:
+            P, target_sheep_index = self._collect_point(world, G)
 
         # move toward chosen point and apply boundary
-        return DronePosition(world.drone + self.umax * dt * norm(P - world.drone))
+        return DronePosition(world.drone + self.umax * dt * norm(P - world.drone), target_sheep_index)
         

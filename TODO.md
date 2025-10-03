@@ -1,5 +1,6 @@
-Try to make the aversion work properly.
+How can we intelligently control whether the robot is active or not?
 
+Add some more debugging information. We should be able to see which sheep we are targeting.
 
 
 

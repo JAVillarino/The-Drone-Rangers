@@ -40,7 +40,6 @@ class Renderer:
         self.sheep_sc.set_offsets(state.flock)
 
         if debug:
-            print(plan)
             # Highlight target sheep if specified
             if getattr(plan, "target_sheep_index", None) is not None:
                 colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue

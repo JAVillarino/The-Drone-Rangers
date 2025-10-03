@@ -7,6 +7,9 @@ import numpy as np
 @dataclass
 class DronePosition:
     position: np.ndarray
+    
+    # Extra info for debugging. Later we should refactor this if not every drone position plan has the same debugging info.
+    target_sheep_index: int | None
 
 @dataclass
 class DoNothing:

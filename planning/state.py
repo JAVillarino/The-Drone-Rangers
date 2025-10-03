@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import numpy as np
 
+# State coming from the world.
 @dataclass
 class State:
     # n-by-2 of the positions of all of the animals in the flock.
