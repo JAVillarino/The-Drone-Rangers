@@ -7,6 +7,56 @@ from simulation import world
 from planning.herding import policy
 from simulation.scenarios import *
 
+class Renderer:
+    def __init__(self, world, bounds=(0.0, 250.0, 0.0, 250.0)):
+        """Initialize figure, axes, and scatter plots."""
+        xmin, xmax, ymin, ymax = bounds
+
+        plt.ion()
+        self.fig, self.ax = plt.subplots(figsize=(6, 6))
+        self.ax.set_aspect('equal')
+        self.ax.grid(True)
+        self.ax.set_xlim(xmin, xmax)
+        self.ax.set_ylim(ymin, ymax)
+
+        # Draw world bounds (fence)
+        self.ax.plot(
+            [xmin, xmax, xmax, xmin, xmin],
+            [ymin, ymin, ymax, ymax, ymin],
+            linestyle="--"
+        )
+
+        # Initial state
+        state = world.get_state()
+        self.sheep_sc = self.ax.scatter(state.flock[:, 0], state.flock[:, 1], s=20)
+        self.dog_sc   = self.ax.scatter([state.drone[0]], [state.drone[1]], marker='x')
+        self.targ_sc  = self.ax.scatter([state.target[0]], [state.target[1]], marker='*')
+
+    def render_world(self, world, plan, t, debug=False):
+        """Update the scatter plots for the current state of the world."""
+        state = world.get_state()
+
+        # Update sheep positions
+        self.sheep_sc.set_offsets(state.flock)
+
+        if debug:
+            print(plan)
+            # Highlight target sheep if specified
+            if getattr(plan, "target_sheep_index", None) is not None:
+                colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue
+                colors[plan.target_sheep_index] = (1.0, 0.0, 0.0, 1.0)  # target sheep red
+                self.sheep_sc.set_facecolor(colors)
+
+        # Update dog and target markers
+        self.dog_sc.set_offsets([state.drone])
+        self.targ_sc.set_offsets([state.target])
+
+        # Title
+        self.ax.set_title(f"Step {t}")
+
+        # Redraw
+        self.fig.canvas.draw_idle()
+
 # ---------- main ----------
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
@@ -92,13 +142,6 @@ if __name__ == "__main__":
     )
 
     # --- live plot ---
-    plt.ion()
-    fig, ax = plt.subplots(figsize=(6,6))
-    ax.set_aspect('equal'); ax.grid(True)
-    ax.set_xlim(xmin, xmax); ax.set_ylim(ymin, ymax)
-    # draw fence
-    ax.plot([xmin,xmax,xmax,xmin,xmin],[ymin,ymin,ymax,ymax,ymin], linestyle="--")
-
     # # Draw polygon obstacles
     # polygon_patches = []
     # for poly in obstacles_polygons:
@@ -107,22 +150,17 @@ if __name__ == "__main__":
     #     patch = Polygon(closed_poly[:-1], facecolor='red', alpha=0.3, edgecolor='red')
     #     ax.add_patch(patch)
         # polygon_patches.append(patch)
-
-    state = W.get_state()
-    sheep_sc = ax.scatter(state.flock[:,0], state.flock[:,1], s=20)
-    dog_sc   = ax.scatter([state.drone[0]],[state.drone[1]], marker='x')
-    targ_sc  = ax.scatter([state.target[0]],[state.target[1]], marker='*')
+    
+    renderer = Renderer(W)
 
     for t in range(args.steps):
         plan = shepherd_policy.plan(W.get_state(), W.dt)
         W.step(plan)
         
-        #if t % 2 == 0:
-        state = W.get_state()
-        sheep_sc.set_offsets(state.flock)
-        dog_sc.set_offsets([state.drone])
-        ax.set_title(f"Step {t}  |  spawn={args.spawn}  |  {len(state.polygons)} polygons")
-        fig.canvas.draw_idle()
+        if t % 2 == 0:
+            state = W.get_state()
+            renderer.render_world(W, plan, t, debug=True)
+    
         plt.pause(0.01)
 
     plt.ioff()
