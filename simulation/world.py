@@ -84,6 +84,8 @@ class World:
         near_wall_ratio: float = 0.8,
         microsteps_max: int = 3,
 
+        ignore_dog_repulsion: bool = False,
+
         # rng
         seed: int = 0,
         **_kw_ignore,
@@ -138,6 +140,8 @@ class World:
         self.microsteps_max = microsteps_max
 
         self.graze_p = graze_p
+
+        self.ignore_dog_repulsion = ignore_dog_repulsion
 
         self.rng = np.random.default_rng(seed)
         
@@ -639,8 +643,9 @@ class World:
                 vel_norm = 0.0
                 prev = np.zeros(2)
             
-            # Combine forces
-            H = self.wr*R + self.wa*A + self.ws*S + self.wm*prev + self.w_align*AL
+            # Combine forces (0.0 for flyover)
+            ws_eff = 0.0 if self.ignore_dog_repulsion else self.ws
+            H = self.wr*R + self.wa*A + ws_eff*S + self.wm*prev + self.w_align*AL
             
             # Normal push (already weighted by distance ramp)
             H += self.w_obs * nrm[idx]
@@ -693,16 +698,19 @@ class World:
         if not self.paused:
             if self.use_neighbor_cache:
                 self._refresh_neighbors()
-            self._sheep_step()
-        
-            # Use the plan to update the position of the shepherd.
+
+            # Apply planner output
             match plan:
                 case DoNothing():
-                    pass
-                case DronePosition(position=pos):
+                    self.ignore_dog_repulsion = False
+                case DronePosition(position=pos) as dp:
                     self.dog = self._apply_bounds_point(pos)
+                    self.ignore_dog_repulsion = dp.ignore_repulsion
                 case _ as unexpected_plan:
                     raise Exception("Unexpected plan type", unexpected_plan)
+
+            # Then move sheep using the new dog pos + flag
+            self._sheep_step()
 
     def get_state(self) -> state.State:
         return state.State(

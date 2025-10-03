@@ -10,6 +10,7 @@ class DronePosition:
     
     # Extra info for debugging. Later we should refactor this if not every drone position plan has the same debugging info.
     target_sheep_index: int | None
+    ignore_repulsion: bool = False
 
 @dataclass
 class DoNothing:

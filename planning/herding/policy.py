@@ -10,13 +10,14 @@ class ShepherdPolicy:
     Behavior and formulas are unchanged.
     """
     
-    def __init__(self, *, fN: float, umax: float, too_close: float, collect_standoff: int, drive_standoff: int):
+    def __init__(self, *, fN: float, umax: float, too_close: float, collect_standoff: int, drive_standoff: int, flyover_on_collect: bool = True):
         self.fN = fN
         # Lowkey umax should be in the sim, not in the shepherd policy. That's fine though I guess.
         self.umax = umax
         self.too_close = too_close
         self.collect_standoff = collect_standoff
         self.drive_standoff = drive_standoff
+        self.flyover_on_collect = bool(flyover_on_collect)
     
     def _gcm(self, world: state.State) -> np.ndarray:
         return np.mean([s for s in world.flock], axis=0)
@@ -45,21 +46,41 @@ class ShepherdPolicy:
         dir_to_G = G - P[j]
         c = dir_to_G / (np.linalg.norm(dir_to_G) + 1e-9)
         return P[j] - c * self.collect_standoff, j
+    
+    def _needs_flyover(self, world: state.State, target: np.ndarray, corridor: float) -> bool:
+        P = np.asarray(world.flock)
+
+        A = world.drone
+        B = target
+        AB = B - A
+        ab2 = float(np.dot(AB, AB)) + 1e-12  # avoid div-by-zero
+
+        # Project each sheep onto the segment A→B
+        t = np.clip(((P - A) @ AB) / ab2, 0.0, 1.0)
+        closest = A + t[:, None] * AB
+        d = np.linalg.norm(P - closest, axis=1)
+
+        return np.any(d <= corridor * self.too_close)
+
 
     def plan(self, world: state.State, dt: float) -> Plan:
         """Return None if no update should be made."""
         # safety stop if too close to any flock (prevents splitting)
-        if any(np.linalg.norm(s - world.drone) < self.too_close for s in world.flock):
-            return DoNothing()
-
         G = self._gcm(world)
         is_cohesive = self._cohesive(world, G)
+
         if is_cohesive:
-            P = self._drive_point(world, G) 
+            # DRIVE: keep safety stop (repulsion ON)
+            if any(np.linalg.norm(s - world.drone) < self.too_close for s in world.flock):
+                return DoNothing()
+            P = self._drive_point(world, G)
+            ignore_repulsion = False
             target_sheep_index = None
         else:
+            # COLLECT: candidate standoff point
             P, target_sheep_index = self._collect_point(world, G)
+            # Only fly-over if the straight-line approach would pass near sheep
+            ignore_repulsion = self.flyover_on_collect and self._needs_flyover(world, P, corridor=0.40)
 
-        # move toward chosen point and apply boundary
-        return DronePosition(world.drone + self.umax * dt * norm(P - world.drone), target_sheep_index)
-        
+        step = world.drone + self.umax * dt * norm(P - world.drone)
+        return DronePosition(step, target_sheep_index=target_sheep_index, ignore_repulsion=ignore_repulsion)
