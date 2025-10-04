@@ -53,7 +53,19 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
     world_kwargs = {
         **config, "bounds": bounds, "seed": seed,
     }
-    W = world.World(sheep_xy, dog_xy, target_xy, **world_kwargs)
+    W = world.World(
+        sheep_xy, 
+        dog_xy, 
+        target_xy, 
+        w_obs=0,
+        w_tan=0,
+        keep_out=0,
+        world_keep_out=0,
+        wall_follow_boost=0,
+        stuck_speed_ratio=0,
+        near_wall_ratio=0,
+        microsteps_max=0,
+        **world_kwargs)
 
     # Initialize the herding policy
     total_area = 0.5 * W.N * (W.ra ** 2)
@@ -66,13 +78,14 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
         too_close = 1.5 * W.ra,
         collect_standoff = 1.0 * W.ra,
         drive_standoff   = 1.0 * W.ra + collected_herd_radius,
+        flyover_on_collect=config["flyover_on_collect"],
     )
     
     if visualize:
         plt.ion()
         fig, ax = plt.subplots(figsize=(6,6))
         ax.set_aspect('equal'); ax.grid(True)
-        ax.set_xlim(xmin, xmax); ax.set_ylim(ymin, ymax)
+        ax.set_xlim(xmin, xmax + 30); ax.set_ylim(ymin, ymax + 30)
         # draw fence
         ax.plot([xmin,xmax,xmax,xmin,xmin],[ymin,ymin,ymax,ymax,ymin], linestyle="--")
 
@@ -82,6 +95,7 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
         targ_sc  = ax.scatter([state.target[0]],[state.target[1]], marker='*')
 
 
+
     # Main simulation loop for this trial
     for t in range(config["max_steps"]):
         plan = shepherd_policy.plan(W.get_state(), W.dt)
@@ -89,7 +103,7 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
 
         # Check for success condition
         state = W.get_state()
-        farthest = np.max(np.linalg.norm(state.flock - state.target, axis=0))
+        farthest = np.max(np.linalg.norm(state.flock - state.target, axis=1))
 
         if farthest < config["success_radius"]:
             return True, t  # Success!
@@ -98,6 +112,10 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
             state = W.get_state()
             sheep_sc.set_offsets(state.flock)
             dog_sc.set_offsets([state.drone])
+            # print([state.target[0], state.target[1]], config["success_radius"])
+            circle = plt.Circle([state.target[0], state.target[1]], config["success_radius"], fill=False, color="blue", linewidth=2)
+            # Add to axes
+            ax.add_patch(circle)
             fig.canvas.draw_idle()
             plt.pause(0.05)
             
@@ -123,12 +141,13 @@ if __name__ == "__main__":
     date = datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
 
     # Run the evaluation and collect trial-by-trial data
-    Ns = [40, 80, 120]
-    spawn_types = ["uniform", "circle", "clusters"]
-    seeds = range(1)
+    Ns = [50, 100, 150, 200, 250, 300]
+    spawn_types = ["uniform", "circle"]
+    seeds = range(10)
+    flyovers = (False, True)
     scenarios_to_run = [
-        {**base_config, "flyover_on_collect": flyover, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (2/3) * 6 }
-        for N, pattern, flyover, seed in product(Ns, spawn_types, (False, True), seeds)
+        {**base_config, "flyover_on_collect": flyover, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (1/2) * 4 }
+        for N, pattern, flyover, seed in product(Ns, spawn_types, flyovers, seeds)
     ]
 
     trial_results_list = []
@@ -137,10 +156,9 @@ if __name__ == "__main__":
     print("-" * 65)
 
     for s_idx, config in enumerate(scenarios_to_run):
-        # print(f"Running Scenario: {spawn_type.upper()}...")
         # Time the execution of a single trial
         start_time = time.perf_counter()
-        success, completion_steps = run_one_trial(config, config["spawn_type"], config["seed"], s_idx, len(scenarios_to_run))
+        success, completion_steps = run_one_trial(config, config["spawn_type"], config["seed"], s_idx, len(scenarios_to_run), visualize=False)
         end_time = time.perf_counter()
         trial_duration = end_time - start_time
 

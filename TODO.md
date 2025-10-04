@@ -12,3 +12,5 @@ We should just be able to submit the benchmark on the scenarios for every weekly
 
 Okay I'm actually going to finish out the benchmarks so we can submit them.
 Okay we need to be able to run it a little bit faster so I'll only do one trial of each. The additional seed wasn't bringing much signal anyways. Then I need the ability to load in a specific trial.
+
+Try to make the sheep look more like sheep.
