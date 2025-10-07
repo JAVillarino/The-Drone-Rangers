@@ -22,4 +22,12 @@ Try to fix the bug where the sheep get sucked into the the edge of a boundary.
 
 Try to implement the path-planning around obstacles.
 
-When the drone goes away, the sheep should stop being in herding phase anyways.
+
+We should spend some time trying to polish what we have before the midterm presentation.
+- We should leave obstacles where they're at. (unless Joel has something to clean up here.)
+- We should make the zooming and panning feel cleaner.
+- We should fix up the frontend UI.
+- We should get flyover working to where it isn't obviously terrible.
+- We should fix up the sheep sim so that it looks more realistic. (This one might be a lot of work.)
+    - We should tone down the random motion
+    - As a stretch, we should have the sheep be a bit more fluid in terms of which mode they choose to be in.
