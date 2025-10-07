@@ -738,7 +738,6 @@ class World:
         # Apply planner output
         match plan:
             case DoNothing():
-                print("DOINg nothing")
                 pass
                 # TODO: Add this back.
                 # self.ignore_dog_repulsion = False

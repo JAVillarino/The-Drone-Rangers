@@ -83,7 +83,7 @@ if __name__ == "__main__":
     else:  # line
         sheep_xy = spawn_line(args.N, bounds, seed=args.seed)
 
-    dog_xy = np.array([[0.0, 0.0]])
+    dog_xy = np.array([[0.0, 0.0], [5.0, 5.0]])
     target_xy = np.array([240.0, 240.0])
 
     # Create example polygon obstacles
