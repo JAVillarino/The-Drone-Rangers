@@ -1,0 +1,7 @@
+Success,Completion Steps,Wall Time (s),max_steps,boundary,clusters,dog_xy,flyover_on_collect,N,spawn_type,seed,success_radius
+True,305.0,22.856631500006188,2000,none,3,"[[-20 -35]
+ [-20 -35]]",False,100,circle,0,40.0
+True,594.0,45.96781619999092,2000,none,3,"[[-20 -35]
+ [-20 -35]]",False,200,circle,0,56.568542494923804
+False,,172.5103092000354,2000,none,3,"[[-20 -35]
+ [-20 -35]]",False,300,circle,0,69.2820323027551

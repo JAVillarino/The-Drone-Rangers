@@ -32,7 +32,7 @@ class Renderer:
         self.dog_sc   = self.ax.scatter([state.drones[:, 0]], [state.drones[:, 1]], marker='x')
         self.targ_sc  = self.ax.scatter([state.target[0]], [state.target[1]], marker='*')
 
-    def render_world(self, world, plan, t, debug=False):
+    def render_world(self, world, plan, step_number, debug=False):
         """Update the scatter plots for the current state of the world."""
         state = world.get_state()
 
@@ -51,7 +51,7 @@ class Renderer:
         self.targ_sc.set_offsets([state.target])
 
         # Title
-        self.ax.set_title(f"Step {t}")
+        self.ax.set_title(f"Step {step_number}")
 
         # Redraw
         self.fig.canvas.draw_idle()

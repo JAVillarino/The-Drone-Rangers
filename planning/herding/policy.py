@@ -95,48 +95,38 @@ class ShepherdPolicy:
         dG = np.linalg.norm(P - G, axis=1)    # distance to global COM
         dGoal = np.linalg.norm(P - world.target, axis=1) # distance to goal
         
-        # Calculate dD for each sheep to its CLOSET drone
+        # Calculate dD for each sheep to ALL drones
         dD_all = np.zeros((P.shape[0], N_drones))
         for i in range(N_drones):
-            dD_all[:, i] = np.linalg.norm(P - D[i], axis=1)
-        dD_min = np.min(dD_all, axis=1)
+            dD_all[:, i] = np.linalg.norm(P - D[i], axis=1)        
         
-        # Scoring function (collecting the sheep that's far from G, close to goal, far from drones)
-        # Note: I've removed the -0.1 * dD component from the original score to prioritize
-        # simply finding the *worst* sheep, as the assignment will handle drone proximity.
-        # Original: dG - 0.1 * dD + 0.2 * dGoal
-        score = dG + 0.2 * dGoal # Priority: far from G and close to target
-        
-        # Find the top N_drones sheep (by score) to collect
-        # np.argpartition is O(N) and finds the indices of the top K elements
-        # We want the indices of the largest scores, so we use -score.
-        # np.argsort is O(N log N)
-        sorted_indices = np.argsort(score)[::-1] # Sort descending by score
-        
-        # Assign the N_drones highest-scoring, unassigned sheep
-        # Ensure we don't try to collect more sheep than exist
-        N_collect = min(N_drones, P.shape[0])
-        
-        target_sheep_indices = sorted_indices[:N_collect]
+        # Final Score: Far from G, Far from Target, 
+        intrinsic_score = dG + 0.2 * dGoal
+
+        # Some sheep are intrinsically good to herd, but different drones might be suitable for targeting different sheep. We'll adjust each sheep's score for each drone to figure out which is most suitable for each drone.
+        target_sheep_indices = []
+        for i in range(N_drones):
+            score = intrinsic_score - 0.1 * dD_all[:, i]
+            # Compute how close the other drones are to this sheep.
+            d_other_drones = np.hstack((dD_all[:, :i], dD_all[:, i+1:]))
+            
+            if N_drones > 1:
+                min_distance_other = np.min(d_other_drones, axis=1)
+                # Give a bonus if this drone is the closest.
+                score += 50 * (dD_all[:, i] < min_distance_other)
+            
+            # Favor being close to this drone, Far from other drones
+            target_sheep_indices.append(int(np.argmax(score)))
         
         # Calculate the standoff point for each assigned sheep
         collect_points = np.zeros((N_drones, 2))
-        
-        for i in range(N_collect):
-            j = target_sheep_indices[i] # Assigned sheep index
-            Pj = P[j]
+        for i, target_index in enumerate(target_sheep_indices):
+            Pj = P[target_index]
             
             # Point behind that sheep, pointing toward G
             dir_to_G = G - Pj
             c = dir_to_G / (np.linalg.norm(dir_to_G) + 1e-9)
             collect_points[i] = Pj - c * self.collect_standoff
-
-        # If N_drones > N_sheep, the extra drones should move to the G or hold position
-        if N_drones > N_collect:
-            # Simple strategy: make extra drones target the GCM
-            collect_points[N_collect:] = G 
-            # Mark these as targeting -1 (no sheep)
-            target_sheep_indices = np.append(target_sheep_indices, np.full(N_drones - N_collect, -1))
 
         return collect_points, target_sheep_indices
 
