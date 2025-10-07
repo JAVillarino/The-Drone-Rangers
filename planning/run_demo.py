@@ -29,7 +29,7 @@ class Renderer:
         # Initial state
         state = world.get_state()
         self.sheep_sc = self.ax.scatter(state.flock[:, 0], state.flock[:, 1], s=20)
-        self.dog_sc   = self.ax.scatter([state.drone[0]], [state.drone[1]], marker='x')
+        self.dog_sc   = self.ax.scatter([state.drones[:, 0]], [state.drones[:, 1]], marker='x')
         self.targ_sc  = self.ax.scatter([state.target[0]], [state.target[1]], marker='*')
 
     def render_world(self, world, plan, t, debug=False):
@@ -39,15 +39,15 @@ class Renderer:
         # Update sheep positions
         self.sheep_sc.set_offsets(state.flock)
 
-        if debug:
-            # Highlight target sheep if specified
-            if getattr(plan, "target_sheep_index", None) is not None:
-                colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue
-                colors[plan.target_sheep_index] = (1.0, 0.0, 0.0, 1.0)  # target sheep red
-                self.sheep_sc.set_facecolor(colors)
+        # if debug:
+        #     # Highlight target sheep if specified
+        #     if getattr(plan, "target_sheep_index", None) is not None:
+        #         colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue
+        #         colors[plan.target_sheep_index] = (1.0, 0.0, 0.0, 1.0)  # target sheep red
+        #         self.sheep_sc.set_facecolor(colors)
 
         # Update dog and target markers
-        self.dog_sc.set_offsets([state.drone])
+        self.dog_sc.set_offsets(state.drones)
         self.targ_sc.set_offsets([state.target])
 
         # Title
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     else:  # line
         sheep_xy = spawn_line(args.N, bounds, seed=args.seed)
 
-    dog_xy    = np.array([0.0, 0.0])
+    dog_xy = np.array([[0.0, 0.0]])
     target_xy = np.array([240.0, 240.0])
 
     # Create example polygon obstacles
@@ -126,7 +126,6 @@ if __name__ == "__main__":
         wall_follow_boost=6.0,
         stuck_speed_ratio=0.08,
         near_wall_ratio=0.8,
-        microsteps_max=3
     )
 
     total_area = 0.5 * W.N * (W.ra ** 2)

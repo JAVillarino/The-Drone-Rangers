@@ -64,7 +64,6 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
         wall_follow_boost=0,
         stuck_speed_ratio=0,
         near_wall_ratio=0,
-        microsteps_max=0,
         **world_kwargs)
 
     # Initialize the herding policy
@@ -93,8 +92,6 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
         sheep_sc = ax.scatter(state.flock[:,0], state.flock[:,1], s=20)
         dog_sc   = ax.scatter([state.drone[0]],[state.drone[1]], marker='x')
         targ_sc  = ax.scatter([state.target[0]],[state.target[1]], marker='*')
-
-
 
     # Main simulation loop for this trial
     for t in range(config["max_steps"]):
