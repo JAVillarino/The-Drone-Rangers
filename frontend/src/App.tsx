@@ -5,9 +5,10 @@ import './App.css'
 
 type LocData = [number, number];
 
+// TODO: Share this interface wtf?
 interface ObjectData {
     flock: LocData[],
-    drone: LocData,
+    drones: LocData[],
     target: LocData
 }
 
