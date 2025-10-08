@@ -15,6 +15,7 @@ from datetime import datetime
 import os
 import time
 from itertools import product
+from planning.run_demo import Renderer
 
 import matplotlib.pyplot as plt
 
@@ -22,6 +23,7 @@ base_config = {
     "max_steps": 2000,
     "boundary": "none",
     "clusters": 3,
+    "dog_xy": np.array([[-20, -35]]),
 }
 
 
@@ -31,27 +33,26 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
     Returns a tuple: (was_successful, steps_taken).
     """
     # Define world geometry
-    bounds = (-25.0, 65.0, -40.0, 35.0)
-    xmin, xmax, ymin, ymax = bounds
+    spawn_bounds = (-25.0, 65.0, -40.0, 35.0)
 
     # Spawn sheep based on the specified scenario
     if spawn_type == "circle":
         sheep_xy = spawn_circle(config["N"], center=(0, 0), radius=5.0, seed=seed)
     elif spawn_type == "uniform":
-        sheep_xy = spawn_uniform(config["N"], bounds, seed=seed)
+        sheep_xy = spawn_uniform(config["N"], spawn_bounds, seed=seed)
     elif spawn_type == "clusters":
-        sheep_xy = spawn_clusters(config["N"], config["clusters"], bounds, spread=4.0, seed=seed)
+        sheep_xy = spawn_clusters(config["N"], config["clusters"], spawn_bounds, spread=4.0, seed=seed)
     elif spawn_type == "corners":
-        sheep_xy = spawn_corners(config["N"], bounds, jitter=2.0, seed=seed)
+        sheep_xy = spawn_corners(config["N"], spawn_bounds, jitter=2.0, seed=seed)
     else:  # line
-        sheep_xy = spawn_line(config["N"], bounds, seed=seed)
+        sheep_xy = spawn_line(config["N"], spawn_bounds, seed=seed)
 
-    dog_xy = np.array([xmin + 5.0, ymin + 5.0])
-    target_xy = np.array([xmax - 5.0, ymax - 5.0])
+    dog_xy = config["dog_xy"]
+    target_xy = np.array([60, 30])
 
     # Build world with simulation parameters
     world_kwargs = {
-        **config, "bounds": bounds, "seed": seed,
+        **config, "bounds": spawn_bounds, "seed": seed,
     }
     W = world.World(
         sheep_xy, 
@@ -64,7 +65,6 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
         wall_follow_boost=0,
         stuck_speed_ratio=0,
         near_wall_ratio=0,
-        microsteps_max=0,
         **world_kwargs)
 
     # Initialize the herding policy
@@ -82,19 +82,7 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
     )
     
     if visualize:
-        plt.ion()
-        fig, ax = plt.subplots(figsize=(6,6))
-        ax.set_aspect('equal'); ax.grid(True)
-        ax.set_xlim(xmin, xmax + 30); ax.set_ylim(ymin, ymax + 30)
-        # draw fence
-        ax.plot([xmin,xmax,xmax,xmin,xmin],[ymin,ymin,ymax,ymax,ymin], linestyle="--")
-
-        state = W.get_state()
-        sheep_sc = ax.scatter(state.flock[:,0], state.flock[:,1], s=20)
-        dog_sc   = ax.scatter([state.drone[0]],[state.drone[1]], marker='x')
-        targ_sc  = ax.scatter([state.target[0]],[state.target[1]], marker='*')
-
-
+        renderer = Renderer(W, bounds=(-50, 100, -50, 100))
 
     # Main simulation loop for this trial
     for t in range(config["max_steps"]):
@@ -109,14 +97,7 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
             return True, t  # Success!
         
         if visualize:
-            state = W.get_state()
-            sheep_sc.set_offsets(state.flock)
-            dog_sc.set_offsets([state.drone])
-            # print([state.target[0], state.target[1]], config["success_radius"])
-            circle = plt.Circle([state.target[0], state.target[1]], config["success_radius"], fill=False, color="blue", linewidth=2)
-            # Add to axes
-            ax.add_patch(circle)
-            fig.canvas.draw_idle()
+            renderer.render_world(W, plan, t)
             plt.pause(0.05)
             
         # Print the progress on a single line
@@ -130,7 +111,6 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
     plt.ioff()
     plt.show()
 
-
     return False, config["max_steps"]  # Failure due to timeout
 
 
@@ -141,13 +121,18 @@ if __name__ == "__main__":
     date = datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
 
     # Run the evaluation and collect trial-by-trial data
-    Ns = [50, 100, 150, 200, 250, 300]
+    Ns = [100, 200, 300]
     spawn_types = ["uniform", "circle"]
     seeds = range(10)
-    flyovers = (False, True)
+    flyovers = [False]
+    dog_xy = [
+        np.array([[-20, -35]]),
+        np.array([[-20, -35]] * 2),
+        np.array([[-20, -35]] * 3),
+    ]
     scenarios_to_run = [
-        {**base_config, "flyover_on_collect": flyover, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (1/2) * 4 }
-        for N, pattern, flyover, seed in product(Ns, spawn_types, flyovers, seeds)
+        {**base_config, "dog_xy": dog_xy, "flyover_on_collect": flyover, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (1/2) * 4 }
+        for dog_xy, N, pattern, flyover, seed in product(dog_xy, Ns, spawn_types, flyovers, seeds)
     ]
 
     trial_results_list = []

@@ -8,28 +8,27 @@ import threading
 import numpy as np
 
 app = Flask(__name__)
-
 CORS(app, origins=["http://localhost:5173"])
 
 play = False
 
 flock_size = 50
-
 backend_adapter = world.World(
     sheep_xy=np.array([[random.uniform(0, 200), random.uniform(0, 200)] for _ in range(flock_size)]),
-    shepherd_xy=[0.0, 0.0],
+    shepherd_xy=np.array([[0.0, 0.0]]),
     target_xy=[5, 5],
     boundary="none",
     dt=0.1,
-    k_nn=48,
-    wa=10,
 )
+total_area = 0.5 * backend_adapter.N * (backend_adapter.ra ** 2)
+# area = pi * r^2 => r = sqrt(area / pi) (but pi's cancel.)
+collected_herd_radius = np.sqrt(total_area)
 policy = herding.ShepherdPolicy(
-    fN=backend_adapter.ra * backend_adapter.N ** (2.0/3.0),
-    umax=1.5,
-    too_close=3*backend_adapter.ra,
-    collect_standoff = backend_adapter.ra,
-    drive_standoff = backend_adapter.ra * np.sqrt(flock_size),
+    fN = collected_herd_radius,
+    umax = backend_adapter.umax,
+    too_close = 1.5 * backend_adapter.ra,
+    collect_standoff = 1.0 * backend_adapter.ra,
+    drive_standoff   = 1.0 * backend_adapter.ra + collected_herd_radius,
 )
 
 @app.route("/state", methods=["GET"])
