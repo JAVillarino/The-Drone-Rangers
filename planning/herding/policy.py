@@ -47,14 +47,7 @@ class ShepherdPolicy:
         dir_GT = world.target - G
         L_GT = np.linalg.norm(dir_GT)
         ghat = dir_GT / (L_GT + 1e-9)
-        
-        # Base drive point (original single-dog position)
-        base_drive_pos = G - ghat * self.drive_standoff
-        
-        # Calculate tangent vector (90 deg counter-clockwise)
-        # ghat = [x, y] -> tan = [-y, x]
-        tan_hat = np.array([-ghat[1], ghat[0]])
-        
+                
         # Angle spread for points (e.g., 90 degrees total spread)
         max_angle = np.pi / 2 # 90 degrees total spread
         
