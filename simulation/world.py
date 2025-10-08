@@ -510,6 +510,26 @@ class World:
     def _gcm_vec(self) -> np.ndarray:
         """Vectorized global center of mass calculation using contiguous arrays."""
         return np.mean(self.P, axis=0)
+    
+    def _should_ignore_dog_repulsion(self, near_indices: np.ndarray, G: np.ndarray, tol: float = 0.0) -> bool:
+        """
+        Return True if the summed local intent (wr*R + wa*A) of sheep near the dog
+        points radially outward from the global COM G. Outward ⇒ repulsion would make it worse.
+        """
+        radial_sum = 0.0
+        for i in near_indices:
+            R = self._repel_close_vec(i)
+            A = self._lcm_vec(i) - self.P[i]
+            v_local = self.wr * R + self.wa * A  # ONLY local forces; no dog term
+
+            g = self.P[i] - G
+            g_norm = np.linalg.norm(g)
+            if g_norm > 1e-9:
+                u_out = g / g_norm               # unit outward from G at sheep i
+                radial_sum += np.dot(v_local, u_out)
+
+        return radial_sum > tol                  # tol can add hysteresis if needed
+
 
     def _sheep_step(self):
         """Optimized sheep step using vectorized operations where possible."""
@@ -615,6 +635,9 @@ class World:
     def _handle_near_sheep(self, near_mask: np.ndarray, near_dog_distances_sq: np.ndarray, G: np.ndarray, min_near_distances: np.ndarray):
         """Handle sheep that are near a drone (flocking behavior). (CRITICAL CHANGE)"""
         near_indices = np.where(near_mask)[0]
+
+        turn_off_now = self._should_ignore_dog_repulsion(near_indices, G)
+        ws_global = 0.0 if turn_off_now else self.ws
         
         # Compute obstacle forces for all near sheep at once (unchanged)
         if self.polys and len(near_indices) > 0:
@@ -684,7 +707,7 @@ class World:
             # Combine forces (0.0 for flyover)
             # ws_eff = 0.0 if self.ignore_dog_repulsion else self.ws
             # H = self.wr*R + self.wa*A + ws_eff*S + self.wm*prev + self.w_align*AL
-            H = self.wr*R + self.wa*A + self.ws*S + self.wm*prev + self.w_align*AL
+            H = self.wr*R + self.wa*A + ws_global*S + self.wm*prev + self.w_align*AL
             
             # Normal push (already weighted by distance ramp)
             H += self.w_obs * nrm[idx]
