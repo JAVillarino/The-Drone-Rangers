@@ -5,8 +5,8 @@ if __name__ == "__main__":
     df = pd.read_csv("./planning/results/2025-10-03--18-26-41--evaluation_trials.csv")
     
     for key, value in df.groupby(["spawn_type"]):
-        fly_overs = value[value["flyover_on_collect"]]
-        nonfly_overs = value[~value["flyover_on_collect"]]
+        fly_overs = value[value["conditionally_apply_repulsion"]]
+        nonfly_overs = value[~value["conditionally_apply_repulsion"]]
 
         fig, ax = plt.subplots()
 

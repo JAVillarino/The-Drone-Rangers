@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
-    df = pd.read_csv("./planning/results/2025-10-07--14-47-14--evaluation_trials.csv")
+    df = pd.read_csv("./planning/results/2025-10-08--16-41-32--evaluation_trials.csv")
     
     df.loc[df["dog_xy"] == "[[-20 -35]]", "drones"] = 1
     df.loc[df["dog_xy"] == "[[-20 -35]\n [-20 -35]]", "drones"] = 2

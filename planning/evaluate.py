@@ -78,7 +78,7 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
         too_close = 1.5 * W.ra,
         collect_standoff = 1.0 * W.ra,
         drive_standoff   = 1.0 * W.ra + collected_herd_radius,
-        flyover_on_collect=config["flyover_on_collect"],
+        conditionally_apply_repulsion=config["conditionally_apply_repulsion"],
     )
     
     if visualize:
@@ -104,7 +104,7 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
         progress_str = (
             f"  Trial {current_trial + 1:>2}/{total_trials} | "
             f"Step: {t + 1:<5}/{config['max_steps']}, "
-            f"Flock Distance: {farthest:.0f}/{config['success_radius']:.0f}"
+            f"Flock Distance: {farthest:.0f}/{config['success_radius']:.0f}      "
         )
         print(progress_str, end='\r', flush=True)
     
@@ -121,18 +121,18 @@ if __name__ == "__main__":
     date = datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
 
     # Run the evaluation and collect trial-by-trial data
-    Ns = [100, 200, 300]
-    spawn_types = ["uniform", "circle"]
-    seeds = range(10)
+    Ns = [200]
+    spawn_types = ["uniform"]
+    seeds = range(2, 12)
     flyovers = [False]
     dog_xy = [
         np.array([[-20, -35]]),
-        np.array([[-20, -35]] * 2),
-        np.array([[-20, -35]] * 3),
+        np.array([[-20, -36], [-20, -34]]),
+        np.array([[-20, -36], [-20, -35], [-20, -34]]),
     ]
     scenarios_to_run = [
-        {**base_config, "dog_xy": dog_xy, "flyover_on_collect": flyover, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (1/2) * 4 }
-        for dog_xy, N, pattern, flyover, seed in product(dog_xy, Ns, spawn_types, flyovers, seeds)
+        {**base_config, "dog_xy": dog_xy, "conditionally_apply_repulsion": flyover, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (1/2) * 4 }
+        for seed, N, pattern, flyover, dog_xy in product(seeds, Ns, spawn_types, flyovers, dog_xy)
     ]
 
     trial_results_list = []
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     for s_idx, config in enumerate(scenarios_to_run):
         # Time the execution of a single trial
         start_time = time.perf_counter()
-        success, completion_steps = run_one_trial(config, config["spawn_type"], config["seed"], s_idx, len(scenarios_to_run), visualize=False)
+        success, completion_steps = run_one_trial(config, config["spawn_type"], config["seed"], s_idx, len(scenarios_to_run), visualize=True)
         end_time = time.perf_counter()
         trial_duration = end_time - start_time
 

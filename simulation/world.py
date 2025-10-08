@@ -416,10 +416,6 @@ class World:
             inv_d = 1.0 / d
             vecs = -(d_vec * inv_d[:, None])
             return vecs.sum(axis=0)
-        d = np.sqrt(np.sum(d_vec**2, axis=1)) + 1e-9
-        inv_d = 1.0 / d
-        vecs = -(d_vec * inv_d[:, None])
-        return vecs.sum(axis=0)
 
     def _lcm_vec(self, i: int) -> np.ndarray:
         """Vectorized local center of mass calculation using contiguous arrays."""
@@ -540,6 +536,10 @@ class World:
         for i in range(self.dogs.shape[0]):
             dog_distances_sq[:, i] = np.sum((self.P - self.dogs[i])**2, axis=1)
 
+        # If a given drone isn't applying repulsion, just make it seem like that drone is a bajillion miles away.
+        # dog_distances_sq[:, self.apply_repulsion] = 1_000_000
+        dog_distances_sq[:, self.apply_repulsion == 0] = 1_000_000
+        
         # Get the distance to the *closest* drone
         min_dog_distances_sq = np.min(dog_distances_sq, axis=1)
         
@@ -633,11 +633,12 @@ class World:
             self.V[i]  = v_new
     
     def _handle_near_sheep(self, near_mask: np.ndarray, near_dog_distances_sq: np.ndarray, G: np.ndarray, min_near_distances: np.ndarray):
-        """Handle sheep that are near a drone (flocking behavior). (CRITICAL CHANGE)"""
+        """Handle sheep that are near a drone (flocking behavior)."""
         near_indices = np.where(near_mask)[0]
 
-        turn_off_now = self._should_ignore_dog_repulsion(near_indices, G)
-        ws_global = 0.0 if turn_off_now else self.ws
+        # turn_off_now = self._should_ignore_dog_repulsion(near_indices, G)
+        # print("Should ignore", turn_off_now)
+        ws_global = self.ws
         
         # Compute obstacle forces for all near sheep at once (unchanged)
         if self.polys and len(near_indices) > 0:
@@ -684,7 +685,6 @@ class World:
         # S_total is now the combined dog repulsion for all near sheep
         
         for idx, i in enumerate(near_indices):
-            
             # Flocking forces
             R = self._repel_close_vec(i)
             A = self._lcm_vec(i) - self.P[i]

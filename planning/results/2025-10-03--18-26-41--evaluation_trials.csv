@@ -1,4 +1,4 @@
-Success,Completion Steps,Wall Time (s),max_steps,boundary,clusters,flyover_on_collect,N,spawn_type,seed,success_radius
+Success,Completion Steps,Wall Time (s),max_steps,boundary,clusters,conditionally_apply_repulsion,N,spawn_type,seed,success_radius
 True,254.0,2.0588228999986313,2000,none,3,False,50,uniform,0,28.284271247461902
 True,91.0,0.3413269000011496,2000,none,3,False,50,uniform,1,28.284271247461902
 True,438.0,1.7725659999996424,2000,none,3,False,50,uniform,2,28.284271247461902
