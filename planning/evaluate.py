@@ -124,7 +124,7 @@ if __name__ == "__main__":
     Ns = [100, 200, 300]
     spawn_types = ["circle", "uniform"]
     seeds = range(10)
-    flyovers = [True] # [False, True]
+    flyovers = [False, True]
     dog_xy = [
         np.array([[-20, -35]]),
         np.array([[-20, -36], [-20, -34]]),
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     for s_idx, config in enumerate(scenarios_to_run):
         # Time the execution of a single trial
         start_time = time.perf_counter()
-        success, completion_steps = run_one_trial(config, config["spawn_type"], config["seed"], s_idx, len(scenarios_to_run), visualize=True)
+        success, completion_steps = run_one_trial(config, config["spawn_type"], config["seed"], s_idx, len(scenarios_to_run), visualize=False)
         end_time = time.perf_counter()
         trial_duration = end_time - start_time
 
@@ -151,6 +151,7 @@ if __name__ == "__main__":
             "Success": success,
             "Completion Steps": completion_steps if success else np.nan,
             "Wall Time (s)": trial_duration,
+            "Drone Count": config["dog_xy"].shape[0],
             **config
         })
 

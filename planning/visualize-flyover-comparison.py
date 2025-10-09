@@ -2,7 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
-    df = pd.read_csv("./planning/results/2025-10-03--18-26-41--evaluation_trials.csv")
+    # df = pd.read_csv("./planning/results/2025-10-03--18-26-41--evaluation_trials.csv")
+    df = pd.read_csv("./planning/results/2025-10-08--21-05-00--evaluation_trials.csv")
     
     for key, value in df.groupby(["spawn_type"]):
         fly_overs = value[value["conditionally_apply_repulsion"]]
