@@ -8,7 +8,7 @@ from planning.herding import policy
 from simulation.scenarios import *
 
 class Renderer:
-    def __init__(self, world, bounds=(0.0, 250.0, 0.0, 250.0)):
+    def __init__(self, world, bounds=(0.0, 500.0, 0.0, 500.0)):
         """Initialize figure, axes, and scatter plots."""
         xmin, xmax, ymin, ymax = bounds
 
@@ -39,12 +39,12 @@ class Renderer:
         # Update sheep positions
         self.sheep_sc.set_offsets(state.flock)
 
-        # if debug:
-        #     # Highlight target sheep if specified
-        #     if getattr(plan, "target_sheep_index", None) is not None:
-        #         colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue
-        #         colors[plan.target_sheep_index] = (1.0, 0.0, 0.0, 1.0)  # target sheep red
-        #         self.sheep_sc.set_facecolor(colors)
+        if debug:
+            # Highlight target sheep if specified
+            colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue
+            for i in plan.target_sheep_indices:
+                colors[i] = (1.0, 0.0, 0.0, 1.0)  # target sheep red
+            self.sheep_sc.set_facecolor(colors)
 
         # Update dog and target markers
         self.dog_sc.set_offsets(state.drones)
@@ -59,31 +59,31 @@ class Renderer:
 # ---------- main ----------
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--N", type=int, default=200)
+    p.add_argument("--N", type=int, default=100)
     p.add_argument("--spawn", choices=["circle","uniform","clusters","corners","line"],
-                   default="uniform", help="initial sheep distribution")
+                   default="circle", help="initial sheep distribution")
     p.add_argument("--clusters", type=int, default=3, help="#clusters for spawn=clusters")
-    p.add_argument("--seed", type=int, default=2)
+    p.add_argument("--seed", type=int, default=3)
     p.add_argument("--steps", type=int, default=10000)
     args = p.parse_args()
 
     # Bounds (match World defaults so plotting aligns)
-    bounds = (0.0, 250.0, 0.0, 250.0) 
-    xmin, xmax, ymin, ymax = bounds
+    spawn_bounds = (0.0, 250.0, 0.0, 250.0) 
+    xmin, xmax, ymin, ymax = spawn_bounds
 
     # --- choose spawn pattern ---
     if args.spawn == "circle":
         sheep_xy = spawn_circle(args.N, center=(100,100), radius=5.0, seed=args.seed)
     elif args.spawn == "uniform":
-        sheep_xy = spawn_uniform(args.N, bounds, seed=args.seed)
+        sheep_xy = spawn_uniform(args.N, spawn_bounds, seed=args.seed)
     elif args.spawn == "clusters":
-        sheep_xy = spawn_clusters(args.N, args.clusters, bounds, spread=4.0, seed=args.seed)
+        sheep_xy = spawn_clusters(args.N, args.clusters, spawn_bounds, spread=4.0, seed=args.seed)
     elif args.spawn == "corners":
-        sheep_xy = spawn_corners(args.N, bounds, jitter=2.0, seed=args.seed)
+        sheep_xy = spawn_corners(args.N, spawn_bounds, jitter=2.0, seed=args.seed)
     else:  # line
-        sheep_xy = spawn_line(args.N, bounds, seed=args.seed)
+        sheep_xy = spawn_line(args.N, spawn_bounds, seed=args.seed)
 
-    dog_xy = np.array([[0.0, 0.0], [5.0, 5.0]])
+    dog_xy = np.array(np.array([[-20, -36], [-20, -35], [-20, -34]]),)
     target_xy = np.array([240.0, 240.0])
 
     # Create example polygon obstacles
@@ -137,6 +137,7 @@ if __name__ == "__main__":
         too_close = 1.5 * W.ra,             # safety stop
         collect_standoff = 1.0 * W.ra,    # paper: r_a behind the stray
         drive_standoff   = 1.0 * W.ra + collected_herd_radius,  # paper: r_a * sqrt(N) behind COM
+        conditionally_apply_repulsion=True,
     )
 
     # --- live plot ---

@@ -82,7 +82,7 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
     )
     
     if visualize:
-        renderer = Renderer(W, bounds=(-50, 100, -50, 100))
+        renderer = Renderer(W, bounds=(-50, 150, -50, 150))
 
     # Main simulation loop for this trial
     for t in range(config["max_steps"]):
@@ -121,10 +121,10 @@ if __name__ == "__main__":
     date = datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
 
     # Run the evaluation and collect trial-by-trial data
-    Ns = [200]
-    spawn_types = ["uniform"]
-    seeds = range(2, 12)
-    flyovers = [False]
+    Ns = [100, 200, 300]
+    spawn_types = ["circle", "uniform"]
+    seeds = range(10)
+    flyovers = [True] # [False, True]
     dog_xy = [
         np.array([[-20, -35]]),
         np.array([[-20, -36], [-20, -34]]),

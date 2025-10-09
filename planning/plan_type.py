@@ -12,7 +12,7 @@ class DronePositions:
     apply_repulsion: np.ndarray
 
     # Extra info for debugging. Later we should refactor this if not every drone position plan has the same debugging info.
-    target_sheep_indices: int | None
+    target_sheep_indices: list[int]
 
 @dataclass
 class DoNothing:

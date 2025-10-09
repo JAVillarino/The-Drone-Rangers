@@ -22,17 +22,19 @@ class ShepherdPolicy:
         self.drive_standoff = drive_standoff
         self.conditionally_apply_repulsion = conditionally_apply_repulsion
 
-    # ------------------ Unchanged/Minor Utility ------------------
-
     def _gcm(self, world: state.State) -> np.ndarray:
         """Global Center of Mass."""
         return np.mean(world.flock, axis=0)
 
     def _cohesive(self, world: state.State, G: np.ndarray) -> bool:
         """Check for flock cohesiveness."""
+        return self._cohesiveness(world, G) > 1
+    
+    def _cohesiveness(self, world: state.State, G: np.ndarray) -> bool:
+        """Check for flock cohesiveness."""
         if world.flock.shape[0] == 0: return True
         r = np.max(np.linalg.norm(world.flock - G, axis=1))
-        return r <= self.fN
+        return self.fN / r
 
     # ------------------ Multi-Drone Drive Logic ------------------
 
@@ -127,16 +129,39 @@ class ShepherdPolicy:
     # ------------------ Flyover Logic (Per-Drone) ------------------
 
     def _should_apply_repulsion(self, world: state.State, drone_idx: int, gcm: np.ndarray) -> bool:
-        """Check if a specific drone should apply repulsion. Returns 0 if the cumulative vectors from the drone to the sheep are pointing away from the GCM. """
+        """Check if a specific drone should apply repulsion. Returns true if the drone's repulsive force points either towards the GCM or towards the overall target. """
+        # Compute squared distances from this drone to all sheep
+        dist_sq = np.sum((world.flock - world.drones[drone_idx])**2, axis=1)
+
+        close_mask = dist_sq < 25**2 
+        relevant_flock = world.flock[close_mask]
+        relevant_count = relevant_flock.shape[0]
+        if relevant_count == 0:
+            return 1
+        
+        drone_to_sheep = relevant_flock - world.drones[drone_idx]
+        
         # Compute the dot product of (drone to sheep) with (sheep to GCM). If it's negative, that's bad.
-        drone_to_sheep = world.flock - world.drones[drone_idx]
-        sheep_to_gcm = gcm - world.flock
+        sheep_to_gcm = gcm - relevant_flock
         sheep_to_gcm_norm = np.linalg.norm(sheep_to_gcm, axis=1, keepdims=True)
         sheep_to_gcm /= sheep_to_gcm_norm
         # This is sort of like the element-wise dot product.
-        radial_sum = drone_to_sheep @ np.transpose(sheep_to_gcm)
+        towards_gcm = np.sum(drone_to_sheep * sheep_to_gcm, axis=1)
+        towards_gcm_fraction = np.sum(towards_gcm > 0) / relevant_count
+        
+        sheep_to_target = world.target - relevant_flock
+        sheep_to_target_norm = np.linalg.norm(sheep_to_target, axis=1, keepdims=True)
+        sheep_to_target /= sheep_to_target_norm
+        # This is sort of like the element-wise dot product.
+        towards_target = np.sum(drone_to_sheep * sheep_to_target, axis=1)
+        towards_target_fraction = np.sum(towards_target > 0) / relevant_count
+        
+        cohesiveness = self._cohesiveness(world, gcm)
+        value = towards_gcm_fraction * max(0, 1 - cohesiveness) + towards_target_fraction 
 
-        return 0 if np.sum(radial_sum) < 0 else 1
+        # If the cohesiveness is high, then we don't care about going towards the GCM.
+        return 1 if (value > 0.9) else 0
+        
 
 
     # ------------------ Main Planning Method ------------------
@@ -147,10 +172,9 @@ class ShepherdPolicy:
         N_drones = world.drones.shape[0]
         G = self._gcm(world)
         is_cohesive = self._cohesive(world, G)
-
         # Initialize arrays for the plan
         target_positions = np.zeros((N_drones, 2))
-        apply_repulsion = np.full(N_drones, False)
+        apply_repulsion = np.full(N_drones, 1)
         target_indices = np.full(N_drones, -1, dtype=int)
 
         if is_cohesive:
@@ -167,8 +191,6 @@ class ShepherdPolicy:
                 for i in range(N_drones):
                     # Check if the path from current drone position to its assigned collect point needs a flyover
                     apply_repulsion[i] = self._should_apply_repulsion(world, i, G)
-
-        # Calculate the next step for all drones (vectorized)
         
         # Vector from drone to target position
         dir_to_target = target_positions - world.drones 
@@ -183,7 +205,7 @@ class ShepherdPolicy:
 
         for i, d in enumerate(world.drones):
             dist_sq = np.min(np.sum((world.flock - d)**2, axis=1))
-            if dist_sq >= too_close_sq:
+            if dist_sq >= too_close_sq or not apply_repulsion[i]:
                 # Only move drones that are not too close
                 new_positions[i] = d + self.umax * dt * dir_unit[i]
             # else: drone is too close, so it stays put
