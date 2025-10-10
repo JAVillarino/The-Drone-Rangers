@@ -12,24 +12,29 @@ CORS(app, origins=["http://localhost:5173"])
 
 play = False
 
-flock_size = 50
-backend_adapter = world.World(
-    sheep_xy=np.array([[random.uniform(0, 200), random.uniform(0, 200)] for _ in range(flock_size)]),
-    shepherd_xy=np.array([[0.0, 0.0]]),
-    target_xy=[5, 5],
-    boundary="none",
-    dt=0.1,
-)
-total_area = 0.5 * backend_adapter.N * (backend_adapter.ra ** 2)
-# area = pi * r^2 => r = sqrt(area / pi) (but pi's cancel.)
-collected_herd_radius = np.sqrt(total_area)
-policy = herding.ShepherdPolicy(
-    fN = collected_herd_radius,
-    umax = backend_adapter.umax,
-    too_close = 1.5 * backend_adapter.ra,
-    collect_standoff = 1.0 * backend_adapter.ra,
-    drive_standoff   = 1.0 * backend_adapter.ra + collected_herd_radius,
-)
+def initialize_sim():
+    flock_size = 50
+    backend_adapter = world.World(
+        sheep_xy=np.array([[random.uniform(0, 200), random.uniform(0, 200)] for _ in range(flock_size)]),
+        shepherd_xy=np.array([[0.0, 0.0]]),
+        target_xy=[5, 5],
+        boundary="none",
+        dt=0.1,
+    )
+    total_area = 0.5 * backend_adapter.N * (backend_adapter.ra ** 2)
+    # area = pi * r^2 => r = sqrt(area / pi) (but pi's cancel.)
+    collected_herd_radius = np.sqrt(total_area)
+    policy = herding.ShepherdPolicy(
+        fN = collected_herd_radius,
+        umax = backend_adapter.umax,
+        too_close = 1.5 * backend_adapter.ra,
+        collect_standoff = 1.0 * backend_adapter.ra,
+        drive_standoff   = 1.0 * backend_adapter.ra + collected_herd_radius,
+    )
+
+    return backend_adapter, policy
+
+backend_adapter, policy = initialize_sim()
 
 @app.route("/state", methods=["GET"])
 def get_state():
@@ -42,6 +47,13 @@ def set_target():
         return jsonify({"error": "Missing 'position' field"}), 400
 
     backend_adapter.target = np.asarray(data["position"], float)
+    return jsonify(backend_adapter.get_state().to_dict())
+
+@app.route("/restart", methods=["POST"])
+def restart_sim():
+    global backend_adapter, policy
+    backend_adapter, policy = initialize_sim()
+    
     return jsonify(backend_adapter.get_state().to_dict())
 
 def _ensure_polygon_array(poly_like):
