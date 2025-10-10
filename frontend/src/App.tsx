@@ -1,16 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchState, setTarget, setPlayPause, requestRestart } from './api/state'
-import MapPlot from './components/MapPlot'
+import { MapPlot, ObjectData } from './components/MapPlot'
 import './App.css'
-
-type LocData = [number, number];
-
-// TODO: Share this interface wtf?
-interface ObjectData {
-    flock: LocData[],
-    drones: LocData[],
-    target: LocData
-}
 
 function App() {
   const queryClient = useQueryClient();

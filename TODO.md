@@ -23,6 +23,13 @@ Try to fix the bug where the sheep get sucked into the the edge of a boundary.
 Try to implement the path-planning around obstacles.
 
 
+Frontend TODOs:
+- Make the restart work.
+- Make the sheep have emojis.
+- Make the background scroll with the panning.
+- Make the play/pause & reset be on the bottom.
+
+
 We should spend some time trying to polish what we have before the midterm presentation.
 - We should leave obstacles where they're at. (unless Joel has something to clean up here.)
 - We should make the zooming and panning feel cleaner.

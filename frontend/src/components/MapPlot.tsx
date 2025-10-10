@@ -7,7 +7,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 
 type LocData = [number, number];
 
-interface ObjectData {
+export interface ObjectData {
     flock: LocData[],
     drones: LocData[],
     target: LocData
@@ -24,7 +24,7 @@ interface MapPlotProps {
 }
 
 
-export default function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPlayPause, onRestart }: MapPlotProps) {
+export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPlayPause, onRestart }: MapPlotProps) {
     useEffect(() => {
         console.log(data);
     }, [data]);
