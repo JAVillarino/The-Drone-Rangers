@@ -2,7 +2,9 @@ import ObjectMarker from "./ObjectMarker";
 import pause_btn from "../../img/pause_button.jpg"
 import play_btn from "../../img/play_button.jpg"
 import restart_btn from "../../img/restart_icon.png"
+import menu_icon from "../../img/Hamburger_icon.svg.png"
 import { useState, useMemo, useRef, useEffect } from "react";
+import ScenarioMenu from "./ScenarioMenu";
 
 
 type LocData = [number, number];
@@ -31,6 +33,9 @@ export default function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SI
 
     const [choosingTarget, setChoosingTarget] = useState(false);
     const [paused, setPaused] = useState(false);
+
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+
 
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [panMode, setPanMode] = useState<"scroll" | "drag">("scroll");
@@ -207,10 +212,35 @@ export default function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SI
     }, [panMode, data]);
 
 
+    function handleSelectScenario(scenario: string) {
+        console.log(`Handling scenario in MapPlot: ${scenario}`);
+
+        if (scenario == "Clustered") {
+            // Pop up somewhere for user to input OR choose from number of clusters
+        }
+        if (scenario == "Custom") {
+            /**probably have some other function call here
+            * idea: change some state about the map so the user can choose number of animals and then also click and drag each animal
+            * or alternatively, new element entirely?? same background across same space but with moveable entities and a submit button
+            * when user clicks submit, the current positions of the animals are translated back into world coords and sent to backend.
+            **/
+        }
+        // Send request to backend? {scenario: scenario} if scenario is clustered {scenario: clustered, clusters: num}
+
+    }
     
 
     return (
         <div className="map-container">
+            {isMenuOpen && (
+                <ScenarioMenu 
+                    onClose={() => setIsMenuOpen(false)} 
+                    onSelectScenario={handleSelectScenario}
+                />
+            )}
+            <button id="scenario-menu-btn" className="sim-ctrl-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                <img src={menu_icon}/>
+            </button>
             <button id="choose-target-btn" onClick={() => setChoosingTarget(true)}>
                 {choosingTarget ? "Click target location on map." : "Choose Target"}
             </button>

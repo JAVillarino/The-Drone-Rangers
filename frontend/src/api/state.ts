@@ -4,6 +4,31 @@
 
 const backendURL = "http://127.0.0.1:5000";
 
+type LocData = [number, number];
+
+interface ObjectData {
+    flock: LocData[],
+    drone: LocData,
+    target: LocData
+}
+
+interface CustomScenario {
+    name: string,
+    seed: number,
+    flockSize: number,
+    sheep: [number, number][],
+    shepherd: [number, number],
+    target: [number, number],
+    bounds: {
+        xmin: number,
+        xmax: number,
+        ymin: number,
+        ymax: number
+    },
+    start: boolean
+    // missing: polygons (i.e. obstacles), params, 
+}
+
 export async function fetchState() {
     const res = fetch(`${backendURL}/state`)
     .then((response) => {
@@ -70,4 +95,25 @@ export async function requestRestart() {
     } catch (err) {
         return console.error("Error sending restart request:", err);
     }
+}
+
+/**
+ * Stub for a request to start a preset scenario.
+ * @param scenario 
+ * @returns 
+ */
+export async function startPresetSimulation(scenario: string) {
+    console.log(`Sending scenario ${scenario} to the backend.`);
+
+    return new Promise(resolve => setTimeout(() => {
+        alert(`Simulation with scenario "${scenario}" has been started.`)
+        resolve({success: true, scenario: scenario});
+    }, 500));
+}
+
+export async function startCustomSimulation(customScenario: CustomScenario) {
+    console.log("Sending custom scenario to the backend.");
+
+    return new Promise(resolve => setTimeout(() => resolve({ success: true }), 500));
+
 }
