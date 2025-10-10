@@ -6,13 +6,11 @@ interface ObjectMarkerProps {
 };
 
 export default function ObjectMarker({type, x, y}: ObjectMarkerProps) {
-
     switch (type) {
         case "animal":
-            return <circle cx= {x} cy={y} r={5} className="animal"/>;
+            return <image x={x} y={y} href="../../img/sheep-icon.svg" className="animal"/>;
         case "drone":
-            const size = 6;
-            return (<polygon points={`${x},${y - size}, ${x - size},${y + size} ${x + size},${y + size}`} className="drone"/>);
+            return <image x={x} y={y} href="../../img/robot-icon.svg" className="drone"/>;
         case "target":
             return (<image href={"../../img/map_pin_icon.png"} x={x} y={y} className="target"/>);
         default:
