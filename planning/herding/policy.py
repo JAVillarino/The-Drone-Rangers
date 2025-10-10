@@ -160,7 +160,8 @@ class ShepherdPolicy:
         value = towards_gcm_fraction * max(0, 1 - cohesiveness) + towards_target_fraction 
 
         # If the cohesiveness is high, then we don't care about going towards the GCM.
-        return 1 if (value > 0.9) else 0
+        # Selecting this value is still very much in progress.
+        return 1 if (value > 0.75) else 0
         
 
 

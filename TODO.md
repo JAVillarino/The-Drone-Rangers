@@ -24,11 +24,15 @@ Try to implement the path-planning around obstacles.
 
 
 Frontend TODOs:
-- Make the restart work.
-- Make the sheep have emojis.
 - Make the background scroll with the panning.
+    - Could probably leave it in the background so that we can just use the repeat thing and then just change the offset.
 - Make the play/pause & reset be on the bottom.
+- Have an indicator for when the drone is barking and when it's just
 
+
+Planner TODOs:
+- It got stuck at one point because it was trying to herd the sheep towards the GCM but it really didn't want to push them in the wrong direction.
+- It literally gets stuck all the time when I look at it on the frontend.
 
 We should spend some time trying to polish what we have before the midterm presentation.
 - We should leave obstacles where they're at. (unless Joel has something to clean up here.)

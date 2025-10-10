@@ -7,6 +7,12 @@ interface ObjectMarkerProps {
 
 export default function ObjectMarker({type, x, y}: ObjectMarkerProps) {
     switch (type) {
+        case "barn":
+            return <image x={x} y={y} href="../../img/barn.svg" className="barn"/>;
+        case "windmill":
+            return <image x={x} y={y} href="../../img/windmill.svg" className="windmill"/>;
+        case "tractor":
+            return <image x={x} y={y} href="../../img/tractor.svg" className="tractor"/>;
         case "animal":
             return <image x={x} y={y} href="../../img/sheep-icon.svg" className="animal"/>;
         case "drone":

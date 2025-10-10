@@ -29,8 +29,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
         console.log(data);
     }, [data]);
 
-    //const width = 1000;
-    //const height = 1000;
     if (!data) return <p>No data yet</p>;
 
     const [choosingTarget, setChoosingTarget] = useState(false);
@@ -206,9 +204,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
           }
     }, [panMode, data]);
 
-
-    
-
+    console.log('rerendering', pan.x);
     return (
         <div className="map-container">
             <button id="choose-target-btn" onClick={() => setChoosingTarget(true)}>
@@ -224,6 +220,9 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                 Switch to {panMode === "scroll" ? "Drag" : "Scroll"} Mode
             </button>
             <svg ref={svgRef} className="map"  onClick={handleClick}  >
+                {/* <ObjectMarker key={`barn`} type="barn" x={scaleCoord(50, "x")} y={scaleCoord(1, "y")} />
+                <ObjectMarker key={`windmill`} type="windmill" x={scaleCoord(80, "x")} y={scaleCoord(10, "y")} />
+                <ObjectMarker key={`tractor`} type="tractor" x={scaleCoord(75, "x")} y={scaleCoord(40, "y")} />                 */}
                 {data.flock.map((a, i) => (
                     <ObjectMarker key={`animal-${i}`} type="animal" x={scaleCoord(a[0], "x")} y={scaleCoord(a[1], "y")} />
                 ))}
