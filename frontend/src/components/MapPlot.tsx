@@ -9,9 +9,9 @@ import ScenarioMenu from "./ScenarioMenu";
 
 type LocData = [number, number];
 
-interface ObjectData {
+export interface ObjectData {
     flock: LocData[],
-    drone: LocData,
+    drones: LocData[],
     target: LocData
 }
 
@@ -26,7 +26,11 @@ interface MapPlotProps {
 }
 
 
-export default function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPlayPause, onRestart }: MapPlotProps) {
+export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPlayPause, onRestart }: MapPlotProps) {
+    useEffect(() => {
+        console.log(data);
+    }, [data]);
+
     //const width = 1000;
     //const height = 1000;
     if (!data) return <p>No data yet</p>;
@@ -45,8 +49,8 @@ export default function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SI
 
     // Compute bounding box of all objects (to limit panning)
     const bounds = useMemo(() => {
-        const xs = [...data.flock.map(f => f[0]), data.drone[0], data.target[0]];
-        const ys = [...data.flock.map(f => f[1]), data.drone[1], data.target[1]];
+        const xs = [...data.flock.map(f => f[0]), ...data.drones.map(f => f[0]), data.target[0]];
+        const ys = [...data.flock.map(f => f[1]), ...data.drones.map(f => f[1]), data.target[1]];
         return {
             minX: Math.min(...xs),
             maxX: Math.max(...xs),
@@ -95,7 +99,7 @@ export default function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SI
         let minPanY = paddedMinY - zoomMin;
         let maxPanY = paddedMaxY - zoomMax;
 
-              // if padded range is smaller than viewport, center the viewport over the padded box
+        // if padded range is smaller than viewport, center the viewport over the padded box
         if (minPanX > maxPanX) {
             const centerPanX =
             (paddedMinX + paddedMaxX) / 2 - (zoomMin + zoomMax) / 2;
@@ -118,15 +122,11 @@ export default function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SI
 
     const clamp = (v: number, a: number, b: number) => Math.min(Math.max(v, a), b);
 
-
-
     function handlePause() {
         setPaused(!paused);
         onPlayPause();
     }
 
-    
-    
     function handleClick(e: React.MouseEvent<SVGSVGElement, MouseEvent>) {
         if (!choosingTarget) {
             return;
@@ -257,7 +257,9 @@ export default function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SI
                 {data.flock.map((a, i) => (
                     <ObjectMarker key={`animal-${i}`} type="animal" x={scaleCoord(a[0], "x")} y={scaleCoord(a[1], "y")} />
                 ))}
-                <ObjectMarker key={`drone-${1}`} type="drone" x={scaleCoord(data.drone[0], "x")} y={scaleCoord(data.drone[1], "y")}/>
+                {data.drones.map((d, i) => (
+                    <ObjectMarker key={`drone-${i}`} type="drone" x={scaleCoord(d[0], "x")} y={scaleCoord(d[1], "y")}/>
+                ))}
                 <ObjectMarker key={`target`} type="target" x={scaleCoord(data.target[0], "x")} y={scaleCoord(data.target[1], "y")} />
 
             </svg>

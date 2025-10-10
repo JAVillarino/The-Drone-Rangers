@@ -1,0 +1,3 @@
+Success,Completion Steps,Wall Time (s),max_steps,boundary,N,spawn_type,seed,success_radius
+True,102,1.38771850001649,6000,none,40,uniform,0,70.17642571710877
+True,195,0.6284261999826413,6000,none,40,uniform,1,70.17642571710877

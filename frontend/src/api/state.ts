@@ -30,23 +30,16 @@ interface CustomScenario {
 }
 
 export async function fetchState() {
-    const res = fetch(`${backendURL}/state`)
+    return fetch(`${backendURL}/state`)
     .then((response) => {
         const obj =  response.json();
-        console.log(obj);
         return obj;
 
-    })
-    /*.then((data) => {
-      console.log(data);
-      // setState(data)
-    })*/
-    
+    })    
     .catch((err) => 
         console.error("Error fetching state:", err)
         // same deal
     );
-    return res;
 }
 
 export async function setTarget(coords: {x: number, y: number}) {

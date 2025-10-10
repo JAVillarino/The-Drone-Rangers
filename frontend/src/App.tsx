@@ -1,18 +1,18 @@
 import {useState} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchState, setTarget, setPlayPause, requestRestart, startPresetSimulation, startCustomSimulation } from './api/state'
-import MapPlot from './components/MapPlot'
+import {MapPlot, ObjectData} from './components/MapPlot'
 import './App.css'
 import LandingPage from "./components/LandingPage";
 
 
 type LocData = [number, number];
 
-interface ObjectData {
+/*interface ObjectData {
     flock: LocData[],
     drone: LocData,
     target: LocData
-}
+}*/
 
 function App() {
   const queryClient = useQueryClient();

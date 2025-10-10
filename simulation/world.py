@@ -2,7 +2,7 @@ from __future__ import annotations
 import numpy as np
 from planning.herding.utils import norm, smooth_push
 from planning import state
-from planning.plan_type import DoNothing, DronePosition, Plan
+from planning.plan_type import DoNothing, DronePositions, Plan
 
 # Optional Numba import with fallback
 try:
@@ -29,11 +29,11 @@ class World:
     def __init__(
         self,
         sheep_xy: np.ndarray,
-        shepherd_xy: list[float],
+        shepherd_xy: np.ndarray, # n-by-2 of the positions of all of the shepherds.
         target_xy: list[float],
         *,
         # geometry (paper)
-        ra: float = 5.0,          # agent-agent distance
+        ra: float = 4.0,          # agent-agent distance
         rs: float = 65.0,         # shepherd detection
         k_nn: int = 21,           # nearest neighbors
 
@@ -51,7 +51,6 @@ class World:
 
         # far-field grazing
         graze_alpha: float = 0.0,   # paper doesn't add separate wander
-        inertia_alpha: float = 0.0, # while grazing
 
         # global tug
         g_tug: float = 0.0,       # off in base paper
@@ -69,7 +68,7 @@ class World:
         graze_p: float = 0.05,
         
         # boundaries
-        boundary: str = "reflect",
+        boundary: str = "none",
         bounds: tuple[float,float,float,float] = (0.0, 250.0, 0.0, 250.0),
         restitution: float = 0.85,
         
@@ -83,10 +82,10 @@ class World:
         wall_follow_boost: float = 6.0,
         stuck_speed_ratio: float = 0.08,
         near_wall_ratio: float = 0.8,
-        microsteps_max: int = 3,
 
         # rng
         seed: int = 0,
+        **_kw_ignore,
     ):
         self.N = sheep_xy.shape[0]
         
@@ -94,7 +93,7 @@ class World:
         self.P = np.ascontiguousarray(sheep_xy, dtype=np.float64)  # shape (N, 2)
         self.V = np.zeros((self.N, 2), dtype=np.float64, order='C')  # shape (N, 2)
         
-        self.dog = np.asarray(shepherd_xy, float)
+        self.dogs = shepherd_xy
         self.target = np.asarray(target_xy, float)
         self.paused = False
         
@@ -109,7 +108,7 @@ class World:
         self.ra, self.rs, self.k_nn = ra, rs, k_nn
         self.dt, self.vmax, self.umax = dt, vmax, umax
         self.wr, self.wa, self.ws, self.wm, self.w_align = wr, wa, ws, wm, w_align
-        self.graze_alpha, self.inertia_alpha = graze_alpha, inertia_alpha
+        self.graze_alpha = graze_alpha
         self.g_tug, self.sigma = g_tug, sigma
 
         # Cache squared distances for performance
@@ -135,18 +134,25 @@ class World:
         self.wall_follow_boost = wall_follow_boost
         self.stuck_speed_ratio = stuck_speed_ratio
         self.near_wall_ratio = near_wall_ratio
-        self.microsteps_max = microsteps_max
 
         self.graze_p = graze_p
 
         self.rng = np.random.default_rng(seed)
         
         # The -2 is because every sheep has n - 1 neighbors and k_nn is 0 indexed.
-        assert(self.k_nn <= self.N - 2)
+        assert self.k_nn <= self.N - 1
         
         # Sanitize initial positions if polygons exist
         if self.polys:
             self._sanitize_initial_positions()
+
+        # Neighbor cache and movement tracking
+        self.nb_idx = -np.ones((self.N, self.k_nn), dtype=np.int32)
+        self.prev_P = self.P.copy()
+        self._rr_cursor = 0
+        self.eps_move = max(1e-6, 0.4*self.ra)
+        # Auto-toggle: enable cache for large flocks only
+        self.use_neighbor_cache = (self.N >= 512)
 
     # ---------- polygon management ----------
     def add_polygon(self, polygon: np.ndarray) -> None:
@@ -362,19 +368,20 @@ class World:
         d_wall, n_wall = self._rect_signed_distance(self.P)
         penetration = self.world_keep_out - d_wall  # positive when inside band
         mask = penetration > 0.0
+        if not np.any(mask):
+            return
         
-        if np.any(mask):
-            # Cap correction to a fraction of a normal step to avoid jumps
-            max_corr = 0.25 * (self.vmax * self.dt)  # 25% of a frame's move
-            corr = np.minimum(penetration[mask], max_corr)
-            
-            self.P[mask] += corr[:, None] * n_wall[mask]
-            
-            # Reflect only if velocity is heading into the wall
-            v_into = np.sum(self.V[mask] * n_wall[mask], axis=1)
-            neg = v_into < 0.0
-            if np.any(neg):
-                self.V[mask][neg] -= (1.0 + self.restitution) * v_into[neg, None] * n_wall[mask][neg]
+        # Cap correction to a fraction of a normal step to avoid jumps
+        max_corr = 0.25 * (self.vmax * self.dt)  # 25% of a frame's move
+        corr = np.minimum(penetration[mask], max_corr)
+        
+        self.P[mask] += corr[:, None] * n_wall[mask]
+        
+        # Reflect only if velocity is heading into the wall
+        v_into = np.sum(self.V[mask] * n_wall[mask], axis=1)
+        neg = v_into < 0.0
+        if np.any(neg):
+            self.V[mask][neg] -= (1.0 + self.restitution) * v_into[neg, None] * n_wall[mask][neg]
 
 
 
@@ -389,42 +396,61 @@ class World:
         if NUMBA_AVAILABLE:
             return _kNN_numba(self.P, i, K)
         else:
-            d = np.sqrt(np.sum((self.P - self.P[i])**2, axis=1))
-            idx = np.argpartition(d, K+1)[:K+1]   # includes self
-            idx = idx[d[idx] > 0]                 # drop self
+            d2 = np.sum((self.P - self.P[i])**2, axis=1)
+            idx = np.argpartition(d2, K+1)[:K+1]
+            idx = idx[d2[idx] > 0]
             return idx[:K]
+        return idx[:K]
 
     def _repel_close_vec(self, i: int) -> np.ndarray:
         """Vectorized repulsion from close neighbors using contiguous arrays."""
         if NUMBA_AVAILABLE:
             return _repel_close_numba(self.P, i, self.ra)
         else:
-            # Calculate squared distances to all other agents (avoid sqrt)
             d_sq = np.sum((self.P - self.P[i])**2, axis=1)
             mask = (d_sq > 1e-18) & (d_sq < self.ra_sq)
-            
-            if not np.any(mask): 
+            if not np.any(mask):
                 return np.zeros(2)
-            
-            # TODO: Not sure if it's better to do inversely proportional here or just decrease ra and increase the weight that's used. In the paper it looks like they use some kind of relative distance thing. Right now the magnitude of the repulsion is d / (d^2 + 1), which is kind of a random function to pick.
-            inv_d = 1.0 / (d_sq + 1)
-            vecs = (self.P[i] - self.P[mask]) * inv_d[:, None]
+            d_vec = self.P[mask] - self.P[i]
+            d = np.sqrt(np.sum(d_vec**2, axis=1)) + 1e-9
+            inv_d = 1.0 / d
+            vecs = -(d_vec * inv_d[:, None])
             return vecs.sum(axis=0)
 
     def _lcm_vec(self, i: int) -> np.ndarray:
         """Vectorized local center of mass calculation using contiguous arrays."""
-        idx = self._kNN_vec(i, self.k_nn)
-        if idx.size == 0:
-            return self.P[i].copy()
-        return np.mean(self.P[idx], axis=0)
+        if self.use_neighbor_cache:
+            idx = self.nb_idx[i]; k = np.count_nonzero(idx >= 0)
+            if k == 0:
+                # Fallback to base path if cache empty
+                idx2 = self._kNN_vec(i, self.k_nn)
+                if idx2.size == 0:
+                    return self.P[i].copy()
+                return np.mean(self.P[idx2], axis=0)
+            return np.mean(self.P[idx[:k]], axis=0)
+        else:
+            idx = self._kNN_vec(i, self.k_nn)
+            if idx.size == 0:
+                return self.P[i].copy()
+            return np.mean(self.P[idx], axis=0)
 
     def _align_vec(self, i: int) -> np.ndarray:
         """Vectorized velocity alignment calculation using contiguous arrays."""
-        idx = self._kNN_vec(i, self.k_nn)
-        if idx.size == 0:
-            return np.zeros(2)
-        
-        vbar = np.mean(self.V[idx], axis=0)
+        if self.use_neighbor_cache:
+            idx = self.nb_idx[i]; k = np.count_nonzero(idx >= 0)
+            if k == 0:
+                # Fallback to base path if cache empty
+                idx2 = self._kNN_vec(i, self.k_nn)
+                if idx2.size == 0:
+                    return np.zeros(2)
+                vbar = np.mean(self.V[idx2], axis=0)
+            else:
+                vbar = np.mean(self.V[idx[:k]], axis=0)
+        else:
+            idx = self._kNN_vec(i, self.k_nn)
+            if idx.size == 0:
+                return np.zeros(2)
+            vbar = np.mean(self.V[idx], axis=0)
         vbar_norm = np.sqrt(np.sum(vbar**2))
         
         if vbar_norm == 0:
@@ -452,38 +478,73 @@ class World:
         m = P[:, 1] > self.ymax;  P[m, 1] = self.ymax - (P[m, 1] - self.ymax); V[m, 1] = -np.abs(V[m, 1]) * self.restitution
 
     def _apply_bounds_point(self, pos: np.ndarray) -> np.ndarray:
+        """Apply boundaries to a a list of positions (used for drone positions).
+        pos should be (N_drones, 2).
+        """
+        # pos can now be (2,) or (N_drones, 2)
         if self.boundary == "none":
-            return pos
+            return pos.copy()
 
-        x, y = pos
+        x, y = pos[:, 0], pos[:, 1]
         xmin, xmax, ymin, ymax = self.xmin, self.xmax, self.ymin, self.ymax
 
         if self.boundary == "wrap":
             Lx, Ly = (xmax - xmin), (ymax - ymin)
             x = xmin + ((x - xmin) % Lx)
             y = ymin + ((y - ymin) % Ly)
-            return np.array([x, y])
+        
+        else: # reflect
+            x[x < xmin] = xmin + (xmin - x[x < xmin])
+            x[x > xmax] = xmax - (x[x > xmax] - xmax)
+            y[y < ymin] = ymin + (ymin - y[y < ymin])
+            y[y > ymax] = ymax - (y[y > ymax] - ymax)
 
-        # reflect (just clamp & mirror step)
-        if x < xmin:  x = xmin + (xmin - x)
-        if x > xmax:  x = xmax - (x - xmax)
-        if y < ymin:  y = ymin + (ymin - y)
-        if y > ymax:  y = ymax - (y - ymax)
-        return np.array([x, y])
+        return np.column_stack([x, y])
+
 
     # ---------- sheep step ----------
     def _gcm_vec(self) -> np.ndarray:
         """Vectorized global center of mass calculation using contiguous arrays."""
         return np.mean(self.P, axis=0)
+    
+    def _should_ignore_dog_repulsion(self, near_indices: np.ndarray, G: np.ndarray, tol: float = 0.0) -> bool:
+        """
+        Return True if the summed local intent (wr*R + wa*A) of sheep near the dog
+        points radially outward from the global COM G. Outward ⇒ repulsion would make it worse.
+        """
+        radial_sum = 0.0
+        for i in near_indices:
+            R = self._repel_close_vec(i)
+            A = self._lcm_vec(i) - self.P[i]
+            v_local = self.wr * R + self.wa * A  # ONLY local forces; no dog term
+
+            g = self.P[i] - G
+            g_norm = np.linalg.norm(g)
+            if g_norm > 1e-9:
+                u_out = g / g_norm               # unit outward from G at sheep i
+                radial_sum += np.dot(v_local, u_out)
+
+        return radial_sum > tol                  # tol can add hysteresis if needed
+
 
     def _sheep_step(self):
         """Optimized sheep step using vectorized operations where possible."""
-        D = self.dog
         G = self._gcm_vec()
         
-        # Calculate squared distances to dog for all sheep (avoid sqrt)
-        dog_distances_sq = np.sum((self.P - D)**2, axis=1)
-        far_mask = dog_distances_sq > self.rs_sq
+        # TODO: Make this vectorized again.
+        dog_distances_sq = np.zeros((self.P.shape[0], self.dogs.shape[0]))
+        for i in range(self.dogs.shape[0]):
+            dog_distances_sq[:, i] = np.sum((self.P - self.dogs[i])**2, axis=1)
+
+        # If a given drone isn't applying repulsion, just make it seem like that drone is a bajillion miles away.
+        # dog_distances_sq[:, self.apply_repulsion] = 1_000_000
+        dog_distances_sq[:, self.apply_repulsion == 0] = 1_000_000
+        
+        # Get the distance to the *closest* drone
+        min_dog_distances_sq = np.min(dog_distances_sq, axis=1)
+        
+        # Use the closest distance to determine near/far
+        far_mask = min_dog_distances_sq > self.rs_sq
         near_mask = ~far_mask
         
         # Handle far sheep (grazing behavior)
@@ -492,13 +553,14 @@ class World:
         
         # Handle near sheep (flocking behavior) 
         if np.any(near_mask):
-            # Only compute actual distances for near sheep when needed
-            near_distances = np.sqrt(dog_distances_sq[near_mask])
-            self._handle_near_sheep(near_mask, D, G, near_distances)
-        
+            # Only compute actual distances for near sheep when needed            
+            min_near_distances = np.sqrt(min_dog_distances_sq[near_mask])
+            self._handle_near_sheep(near_mask, dog_distances_sq[near_mask], G, min_near_distances)
+
+        # TODO: Add this back.
         # Soft keep-out (see change below) then bounds
-        self.enforce_keepout_all()
-        self._apply_bounds_sheep_inplace()
+        # self.enforce_keepout_all()
+        # self._apply_bounds_sheep_inplace()
 
         # Safety
         bad = ~np.isfinite(self.P).all(axis=1)
@@ -510,13 +572,16 @@ class World:
     def _handle_far_sheep(self, far_mask: np.ndarray, G: np.ndarray):
         """Handle sheep that are far from the dog (grazing behavior)."""
         far_indices = np.where(far_mask)[0]
-        
+
+        decay = 0.80
+
         for i in far_indices:
-            # Bernoulli: move with probability p while grazing  
+            # Bernoulli: move with probability p while grazing
             if self.graze_p < 1.0 and self.rng.random() > self.graze_p:
-                self.V[i] = 0.0
+                self.V[i] *= decay  # smooth decay
+                self.P[i] += self.V[i] * self.dt
                 continue
-            
+
             # Start with a random unit heading so motion never vanishes when far
             rnd = self.rng.normal(size=2) * 0.2
             R  = self._repel_close_vec(i)
@@ -524,7 +589,6 @@ class World:
 
             # Normalize final heading and move a FULL grazing step (paper)
             h = norm(H)
-            step = self.vmax * self.dt   # full step when grazing moves
             
             # Obstacle handling for far sheep
             if self.polys:
@@ -558,17 +622,25 @@ class World:
             if Hn > 0:
                 h = H / Hn
             
-            # Full grazing step
-            step = self.vmax * self.dt
-            new_pos = self.P[i] + step * h
-            self.V[i] = (new_pos - self.P[i]) / self.dt
-            self.P[i] = new_pos
+            # Momentum update
+            v_des = self.vmax * h
+            v_new = decay * self.V[i] + (1.0 - decay) * v_des
+            sp = np.linalg.norm(v_new)
+            if sp > self.vmax:
+                v_new *= (self.vmax / sp)
+
+            self.P[i] += v_new * self.dt
+            self.V[i]  = v_new
     
-    def _handle_near_sheep(self, near_mask: np.ndarray, D: np.ndarray, G: np.ndarray, near_distances: np.ndarray):
-        """Handle sheep that are near the dog (flocking behavior)."""
+    def _handle_near_sheep(self, near_mask: np.ndarray, near_dog_distances_sq: np.ndarray, G: np.ndarray, min_near_distances: np.ndarray):
+        """Handle sheep that are near a drone (flocking behavior)."""
         near_indices = np.where(near_mask)[0]
+
+        # turn_off_now = self._should_ignore_dog_repulsion(near_indices, G)
+        # print("Should ignore", turn_off_now)
+        ws_global = self.ws
         
-        # Compute obstacle forces for all near sheep at once
+        # Compute obstacle forces for all near sheep at once (unchanged)
         if self.polys and len(near_indices) > 0:
             avoid, tan, s = self._obstacle_avoid(self.P[near_indices])
         else:
@@ -576,22 +648,53 @@ class World:
             tan = np.zeros((len(near_indices), 2))
             s = np.full(len(near_indices), np.inf)
         
-        # --- Obstacle response (continuous) ---
-        # Pull per-agent values
-        nrm = avoid  # avoid is already w*n (unit n scaled by ramp)
-        tng = tan
+        nrm = avoid; tng = tan
+        
+        # --- Drone Repulsion: SUM over all drones ---
+        # near_dog_distances_sq is (N_near, num_drones)
+        # Dog positions are self.dogs (num_drones, 2)
+        
+        # Initialize total dog repulsion force (S) to zero
+        S_total = np.zeros((len(near_indices), 2))
+
+        # Sheep positions for near indices
+        P_near = self.P[near_indices]
+
+        # Iterate over drones to compute combined repulsion
+        for j in range(self.dogs.shape[0]):
+            # TODO: Add this back.
+            # Skip if repulsion is ignored for this drone
+            # if not self.apply_repulsion[j]:
+            #     continue
+            
+            D = self.dogs[j] # Drone position
+            d_sq = near_dog_distances_sq[:, j] # Distances to this drone
+            d = np.sqrt(d_sq) # Distance to this drone
+            
+            push = smooth_push(d, self.rs)
+            inv_d = 1.0 / d
+            
+            # Vector from drone D to sheep P
+            vec_DP = P_near - D 
+            
+            # Repulsion force S for drone j
+            S_j = push[:, None] * vec_DP * inv_d[:, None]
+            
+            S_total += S_j
+        
+        # S_total is now the combined dog repulsion for all near sheep
         
         for idx, i in enumerate(near_indices):
             # Flocking forces
             R = self._repel_close_vec(i)
             A = self._lcm_vec(i) - self.P[i]
-            d = max(1e-9, near_distances[idx])
-            push = smooth_push(d, self.rs)
-            inv_d = 1.0 / d  # Cache inverse distance
-            S = push * (self.P[i] - D) * inv_d
+            
+            # S is pre-calculated as S_total[idx]
+            S = S_total[idx]
+
             AL = self._align_vec(i)
             
-            # Previous velocity (inertia) - cache inverse norm
+            # Previous velocity (inertia)
             vel_sq = np.sum(self.V[i]**2)
             if vel_sq > 0:
                 vel_norm = np.sqrt(vel_sq)
@@ -601,28 +704,25 @@ class World:
                 vel_norm = 0.0
                 prev = np.zeros(2)
             
-            # Combine forces
-            H = self.wr*R + self.wa*A + self.ws*S + self.wm*prev + self.w_align*AL
+            # Combine forces (0.0 for flyover)
+            # ws_eff = 0.0 if self.ignore_dog_repulsion else self.ws
+            # H = self.wr*R + self.wa*A + ws_eff*S + self.wm*prev + self.w_align*AL
+            H = self.wr*R + self.wa*A + ws_global*S + self.wm*prev + self.w_align*AL
             
             # Normal push (already weighted by distance ramp)
             H += self.w_obs * nrm[idx]
+            if np.dot(tng[idx], tng[idx]) > 0.0 and np.dot(H, nrm[idx]) < 0.0:
+                H += self.w_tan * tng[idx]
 
-            # If heading into the wall (n·H < 0), add tangent glide
-            if np.dot(tng[idx], tng[idx]) > 0.0:
-                if np.dot(H, nrm[idx]) < 0.0:
-                    H += self.w_tan * tng[idx]
-
-            # Final non-penetration projection when very close to wall:
-            # If within keepout band (s <= keep_out), zero the into-wall component.
             if s[idx] <= self.keep_out:
                 n_unit = nrm[idx]
                 L = np.sqrt(np.dot(n_unit, n_unit)) + 1e-12
-                n_unit = n_unit / L   # safeguard
+                n_unit = n_unit / L
                 into = np.dot(H, n_unit)
                 if into < 0.0:
                     H = H - into * n_unit
             
-            # Global tug toward center - cache inverse norm
+            # Global tug toward center
             gcm_vec = G - self.P[i]
             gcm_sq = np.sum(gcm_vec**2)
             if gcm_sq > 0:
@@ -652,22 +752,37 @@ class World:
 
     # ---------- public API ----------
     def step(self, plan: Plan):
-        if not self.paused:
-            self._sheep_step()
+        if self.paused:
+            return
         
-            # Use the plan to update the position of the shepherd.
-            match plan:
-                case DoNothing():
-                    pass
-                case DronePosition(position=pos):
-                    self.dog = self._apply_bounds_point(pos)
-                case _ as unexpected_plan:
-                    raise Exception("Unexpected plan type", unexpected_plan)
+        if self.use_neighbor_cache:
+            self._refresh_neighbors()
+
+        # Apply planner output
+        match plan:
+            case DoNothing():
+                pass
+                # TODO: Add this back.
+                # self.ignore_dog_repulsion = False
+            case DronePositions(positions=pos, apply_repulsion=apply, target_sheep_indices=_):
+                dog_count = self.dogs.shape[0]
+                if pos.shape[0] != dog_count or apply.size != dog_count:
+                    raise ValueError(f"DronePositions plan must have {self.num_drones} positions and repulsion flags.")
+                
+                # Apply bounds to all drone positions
+                new_dogs_pos = self._apply_bounds_point(pos)
+                self.dogs = new_dogs_pos
+                self.apply_repulsion = apply.copy()
+            case _ as unexpected_plan:
+                raise Exception("Unexpected plan type", unexpected_plan)
+
+        # Then move sheep using the new dog pos + flag
+        self._sheep_step()
 
     def get_state(self) -> state.State:
         return state.State(
             flock=self.P.copy(),
-            drone=self.dog.copy(),
+            drones=self.dogs.copy(),
             target=self.target.copy(),
             polygons=[p.copy() for p in self.polys],
         )
@@ -675,61 +790,27 @@ class World:
     def pause(self):
         self.paused = not self.paused
 
-
-# Numba-optimized functions (defined outside class)
-@njit
-def _kNN_numba(P: np.ndarray, i: int, K: int) -> np.ndarray:
-    """Numba-optimized k-nearest neighbors."""
-    N = P.shape[0]
-    distances = np.empty(N, dtype=np.float64)
-    
-    # Calculate squared distances to avoid sqrt
-    for j in range(N):
-        dx = P[j, 0] - P[i, 0]
-        dy = P[j, 1] - P[i, 1]
-        distances[j] = dx*dx + dy*dy
-    
-    # Find K+1 smallest (includes self)
-    indices = np.empty(K, dtype=np.int32)
-    count = 0
-    
-    for _ in range(K+1):
-        min_idx = -1
-        min_dist = np.inf
-        for j in range(N):
-            if distances[j] < min_dist:
-                min_dist = distances[j]
-                min_idx = j
-        
-        if min_idx != i and count < K:  # skip self
-            indices[count] = min_idx
-            count += 1
-        distances[min_idx] = np.inf  # mark as used
-        
-    return indices[:count]
-
-@njit
-def _repel_close_numba(P: np.ndarray, i: int, ra: float) -> np.ndarray:
-    """Numba-optimized repulsion calculation using squared distances."""
-    repulsion = np.zeros(2, dtype=np.float64)
-    pos_i = P[i]
-    ra_sq = ra * ra
-    
-    for j in range(P.shape[0]):
-        if i == j:
-            continue
-            
-        dx = pos_i[0] - P[j, 0]
-        dy = pos_i[1] - P[j, 1]
-        d_sq = dx*dx + dy*dy
-        
-        if d_sq > 1e-18 and d_sq < ra_sq:
-            d = np.sqrt(d_sq)
-            inv_d = 1.0 / (d + 1e-9)
-            repulsion[0] += dx * inv_d
-            repulsion[1] += dy * inv_d
-            
-    return repulsion
+    def _refresh_neighbors(self):
+        if not self.use_neighbor_cache:
+            return
+        moved = np.sqrt(np.sum((self.P - self.prev_P)**2, axis=1)) > self.eps_move
+        batch = np.zeros(self.N, dtype=bool)
+        half = max(1, self.N // 12)
+        # If very few moved, shrink batch further
+        if np.count_nonzero(moved) < max(2, self.N // 20):
+            half = max(1, self.N // 16)
+        start = self._rr_cursor
+        end = min(self._rr_cursor + half, self.N)
+        batch[start:end] = True
+        self._rr_cursor = 0 if end >= self.N else end
+        need = moved | batch
+        if not np.any(need):
+            return
+        idxs = np.where(need)[0]
+        # Use fast NumPy argpartition path for kNN refresh to minimize overhead
+        for i in idxs:
+            self.nb_idx[i, :self.k_nn] = self._kNN_vec(i, self.k_nn)
+        self.prev_P[need] = self.P[need]
 
 
 @njit
@@ -807,3 +888,58 @@ def _closest_point_on_polygon_numba(P: np.ndarray, V: np.ndarray, E: np.ndarray,
             s[i] = -s[i]
     
     return Q, n, s
+
+# Numba-optimized functions (defined outside class)
+@njit
+def _kNN_numba(P: np.ndarray, i: int, K: int) -> np.ndarray:
+    """Numba-optimized k-nearest neighbors."""
+    N = P.shape[0]
+    distances = np.empty(N, dtype=np.float64)
+    
+    # Calculate squared distances to avoid sqrt
+    for j in range(N):
+        dx = P[j, 0] - P[i, 0]
+        dy = P[j, 1] - P[i, 1]
+        distances[j] = dx*dx + dy*dy
+    
+    # Find K+1 smallest (includes self)
+    indices = np.empty(K, dtype=np.int32)
+    count = 0
+    
+    for _ in range(K+1):
+        min_idx = -1
+        min_dist = np.inf
+        for j in range(N):
+            if distances[j] < min_dist:
+                min_dist = distances[j]
+                min_idx = j
+        
+        if min_idx != i and count < K:  # skip self
+            indices[count] = min_idx
+            count += 1
+        distances[min_idx] = np.inf  # mark as used
+        
+    return indices[:count]
+
+@njit
+def _repel_close_numba(P: np.ndarray, i: int, ra: float) -> np.ndarray:
+    """Numba-optimized repulsion calculation using squared distances."""
+    repulsion = np.zeros(2, dtype=np.float64)
+    pos_i = P[i]
+    ra_sq = ra * ra
+    
+    for j in range(P.shape[0]):
+        if i == j:
+            continue
+            
+        dx = pos_i[0] - P[j, 0]
+        dy = pos_i[1] - P[j, 1]
+        d_sq = dx*dx + dy*dy
+        
+        if d_sq > 1e-18 and d_sq < ra_sq:
+            d = np.sqrt(d_sq)
+            inv_d = 1.0 / (d + 1e-9)
+            repulsion[0] += dx * inv_d
+            repulsion[1] += dy * inv_d
+            
+    return repulsion

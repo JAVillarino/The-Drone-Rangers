@@ -7,34 +7,83 @@ from simulation import world
 from planning.herding import policy
 from simulation.scenarios import *
 
+class Renderer:
+    def __init__(self, world, bounds=(0.0, 500.0, 0.0, 500.0)):
+        """Initialize figure, axes, and scatter plots."""
+        xmin, xmax, ymin, ymax = bounds
+
+        plt.ion()
+        self.fig, self.ax = plt.subplots(figsize=(6, 6))
+        self.ax.set_aspect('equal')
+        self.ax.grid(True)
+        self.ax.set_xlim(xmin, xmax)
+        self.ax.set_ylim(ymin, ymax)
+
+        # Draw world bounds (fence)
+        self.ax.plot(
+            [xmin, xmax, xmax, xmin, xmin],
+            [ymin, ymin, ymax, ymax, ymin],
+            linestyle="--"
+        )
+
+        # Initial state
+        state = world.get_state()
+        self.sheep_sc = self.ax.scatter(state.flock[:, 0], state.flock[:, 1], s=20)
+        self.dog_sc   = self.ax.scatter([state.drones[:, 0]], [state.drones[:, 1]], marker='x')
+        self.targ_sc  = self.ax.scatter([state.target[0]], [state.target[1]], marker='*')
+
+    def render_world(self, world, plan, step_number, debug=False):
+        """Update the scatter plots for the current state of the world."""
+        state = world.get_state()
+
+        # Update sheep positions
+        self.sheep_sc.set_offsets(state.flock)
+
+        if debug:
+            # Highlight target sheep if specified
+            colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue
+            for i in plan.target_sheep_indices:
+                colors[i] = (1.0, 0.0, 0.0, 1.0)  # target sheep red
+            self.sheep_sc.set_facecolor(colors)
+
+        # Update dog and target markers
+        self.dog_sc.set_offsets(state.drones)
+        self.targ_sc.set_offsets([state.target])
+
+        # Title
+        self.ax.set_title(f"Step {step_number}")
+
+        # Redraw
+        self.fig.canvas.draw_idle()
+
 # ---------- main ----------
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--N", type=int, default=200)
+    p.add_argument("--N", type=int, default=100)
     p.add_argument("--spawn", choices=["circle","uniform","clusters","corners","line"],
                    default="circle", help="initial sheep distribution")
     p.add_argument("--clusters", type=int, default=3, help="#clusters for spawn=clusters")
-    p.add_argument("--seed", type=int, default=2)
+    p.add_argument("--seed", type=int, default=3)
     p.add_argument("--steps", type=int, default=10000)
     args = p.parse_args()
 
     # Bounds (match World defaults so plotting aligns)
-    bounds = (0.0, 250.0, 0.0, 250.0) 
-    xmin, xmax, ymin, ymax = bounds
+    spawn_bounds = (0.0, 250.0, 0.0, 250.0) 
+    xmin, xmax, ymin, ymax = spawn_bounds
 
     # --- choose spawn pattern ---
     if args.spawn == "circle":
         sheep_xy = spawn_circle(args.N, center=(100,100), radius=5.0, seed=args.seed)
     elif args.spawn == "uniform":
-        sheep_xy = spawn_uniform(args.N, bounds, seed=args.seed)
+        sheep_xy = spawn_uniform(args.N, spawn_bounds, seed=args.seed)
     elif args.spawn == "clusters":
-        sheep_xy = spawn_clusters(args.N, args.clusters, bounds, spread=4.0, seed=args.seed)
+        sheep_xy = spawn_clusters(args.N, args.clusters, spawn_bounds, spread=4.0, seed=args.seed)
     elif args.spawn == "corners":
-        sheep_xy = spawn_corners(args.N, bounds, jitter=2.0, seed=args.seed)
+        sheep_xy = spawn_corners(args.N, spawn_bounds, jitter=2.0, seed=args.seed)
     else:  # line
-        sheep_xy = spawn_line(args.N, bounds, seed=args.seed)
+        sheep_xy = spawn_line(args.N, spawn_bounds, seed=args.seed)
 
-    dog_xy    = np.array([0.0, 0.0])
+    dog_xy = np.array(np.array([[-20, -36], [-20, -35], [-20, -34]]),)
     target_xy = np.array([240.0, 240.0])
 
     # Create example polygon obstacles
@@ -77,7 +126,6 @@ if __name__ == "__main__":
         wall_follow_boost=6.0,
         stuck_speed_ratio=0.08,
         near_wall_ratio=0.8,
-        microsteps_max=3
     )
 
     total_area = 0.5 * W.N * (W.ra ** 2)
@@ -89,16 +137,10 @@ if __name__ == "__main__":
         too_close = 1.5 * W.ra,             # safety stop
         collect_standoff = 1.0 * W.ra,    # paper: r_a behind the stray
         drive_standoff   = 1.0 * W.ra + collected_herd_radius,  # paper: r_a * sqrt(N) behind COM
+        conditionally_apply_repulsion=True,
     )
 
     # --- live plot ---
-    plt.ion()
-    fig, ax = plt.subplots(figsize=(6,6))
-    ax.set_aspect('equal'); ax.grid(True)
-    ax.set_xlim(xmin, xmax); ax.set_ylim(ymin, ymax)
-    # draw fence
-    ax.plot([xmin,xmax,xmax,xmin,xmin],[ymin,ymin,ymax,ymax,ymin], linestyle="--")
-
     # # Draw polygon obstacles
     # polygon_patches = []
     # for poly in obstacles_polygons:
@@ -107,22 +149,16 @@ if __name__ == "__main__":
     #     patch = Polygon(closed_poly[:-1], facecolor='red', alpha=0.3, edgecolor='red')
     #     ax.add_patch(patch)
         # polygon_patches.append(patch)
-
-    state = W.get_state()
-    sheep_sc = ax.scatter(state.flock[:,0], state.flock[:,1], s=20)
-    dog_sc   = ax.scatter([state.drone[0]],[state.drone[1]], marker='x')
-    targ_sc  = ax.scatter([state.target[0]],[state.target[1]], marker='*')
-
+    
+    renderer = Renderer(W)
     for t in range(args.steps):
         plan = shepherd_policy.plan(W.get_state(), W.dt)
         W.step(plan)
         
-        #if t % 2 == 0:
-        state = W.get_state()
-        sheep_sc.set_offsets(state.flock)
-        dog_sc.set_offsets([state.drone])
-        ax.set_title(f"Step {t}  |  spawn={args.spawn}  |  {len(state.polygons)} polygons")
-        fig.canvas.draw_idle()
+        if t % 2 == 0:
+            state = W.get_state()
+            renderer.render_world(W, plan, t, debug=True)
+    
         plt.pause(0.01)
 
     plt.ioff()
