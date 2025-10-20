@@ -761,9 +761,7 @@ class World:
         # Apply planner output
         match plan:
             case DoNothing():
-                pass
-                # TODO: Add this back.
-                # self.ignore_dog_repulsion = False
+                self.apply_repulsion = np.zeros(self.dogs.shape[0])
             case DronePositions(positions=pos, apply_repulsion=apply, target_sheep_indices=_):
                 dog_count = self.dogs.shape[0]
                 if pos.shape[0] != dog_count or apply.size != dog_count:
@@ -943,3 +941,23 @@ def _repel_close_numba(P: np.ndarray, i: int, ra: float) -> np.ndarray:
             repulsion[1] += dy * inv_d
             
     return repulsion
+
+
+
+def is_goal_satisfied(w: World, goal_tolerance: float) -> bool:
+    """
+    Return True if every sheep in the world's flock is within the goal tolerance
+    of the world's target.
+    """
+    
+    if w.P.size == 0:
+        return True
+
+    # squared comparison for speed / numerical stability
+    tol_sq = goal_tolerance * goal_tolerance
+
+    # distances squared from each sheep to the target
+    diffs = w.P - w.target.reshape(1, 2)
+    d2 = np.sum(diffs * diffs, axis=1)
+
+    return np.all(d2 <= tol_sq)

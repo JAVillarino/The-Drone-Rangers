@@ -4,7 +4,6 @@ from .utils import norm
 from planning.plan_type import DoNothing, Plan, DronePositions
 from planning import state
 
-# The modified policy class
 class ShepherdPolicy:
     """
     Collect/drive policy modified for multiple drones.
@@ -37,7 +36,6 @@ class ShepherdPolicy:
         return self.fN / r
 
     # ------------------ Multi-Drone Drive Logic ------------------
-
     def _drive_points(self, world: state.State, G: np.ndarray) -> np.ndarray:
         """
         Calculates drive points for all drones.
@@ -77,7 +75,6 @@ class ShepherdPolicy:
 
 
     # ------------------ Multi-Drone Collect Logic ------------------
-
     def _collect_points(self, world: state.State, G: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Assigns each drone to collect an individual outermost sheep.
@@ -127,7 +124,6 @@ class ShepherdPolicy:
         return collect_points, target_sheep_indices
 
     # ------------------ Flyover Logic (Per-Drone) ------------------
-
     def _should_apply_repulsion(self, world: state.State, drone_idx: int, gcm: np.ndarray) -> bool:
         """Check if a specific drone should apply repulsion. Returns true if the drone's repulsive force points either towards the GCM or towards the overall target. """
         # Compute squared distances from this drone to all sheep
@@ -157,16 +153,17 @@ class ShepherdPolicy:
         towards_target_fraction = np.sum(towards_target > 0) / relevant_count
         
         cohesiveness = self._cohesiveness(world, gcm)
-        value = towards_gcm_fraction * max(0, 1 - cohesiveness) + towards_target_fraction 
+        value = towards_gcm_fraction * max(0, 1 - cohesiveness) + towards_target_fraction
+        
+        if cohesiveness < 0.8 and towards_gcm_fraction > 0.6:
+            return True
 
         # If the cohesiveness is high, then we don't care about going towards the GCM.
         # Selecting this value is still very much in progress.
         return 1 if (value > 0.75) else 0
         
 
-
     # ------------------ Main Planning Method ------------------
-
     def plan(self, world: state.State, dt: float) -> Plan:
         """Return the movement plan for all drones."""
         

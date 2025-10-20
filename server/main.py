@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import random
-from planning import herding
+from planning import herding, plan_type
 from simulation import world
 import time
 import threading
@@ -137,9 +137,14 @@ if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
     
     while True:
+        time.sleep(0.01)
+    
+        if world.is_goal_satisfied(backend_adapter, policy.fN * 1.5):
+            backend_adapter.step(plan_type.DoNothing())
+            continue
+
         # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
         for _ in range(10):
             plan = policy.plan(backend_adapter.get_state(), backend_adapter.dt)
             backend_adapter.step(plan)
         
-        time.sleep(0.1)
