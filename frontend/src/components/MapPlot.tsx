@@ -234,21 +234,21 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                     onSelectScenario={handleSelectScenario}
                 />
             )}
-            <button id="scenario-menu-btn" className="sim-ctrl-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-                <img src={menu_icon}/>
-            </button>
-            <button id="choose-target-btn" onClick={() => setChoosingTarget(true)}>
-                {choosingTarget ? "Click target location on map." : "Choose Target"}
-            </button>
-            <button id="play-pause-btn" className="sim-ctrl-btn" onClick={handlePause}>
-                {paused ? (<img src={play_btn}/>): (<img src={pause_btn}/>)}
-            </button>
-            <button id="restart-btn" className="sim-ctrl-btn" onClick={() => onRestart()}>
-                <img src={restart_btn}/>
-            </button>
-            <button id="pan-mode-btn" onClick={() => setPanMode(p => p === "scroll" ? "drag" : "scroll")}>
-                Switch to {panMode === "scroll" ? "Drag" : "Scroll"} Mode
-            </button>
+            <div id="map-ctrl-bar">
+                <button id="scenario-menu-btn" className="sim-ctrl-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                    <img src={menu_icon}/>
+                </button>
+                <button id="choose-target-btn" onClick={() => setChoosingTarget(true)}>
+                    {choosingTarget ? "Click target location on map." : "Choose Target"}
+                </button>
+                <button id="play-pause-btn" className="sim-ctrl-btn" onClick={handlePause}>
+                    {paused ? (<img src={play_btn}/>): (<img src={pause_btn}/>)}
+                </button>
+                <button id="restart-btn" className="sim-ctrl-btn" onClick={() => onRestart()}>
+                    <img src={restart_btn}/>
+                </button>
+
+            </div>
             <svg ref={svgRef} className="map"  onClick={handleClick}  >
                 {/* <ObjectMarker key={`barn`} type="barn" x={scaleCoord(50, "x")} y={scaleCoord(1, "y")} />
                 <ObjectMarker key={`windmill`} type="windmill" x={scaleCoord(80, "x")} y={scaleCoord(10, "y")} />
