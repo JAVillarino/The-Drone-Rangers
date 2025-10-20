@@ -176,6 +176,10 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
         return () => svgEl.removeEventListener("wheel", handleWheel);
     }, [panMode, data]);
 
+    useEffect(() => {
+        setPan((prev) => clampPan(prev.x, prev.y));
+    });
+
 
     useEffect(() => {
         if (panMode != "drag") return;

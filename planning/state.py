@@ -26,3 +26,4 @@ class State:
             "polygons": [poly.tolist() for poly in self.polygons],
         }
 
+    
