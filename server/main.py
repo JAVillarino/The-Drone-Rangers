@@ -246,7 +246,7 @@ if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
     
     while True:
-        time.sleep(0.01)
+        time.sleep(0.1)
     
         with world_lock:
             if world.is_goal_satisfied(backend_adapter, policy.fN * 1.5):
