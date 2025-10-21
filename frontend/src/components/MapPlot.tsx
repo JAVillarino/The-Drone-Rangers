@@ -5,6 +5,7 @@ import play_btn from "../../img/play_button.jpg"
 import restart_btn from "../../img/restart_icon.png"
 import { useState, useMemo, useRef, useEffect } from "react";
 import { State } from "../types.ts"
+import { setJobActiveState } from "../api/state.ts";
 
 interface MapPlotProps {
     data: State,
@@ -187,10 +188,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
           }
     }, [panMode, data]);
 
-    const handlePauseToggle = (isPaused: boolean) => {
-        console.log(`Job is now ${isPaused ? 'paused' : 'unpaused'}.`);
-    };
-
     const handleCancel = () => {
         console.log('Job canceled.');
         alert('Job 123 has been canceled.');
@@ -203,15 +200,18 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     return (
         <div className="map-container">
             {data.jobs.map(job => 
-            
                 <JobStatus 
-                    jobId="123"
+                    jobName="123"
                     initialStatus="ETA: 15m 42s"
                     target={job.target}
                     initialRadius={job.target_radius}
-                    initialDrones={5}
+                    initialDrones={1}
+                    isActive={job.is_active}
+                    // TODO: Show if the job is active.
                     onSelectOnMap={() => setChoosingTarget(true)}
-                    onPauseToggle={handlePauseToggle}
+                    onPauseToggle={() => {
+                        setJobActiveState(job.id, !job.is_active);
+                    }}
                     onCancel={handleCancel}
                     onDronesChange={handleDronesChange}
                 />

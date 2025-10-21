@@ -2,23 +2,25 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LocData } from '../types.ts';
 
 interface JobStatusProps {
-  jobId: string;
+  jobName: string;
   initialStatus: string;
   target: LocData | null;
   initialRadius: number;
   initialDrones: number;
+  isActive: boolean;
   onSelectOnMap: (target: LocData | null) => void;
-  onPauseToggle: (isPaused: boolean) => void;
+  onPauseToggle: () => void;
   onCancel: () => void;
   onDronesChange: (newCount: number) => void;
 }
 
 const JobStatus: React.FC<JobStatusProps> = ({
-  jobId,
+  jobName,
   initialStatus,
   target,
   initialRadius,
   initialDrones,
+  isActive,
   onSelectOnMap,
   onPauseToggle,
   onCancel,
@@ -26,7 +28,6 @@ const JobStatus: React.FC<JobStatusProps> = ({
 }) => {
   // State for managing the card's UI
   const [isFolded, setIsFolded] = useState<boolean>(false);
-  const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isKebabMenuOpen, setIsKebabMenuOpen] = useState<boolean>(false);
   const [droneCount, setDroneCount] = useState<number>(initialDrones);
   const kebabRef = useRef<HTMLDivElement>(null);
@@ -46,9 +47,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
 
   // Handler for pausing/unpausing the job
   const handlePauseToggle = () => {
-    const newPausedState = !isPaused;
-    setIsPaused(newPausedState);
-    onPauseToggle(newPausedState);
+    onPauseToggle();
     setIsKebabMenuOpen(false); // Close menu after action
   };
 
@@ -74,7 +73,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
         <button className="fold-button" onClick={() => setIsFolded(!isFolded)}>
           {isFolded ? '▶' : '▼'}
         </button>
-        <h3>Herding job {jobId}</h3>
+        <h3>Herding job {jobName}</h3>
         <div className="kebab-menu-container" ref={kebabRef}>
           <button
             className="kebab-button"
@@ -94,7 +93,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
         <div className="card-body">
           <div className="card-field">
             <strong>Status:</strong>
-            <span>{isPaused ? 'Paused' : initialStatus}</span>
+            <span>{isActive ? initialStatus : 'Paused' }</span>
           </div>
           <div className="card-field">
             <strong>Target:</strong>
@@ -123,7 +122,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
             />
           </div>
           <button onClick={handlePauseToggle}>
-            {isPaused ? 'Start Job' : 'Stop Job'}
+            {isActive ? 'Stop Job' : 'Start Job'}
           </button>
         </div>
       )}

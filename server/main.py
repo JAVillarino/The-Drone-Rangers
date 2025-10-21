@@ -18,6 +18,8 @@ app.register_blueprint(scenarios_bp)
 world_lock = threading.RLock()
 current_scenario_id = None  # Track what scenario is currently loaded
 
+# TODO: Need to make the scenarios work with separate jobs instead of a target.
+
 def _create_policy_for_world(w: world.World) -> herding.ShepherdPolicy:
     """Create a herding policy matched to the given world's flock size."""
     total_area = 0.5 * w.N * (w.ra ** 2)
@@ -41,8 +43,7 @@ def initialize_sim():
         dt=0.1,
     )
     policy = _create_policy_for_world(backend_adapter)
-    # TODO: Need some jobs here.
-    # TODO: Need to make the scenarios work with separate jobs.
+
     return backend_adapter, policy, [
         state.Job(
             target=None,
@@ -251,6 +252,58 @@ def get_current_scenario():
         "num_sheep": len(scenario.sheep),
         "num_drones": len(scenario.drones),
     }), 200
+
+
+@app.route("/jobs/<int:job_id>", methods=["PATCH"])
+def patch_job(job_id):
+    """Update a specific job by its ID."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body must be JSON"}), 400
+
+    with world_lock:
+        job_to_update = None
+        for j in jobs:
+            if j.id == job_id:
+                job_to_update = j
+                break
+
+        if not job_to_update:
+            return jsonify({"error": f"Job with ID {job_id} not found"}), 404
+
+        try:
+            if "target" in data:
+                if data["target"] is None:
+                    job_to_update.target = None
+                else:
+                    pos = np.asarray(data["target"], dtype=float).reshape(2)
+                    if not np.all(np.isfinite(pos)):
+                        raise ValueError("Target values must be finite numbers")
+                    job_to_update.target = pos
+
+            if "target_radius" in data:
+                radius = float(data["target_radius"])
+                if not np.isfinite(radius) or radius < 0:
+                    raise ValueError("Target radius must be a non-negative number")
+                job_to_update.target_radius = radius
+
+            if "remaining_time" in data:
+                if data["remaining_time"] is None:
+                    job_to_update.remaining_time = None
+                else:
+                    time_val = float(data["remaining_time"])
+                    if not np.isfinite(time_val):
+                        raise ValueError("Remaining time must be a finite number")
+                    job_to_update.remaining_time = time_val
+
+            if "is_active" in data:
+                job_to_update.is_active = bool(data["is_active"])
+
+        except (ValueError, TypeError) as e:
+            return jsonify({"error": f"Invalid data format: {e}"}), 400
+
+        return jsonify(job_to_update.to_dict())
+
 
 def run_flask():
     app.run(debug=True, use_reloader=False)  # disable reloader for threads

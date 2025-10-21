@@ -2,6 +2,7 @@
 export type LocData = [number, number]; // [latitude, longitude]
 
 export interface Job {
+  id: number;
   target: LocData | null;
   target_radius: number;
   remaining_time: number | null; // In seconds

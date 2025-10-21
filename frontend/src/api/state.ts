@@ -63,3 +63,25 @@ export async function requestRestart() {
         return console.error("Error sending restart request:", err);
     }
 }
+
+export async function setJobActiveState(jobId: number, isActive: boolean) {
+    try {
+        const response = await fetch(`${backendURL}/jobs/${jobId}`, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ is_active: isActive }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Request failed with status ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (err) {
+        console.error(`Error setting active state for job ${jobId}:`, err);
+        return null;
+    }
+}
