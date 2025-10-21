@@ -51,7 +51,7 @@
   background-color: rgb(128, 223, 128);
 }
 
-.plaback-controls {
+.playback-controls {
   width: 100%;
   justify-content: center;
   display: flex;
@@ -64,7 +64,7 @@
   bottom: 10px;
 }
 
-.plaback-controls img {
+.playback-controls img {
   width: 100%;
   height: 100%;
 }
