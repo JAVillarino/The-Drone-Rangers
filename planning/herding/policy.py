@@ -62,8 +62,19 @@ class ShepherdPolicy:
         """
         num_drones = world.drones.shape[0]
         
+        # Get target from jobs array
+        target = None
+        for job in world.jobs:
+            if job.target is not None:
+                target = job.target
+                break
+        
+        if target is None:
+            # If no target is set, return current drone positions (no movement)
+            return world.drones.copy()
+        
         # Vector from G to Target
-        dir_GT = world.target - G
+        dir_GT = target - G
         L_GT = np.linalg.norm(dir_GT)
         ghat = dir_GT / (L_GT + 1e-9)
                 
@@ -103,8 +114,20 @@ class ShepherdPolicy:
         D = world.drones                      # (N_drones, 2)
         N_drones = D.shape[0]
         
+        # Get target from jobs array
+        target = None
+        for job in world.jobs:
+            if job.target is not None:
+                target = job.target
+                break
+        
+        if target is None:
+            # If no target is set, use a default position or skip goal-based calculations
+            dGoal = np.zeros(P.shape[0])  # No goal distance when no target
+        else:
+            dGoal = np.linalg.norm(P - target, axis=1) # distance to goal
+        
         dG = np.linalg.norm(P - G, axis=1)    # distance to global COM
-        dGoal = np.linalg.norm(P - world.target, axis=1) # distance to goal
         
         # Calculate dD for each sheep to ALL drones
         dD_all = np.zeros((P.shape[0], N_drones))
@@ -164,12 +187,23 @@ class ShepherdPolicy:
         towards_gcm = np.sum(drone_to_sheep * sheep_to_gcm, axis=1)
         towards_gcm_fraction = np.sum(towards_gcm > 0) / relevant_count
         
-        sheep_to_target = world.target - relevant_flock
-        sheep_to_target_norm = np.linalg.norm(sheep_to_target, axis=1, keepdims=True)
-        sheep_to_target /= sheep_to_target_norm
-        # This is sort of like the element-wise dot product.
-        towards_target = np.sum(drone_to_sheep * sheep_to_target, axis=1)
-        towards_target_fraction = np.sum(towards_target > 0) / relevant_count
+        # Get target from jobs array
+        target = None
+        for job in world.jobs:
+            if job.target is not None:
+                target = job.target
+                break
+        
+        if target is None:
+            # If no target is set, only use GCM-based calculation
+            towards_target_fraction = 0
+        else:
+            sheep_to_target = target - relevant_flock
+            sheep_to_target_norm = np.linalg.norm(sheep_to_target, axis=1, keepdims=True)
+            sheep_to_target /= sheep_to_target_norm
+            # This is sort of like the element-wise dot product.
+            towards_target = np.sum(drone_to_sheep * sheep_to_target, axis=1)
+            towards_target_fraction = np.sum(towards_target > 0) / relevant_count
         
         cohesiveness = self._cohesiveness(world, gcm)
         value = towards_gcm_fraction * max(0, 1 - cohesiveness) + towards_target_fraction

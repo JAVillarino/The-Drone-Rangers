@@ -49,7 +49,7 @@ class State:
         return {
             "flock": self.flock.tolist(),
             "drones": self.drones.tolist(),
-            "jobs": list(map(lambda j : j.to_dict(), self.jobs)),
+            "jobs": [j.to_dict() for j in self.jobs],
             "polygons": [poly.tolist() for poly in self.polygons],
         }
 

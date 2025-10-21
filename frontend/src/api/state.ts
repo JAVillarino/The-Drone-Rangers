@@ -2,7 +2,40 @@
  * For HTTP requests to backend.
  */
 
+import { Scenario, ScenariosResponse } from "../types";
+
 const backendURL = "http://127.0.0.1:5000";
+
+type LocData = [number, number];
+
+interface ObjectData {
+    flock: LocData[],
+    drones: LocData[],
+    jobs: Array<{
+        target: LocData | null,
+        target_radius: number,
+        remaining_time: number | null,
+        is_active: boolean
+    }>,
+    polygons: LocData[][]
+}
+
+interface CustomScenario {
+    name: string,
+    seed: number,
+    flockSize: number,
+    sheep: [number, number][],
+    shepherd: [number, number],
+    target: [number, number],
+    bounds: {
+        xmin: number,
+        xmax: number,
+        ymin: number,
+        ymax: number
+    },
+    start: boolean
+    // missing: polygons (i.e. obstacles), params, 
+}
 
 export async function fetchState() {
     return fetch(`${backendURL}/state`)
@@ -106,5 +139,45 @@ export async function setJobDroneCount(jobId: number, droneCount: number) {
     } catch (err) {
         console.error(`Error setting drone count for job ${jobId}:`, err);
         return null;
+    }
+}
+
+export async function getPresetScenarios(): Promise<Scenario[]> {
+    try {
+        const response = await fetch(`${backendURL}/scenarios?visibility=preset&limit=100`, {
+            method: "GET",
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data: ScenariosResponse = await response.json();
+        return data.items;
+    } catch (err) {
+        console.error("Error getting preset scenarios:", err);
+        return [];
+    }
+}
+
+export async function loadScenario(scenarioId: string): Promise<{ success: boolean; data?: any }> {
+    try {
+        const response = await fetch(`${backendURL}/load-scenario/${scenarioId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        return { success: true, data };
+    } catch (err) {
+        console.error("Error loading scenario:", err);
+        return { success: false };
     }
 }
