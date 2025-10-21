@@ -85,3 +85,26 @@ export async function setJobActiveState(jobId: number, isActive: boolean) {
         return null;
     }
 }
+
+export async function setJobDroneCount(jobId: number, droneCount: number) {
+    try {
+        console.log(`Setting drone count for job ${jobId} to ${droneCount}`);
+        const response = await fetch(`${backendURL}/jobs/${jobId}`, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ drone_count: droneCount }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Request failed with status ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (err) {
+        console.error(`Error setting drone count for job ${jobId}:`, err);
+        return null;
+    }
+}

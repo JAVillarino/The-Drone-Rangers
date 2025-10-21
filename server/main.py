@@ -258,6 +258,7 @@ def get_current_scenario():
 def patch_job(job_id):
     """Update a specific job by its ID."""
     data = request.get_json()
+    print(f"Patching job {job_id} with data: {data}")
     if not data:
         return jsonify({"error": "Request body must be JSON"}), 400
 
@@ -298,6 +299,13 @@ def patch_job(job_id):
 
             if "is_active" in data:
                 job_to_update.is_active = bool(data["is_active"])
+
+            if "drone_count" in data:
+                job_to_update.drones = int(data["drone_count"])
+                if job_to_update.drones > len(backend_adapter.dogs):
+                    backend_adapter.dogs = np.concatenate([backend_adapter.dogs, np.zeros((job_to_update.drones - len(backend_adapter.dogs), 2))])
+                elif job_to_update.drones < len(backend_adapter.dogs):
+                    backend_adapter.dogs = backend_adapter.dogs[:job_to_update.drones]
 
         except (ValueError, TypeError) as e:
             return jsonify({"error": f"Invalid data format: {e}"}), 400

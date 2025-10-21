@@ -5,7 +5,7 @@ import play_btn from "../../img/play_button.jpg"
 import restart_btn from "../../img/restart_icon.png"
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Job, State } from "../types.ts"
-import { setJobActiveState } from "../api/state.ts";
+import { setJobActiveState, setJobDroneCount } from "../api/state.ts";
 
 interface MapPlotProps {
     data: State,
@@ -122,10 +122,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
         alert('Job 123 has been canceled.');
     };
 
-    const handleDronesChange = (newCount: number) => {
-        console.log(`Drones assigned changed to: ${newCount}`);
-    };
-
     const jobStatus = (j: Job) => {
         if (j.remaining_time == 0) {
             return "Completed";
@@ -152,7 +148,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                         setJobActiveState(job.id, !job.is_active);
                     }}
                     onCancel={handleCancel}
-                    onDronesChange={handleDronesChange}
+                    onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
                 />
             )}
             
