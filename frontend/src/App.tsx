@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchState, setTarget, setPlayPause, requestRestart } from './api/state'
-import { MapPlot, ObjectData } from './components/MapPlot'
+import { MapPlot } from './components/MapPlot'
+import { State } from "./types.ts"
 import './App.css'
 
 function App() {
@@ -11,7 +12,7 @@ function App() {
   const worldMin = -60;
   const worldMax = 60;
 
-  const { data, isLoading, error } = useQuery<ObjectData>({
+  const { data, isLoading, error } = useQuery<State>({
     queryKey: ["objects"],
     queryFn: fetchState,
     refetchInterval: 25

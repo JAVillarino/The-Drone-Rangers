@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-// import './JobStatus.css';
+import { LocData } from '../types.ts';
 
-// Define the component's props with TypeScript for type safety
 interface JobStatusProps {
   jobId: string;
-  initialStatus: string; // e.g., "ETA: 5m 30s" or "Completed"
-  target: { lat: number; lng: number };
+  initialStatus: string;
+  target: LocData | null;
   initialRadius: number;
   initialDrones: number;
-  onSelectOnMap: (target: { lat: number; lng: number }) => void;
+  onSelectOnMap: (target: LocData | null) => void;
   onPauseToggle: (isPaused: boolean) => void;
   onCancel: () => void;
   onDronesChange: (newCount: number) => void;
@@ -100,7 +99,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
           <div className="card-field">
             <strong>Target:</strong>
             <span>
-              {target.lat.toFixed(4)}, {target.lng.toFixed(4)}
+              {/* {target[0].toFixed(4)}, {target[1].toFixed(4)} */}
             </span>
             <button
               className="map-button"

@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import random
-from planning import herding, plan_type
+from planning import herding, plan_type, state
 from simulation import world
 import time
 import threading
@@ -41,15 +41,26 @@ def initialize_sim():
         dt=0.1,
     )
     policy = _create_policy_for_world(backend_adapter)
-    return backend_adapter, policy
+    # TODO: Need some jobs here.
+    # TODO: Need to make the scenarios work with separate jobs.
+    return backend_adapter, policy, [
+        state.Job(
+            target=None,
+            target_radius=policy.fN * 1.5,
+            remaining_time=None,
+            is_active=True,
+        )
+    ]
 
-backend_adapter, policy = initialize_sim()
+backend_adapter, policy, jobs = initialize_sim()
 
 @app.route("/state", methods=["GET"])
 def get_state():
     """Get current simulation state with pause status."""
     with world_lock:
-        state_dict = backend_adapter.get_state().to_dict()
+        state = backend_adapter.get_state()
+        state.jobs = jobs
+        state_dict = state.to_dict()
         state_dict["paused"] = backend_adapter.paused
         return jsonify(state_dict)
 
@@ -68,17 +79,21 @@ def set_target():
     if not np.all(np.isfinite(pos)):
         return jsonify({"error": "position values must be finite numbers"}), 400
 
+    if len(jobs) == 0:
+        return
+    
     with world_lock:
-        backend_adapter.target = pos
-        return jsonify(backend_adapter.get_state().to_dict())
+        jobs[0].target = pos
+        
+    return jsonify(backend_adapter.get_state().to_dict())
 
 @app.route("/restart", methods=["POST"])
 def restart_sim():
     """Restart simulation with default parameters."""
-    global backend_adapter, policy, current_scenario_id
+    global backend_adapter, policy, jobs, current_scenario_id
     
     with world_lock:
-        backend_adapter, policy = initialize_sim()
+        backend_adapter, policy, jobs = initialize_sim()
         current_scenario_id = None  # Clear any loaded scenario
     
     return jsonify(backend_adapter.get_state().to_dict())
@@ -249,12 +264,8 @@ if __name__ == "__main__":
         time.sleep(0.05)
     
         with world_lock:
-            if world.is_goal_satisfied(backend_adapter, policy.fN * 1.5):
-                backend_adapter.step(plan_type.DoNothing())
-                continue
-
             # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
             for _ in range(5):
-                plan = policy.plan(backend_adapter.get_state(), backend_adapter.dt)
+                plan = policy.plan(backend_adapter.get_state(), jobs, backend_adapter.dt)
                 backend_adapter.step(plan)
         

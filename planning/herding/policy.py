@@ -1,8 +1,27 @@
 from __future__ import annotations
 import numpy as np
-from .utils import norm
 from planning.plan_type import DoNothing, Plan, DronePositions
 from planning import state
+
+
+
+def is_goal_satisfied(w: state.State, target: np.ndarray, goal_tolerance: float) -> bool:
+    """
+    Return True if every sheep in the world's flock is within the goal tolerance
+    of the world's target.
+    """
+    
+    if w.flock.size == 0:
+        return True
+
+    # squared comparison for speed / numerical stability
+    tol_sq = goal_tolerance * goal_tolerance
+
+    # distances squared from each sheep to the target
+    diffs = w.flock - target.reshape(1, 2)
+    d2 = np.sum(diffs * diffs, axis=1)
+
+    return np.all(d2 <= tol_sq)
 
 class ShepherdPolicy:
     """
@@ -164,8 +183,21 @@ class ShepherdPolicy:
         
 
     # ------------------ Main Planning Method ------------------
-    def plan(self, world: state.State, dt: float) -> Plan:
+    def plan(self, world: state.State, jobs: list[state.Job], dt: float) -> Plan:
         """Return the movement plan for all drones."""
+        world.target = None
+        all_jobs_satisfied = True
+        for job in jobs:
+            if job.is_active and job.target is not None:
+                if not is_goal_satisfied(world, job.target, job.target_radius):
+                    all_jobs_satisfied = False
+                
+                # TODO: We should be able to do better than this. We should instead assign drones to different jobs here and don't mess with the world.
+                world.target = job.target
+                break
+            
+        if all_jobs_satisfied:
+            return DoNothing()
         
         N_drones = world.drones.shape[0]
         G = self._gcm(world)

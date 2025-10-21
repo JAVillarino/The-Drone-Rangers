@@ -4,18 +4,10 @@ import pause_btn from "../../img/pause_button.jpg"
 import play_btn from "../../img/play_button.jpg"
 import restart_btn from "../../img/restart_icon.png"
 import { useState, useMemo, useRef, useEffect } from "react";
-
-
-type LocData = [number, number];
-
-export interface ObjectData {
-    flock: LocData[],
-    drones: LocData[],
-    target: LocData
-}
+import { State } from "../types.ts"
 
 interface MapPlotProps {
-    data: ObjectData,
+    data: State,
     onSetTarget: (coords: {x: number, y: number}) => void
     zoomMin: number,
     zoomMax: number,
@@ -43,8 +35,12 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
     // Compute bounding box of all objects (to limit panning)
     const bounds = useMemo(() => {
-        const xs = [...data.flock.map(f => f[0]), ...data.drones.map(f => f[0]), data.target[0]];
-        const ys = [...data.flock.map(f => f[1]), ...data.drones.map(f => f[1]), data.target[1]];
+        const xs = [...data.flock.map(f => f[0]), ...data.drones.map(f => f[0])];
+        const ys = [...data.flock.map(f => f[1]), ...data.drones.map(f => f[1])];
+
+        xs.push(...data.jobs.flatMap(({ target }) => target == null ? [] : [target[0]]))
+        ys.push(...data.jobs.flatMap(({ target }) => target == null ? [] : [target[1]]))
+
         return {
             minX: Math.min(...xs),
             maxX: Math.max(...xs),
@@ -138,26 +134,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     }
 
     useEffect(() => {
-        if (!choosingTarget) return;
-        const svg = svgRef.current;
-        if (!svg) return;
-    
-        const handleMouseMove = (e: MouseEvent) => {
-          const pt = svg.createSVGPoint();
-          pt.x = e.clientX;
-          pt.y = e.clientY;
-          const cursorpt = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-          const x = inverseScaleCoord(cursorpt.x, "x");
-          const y = inverseScaleCoord(cursorpt.y, "y");
-          setPreviewTarget([x, y]);
-        };
-    
-        svg.addEventListener("mousemove", handleMouseMove);
-        return () => svg.removeEventListener("mousemove", handleMouseMove);
-      }, [choosingTarget]);
-    
-
-    useEffect(() => {
         if (panMode != "scroll") return;
         const svgEl = svgRef.current;
         if(!svgEl) return;
@@ -226,17 +202,21 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
     return (
         <div className="map-container">
-            <JobStatus 
-                jobId="123"
-                initialStatus="ETA: 15m 42s"
-                target={{ lat: 34.0522, lng: -118.2437 }}
-                initialRadius={250}
-                initialDrones={5}
-                onSelectOnMap={() => setChoosingTarget(true)}
-                onPauseToggle={handlePauseToggle}
-                onCancel={handleCancel}
-                onDronesChange={handleDronesChange}
-            />
+            {data.jobs.map(job => 
+            
+                <JobStatus 
+                    jobId="123"
+                    initialStatus="ETA: 15m 42s"
+                    target={job.target}
+                    initialRadius={job.target_radius}
+                    initialDrones={5}
+                    onSelectOnMap={() => setChoosingTarget(true)}
+                    onPauseToggle={handlePauseToggle}
+                    onCancel={handleCancel}
+                    onDronesChange={handleDronesChange}
+                />
+            )}
+            
 
             <div className="plaback-controls">
                 <button id="play-pause-btn" onClick={handlePause}>
@@ -257,7 +237,10 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                 {data.drones.map((d, i) => (
                     <ObjectMarker key={`drone-${i}`} type="drone" x={scaleCoord(d[0], "x")} y={scaleCoord(d[1], "y")}/>
                 ))}
-                <ObjectMarker key={`target`} type="target" x={scaleCoord(data.target[0], "x")} y={scaleCoord(data.target[1], "y")} />
+
+                {data.jobs.map(job => job.target == null ? <></> :
+                    <ObjectMarker key={`target`} type="target" x={scaleCoord(job.target[0], "x")} y={scaleCoord(job.target[1], "y")} />
+                )}
 
             </svg>
         </div>
