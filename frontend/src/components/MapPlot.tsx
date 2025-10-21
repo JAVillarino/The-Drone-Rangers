@@ -153,7 +153,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     }, [pan, zoomMin, zoomMax]);
 
 
-    useEffect(() => {
+    /*useEffect(() => {
         if (panMode != "drag") return;
 
         const svgEl = svgRef.current;
@@ -193,7 +193,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
             window.removeEventListener("mousemove", handleMouseMove);
             window.removeEventListener("mouseup", handleMouseUp);
           }
-    }, [panMode, data]);
+    }, [panMode, data]);*/
 
     const handleCancel = () => {
         console.log('Job canceled.');
