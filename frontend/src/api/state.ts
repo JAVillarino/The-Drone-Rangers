@@ -13,7 +13,6 @@ export async function fetchState() {
     })    
     .catch((err) => 
         console.error("Error fetching state:", err)
-        // same deal
     );
 }
 

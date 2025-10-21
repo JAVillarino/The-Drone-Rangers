@@ -138,6 +138,26 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     }
 
     useEffect(() => {
+        if (!choosingTarget) return;
+        const svg = svgRef.current;
+        if (!svg) return;
+    
+        const handleMouseMove = (e: MouseEvent) => {
+          const pt = svg.createSVGPoint();
+          pt.x = e.clientX;
+          pt.y = e.clientY;
+          const cursorpt = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+          const x = inverseScaleCoord(cursorpt.x, "x");
+          const y = inverseScaleCoord(cursorpt.y, "y");
+          setPreviewTarget([x, y]);
+        };
+    
+        svg.addEventListener("mousemove", handleMouseMove);
+        return () => svg.removeEventListener("mousemove", handleMouseMove);
+      }, [choosingTarget]);
+    
+
+    useEffect(() => {
         if (panMode != "scroll") return;
         const svgEl = svgRef.current;
         if(!svgEl) return;
@@ -190,11 +210,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
             window.removeEventListener("mouseup", handleMouseUp);
           }
     }, [panMode, data]);
-
-    const handleSelectOnMap = (target: { lat: number; lng: number }) => {
-        console.log('Selecting on map:', target);
-        alert(`Show on map: Lat ${target.lat}, Lng ${target.lng}`);
-    };
 
     const handlePauseToggle = (isPaused: boolean) => {
         console.log(`Job is now ${isPaused ? 'paused' : 'unpaused'}.`);

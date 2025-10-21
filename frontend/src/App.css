@@ -33,6 +33,9 @@
 .target {
   height: 48px;
   width: 48px;
+  /* position: absolute;
+  transform: translate(-50%, -50%); */
+  transform: translate(-24px, -36px);
 }
 
 .map {
