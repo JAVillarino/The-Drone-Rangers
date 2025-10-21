@@ -11,7 +11,7 @@ app = Flask(__name__)
 CORS(app, origins=["http://localhost:5173"])
 
 # Register scenarios API blueprint
-from scenarios_api import scenarios_bp, REPO
+from server.scenarios_api import scenarios_bp, REPO
 app.register_blueprint(scenarios_bp)
 
 # Thread-safe lock for world reinitialization
@@ -36,10 +36,12 @@ def initialize_sim():
     backend_adapter = world.World(
         sheep_xy=np.array([[random.uniform(0, 200), random.uniform(0, 200)] for _ in range(flock_size)]),
         shepherd_xy=np.array([[0.0, 0.0]]),
-        target_xy=[5, 5],
+        target_xy=None,  # No target by default - user must set via frontend
         boundary="none",
         dt=0.1,
     )
+    # Start paused by default since there's no target
+    backend_adapter.paused = True
     policy = _create_policy_for_world(backend_adapter)
     return backend_adapter, policy
 
@@ -80,6 +82,8 @@ def restart_sim():
     with world_lock:
         backend_adapter, policy = initialize_sim()
         current_scenario_id = None  # Clear any loaded scenario
+        # Ensure it starts paused since there's no target
+        backend_adapter.paused = True
     
     return jsonify(backend_adapter.get_state().to_dict())
 
@@ -193,7 +197,8 @@ def load_scenario(scenario_id):
             current_scenario_id = str(scenario_id)
             
             # Start paused after loading - user must unpause to begin
-            backend_adapter.paused = True
+            # Also pause if no target is set
+            backend_adapter.paused = True or (backend_adapter.target is None)
             
         return jsonify({
             "ok": True,
@@ -249,6 +254,10 @@ if __name__ == "__main__":
         time.sleep(0.05)
     
         with world_lock:
+            # Skip planning if paused or no target is set
+            if backend_adapter.paused or backend_adapter.target is None:
+                continue
+                
             if world.is_goal_satisfied(backend_adapter, policy.fN * 1.5):
                 backend_adapter.step(plan_type.DoNothing())
                 continue

@@ -8,8 +8,14 @@ type LocData = [number, number];
 
 interface ObjectData {
     flock: LocData[],
-    drone: LocData,
-    target: LocData
+    drones: LocData[],
+    jobs: Array<{
+        target: LocData | null,
+        target_radius: number,
+        remaining_time: number | null,
+        is_active: boolean
+    }>,
+    polygons: LocData[][]
 }
 
 interface CustomScenario {

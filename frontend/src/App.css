@@ -41,6 +41,7 @@
 .map {
   height: 95%;
   width: 100%;
+  transition: cursor 0.2s ease;
 }
 
 .map-container {
@@ -48,7 +49,12 @@
   width: 100%;
   position: relative;
   overflow: hidden;
-  background-color: rgb(128, 223, 128);
+
+  background-image: url("../../img/King_Ranch_better.jpg");
+  background-size: 200% 250%; /* Zoom in the background only */
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: local; /* Allow background to scroll with content */
 }
 
 .plaback-controls {
@@ -62,6 +68,8 @@
 
   position: absolute;
   bottom: 10px;
+  z-index: 1000; /* Ensure buttons are above the container */
+  /* No scaling needed since container is not scaled */
 }
 
 .plaback-controls img {
@@ -91,8 +99,18 @@
 
 #pan-mode-btn {
   margin-left: 10px;
-  padding: 5px;
-  border-radius: 0;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+#pan-mode-btn:hover {
+  opacity: 0.8;
+  transform: translateY(-1px);
 }
 
 
