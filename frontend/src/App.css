@@ -51,7 +51,7 @@
   overflow: hidden;
 
   background-image: url("../../img/King_Ranch_better.jpg");
-  background-size: 200% 250%; /* Zoom in the background only */
+  background-size: 225% 225%; /* Square aspect ratio to prevent white space */
   background-position: center;
   background-repeat: no-repeat;
   background-attachment: local; /* Allow background to scroll with content */

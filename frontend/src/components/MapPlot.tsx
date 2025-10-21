@@ -72,42 +72,13 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     }
 
     function clampPan(x: number, y: number) {
-        const padding = 100; // Increased padding for more reachable area
-
-        // convert padding from pixels → world units
-        const worldPadding = (padding / CANVAS_SIZE) * windowSize;
-
-        // expand bounds by padding
-        const paddedMinX = bounds.minX - worldPadding;
-        const paddedMaxX = bounds.maxX + worldPadding;
-        const paddedMinY = bounds.minY - worldPadding;
-        const paddedMaxY = bounds.maxY + worldPadding;
-
-        // compute allowable pan ranges per axis with more generous limits
-        let minPanX = paddedMinX - zoomMin - windowSize * 0.5; // Allow more left movement
-        let maxPanX = paddedMaxX - zoomMax + windowSize * 0.5; // Allow more right movement
-        let minPanY = paddedMinY - zoomMin - windowSize * 0.5; // Allow more up movement
-        let maxPanY = paddedMaxY - zoomMax + windowSize * 0.5; // Allow more down movement
-
-        // if padded range is smaller than viewport, center the viewport over the padded box
-        if (minPanX > maxPanX) {
-            const centerPanX =
-            (paddedMinX + paddedMaxX) / 2 - (zoomMin + zoomMax) / 2;
-            minPanX = centerPanX;
-            maxPanX = centerPanX;
-        }
-        if (minPanY > maxPanY) {
-            const centerPanY =
-            (paddedMinY + paddedMaxY) / 2 - (zoomMin + zoomMax) / 2;
-            minPanY = centerPanY;
-            maxPanY = centerPanY;
-        }
-
+        // Clamp pan to background boundaries - this ensures entities stop when background stops
+        const backgroundLimit = windowSize * 0.5; // 50% of window size matches background offset limit
+        
         return {
-            x: clamp(x, minPanX, maxPanX),
-            y: clamp(y, minPanY, maxPanY),
+            x: clamp(x, -backgroundLimit, backgroundLimit),
+            y: clamp(y, -backgroundLimit, backgroundLimit),
         }
-
     }
 
     const clamp = (v: number, a: number, b: number) => Math.min(Math.max(v, a), b);
@@ -167,9 +138,11 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                 const windowSize = zoomMax - zoomMin;
                 
                 // Convert pan coordinates to percentage offsets
-                // When pan.x is positive (panning right), background should move right too
-                const percentageOffsetX = (pan.x / windowSize) * 30; // 30% range for 200% background
-                const percentageOffsetY = (pan.y / windowSize) * 35; // 35% range for 250% background
+                // With 200% x 200% background, we can move 50% in each direction from center
+                // Clamp the movement to prevent scrolling beyond image boundaries
+                const maxOffset = 50; // Maximum 50% offset from center (0% to 100% range)
+                const percentageOffsetX = Math.max(-maxOffset, Math.min(maxOffset, (pan.x / windowSize) * 50));
+                const percentageOffsetY = Math.max(-maxOffset, Math.min(maxOffset, (pan.y / windowSize) * 50));
                 
                 // Apply the percentage offset to background position
                 // Positive pan should move background in same direction

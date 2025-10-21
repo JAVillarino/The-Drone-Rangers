@@ -7,8 +7,6 @@ import './App.css'
 import LandingPage from "./components/LandingPage";
 
 
-type LocData = [number, number];
-
 /*interface ObjectData {
     flock: LocData[],
     drone: LocData,
@@ -52,6 +50,38 @@ function App() {
       setActiveScenario(scenario);
     };
 
+    // Dummy function for starting preset simulations
+    const startPresetSim = async (scenario: string): Promise<unknown> => {
+      console.log(`Starting preset simulation: ${scenario}`);
+      // TODO: Replace with actual API call to start preset scenario
+      // For now, just simulate a delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return { success: true, scenario };
+    };
+
+    // Dummy function for starting custom simulations
+    const startCustomSim = async (scenario: {
+      name: string;
+      seed: number;
+      flockSize: number;
+      sheep: [number, number][];
+      shepherd: [number, number];
+      target: [number, number];
+      bounds: {
+        xmin: number;
+        xmax: number;
+        ymin: number;
+        ymax: number;
+      };
+      start: boolean;
+    }): Promise<unknown> => {
+      console.log(`Starting custom simulation:`, scenario);
+      // TODO: Replace with actual API call to start custom scenario
+      // For now, just simulate a delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return { success: true, scenario };
+    };
+
   
   if (isLoading) return <p>Loading...</p>;
   if (error instanceof Error) return <p>Error: {error.message}</p>;
@@ -60,7 +90,7 @@ function App() {
   return (
     <>
       {!activeScenario ? (
-        <LandingPage onSimulationStart={handleSimulationStart} worldMax={worldMax} worldMin={worldMin} startCustomSim={startCustomSimulation} startPresetSim={startPresetSimulation}/>
+        <LandingPage onSimulationStart={handleSimulationStart} worldMax={worldMax} worldMin={worldMin} startPresetSim={startPresetSim} startCustomSim={startCustomSim}/>
       ) : (
         <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax} onPlayPause={setPlayPause} onRestart={requestRestart}/>
 
