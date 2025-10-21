@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CustomScenarioModal } from "./CustomScenarioModal";
+import { getPresetScenarios, loadScenario } from "../api/state";
+import { Scenario } from "../types";
 
 
 interface CustomScenario {
@@ -30,7 +32,24 @@ interface LandingPageProps {
 export default function LandingPage({onSimulationStart, worldMin, worldMax, startPresetSim, startCustomSim}: LandingPageProps) {
     const [selectedScenario, setSelectedScenario] = useState<string>("");
     const [isCustomizing, setIsCustomizing] = useState(false);
-    const scenarios = ["Uniform", "Clustered", "Random", "Custom"];
+    const [presetScenarios, setPresetScenarios] = useState<Scenario[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch preset scenarios on component mount
+    useEffect(() => {
+        const fetchScenarios = async () => {
+            try {
+                const scenarios = await getPresetScenarios();
+                setPresetScenarios(scenarios);
+            } catch (error) {
+                console.error("Error fetching scenarios:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        fetchScenarios();
+    }, []);
 
     const handleScenarioChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
         setSelectedScenario(event.target.value);
@@ -40,8 +59,24 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
         if (!selectedScenario || selectedScenario === "Custom") return;
 
         try {
-            await startPresetSim(selectedScenario);
-            onSimulationStart(selectedScenario);
+            // Find the selected scenario
+            const scenario = presetScenarios.find(s => s.id === selectedScenario);
+            if (!scenario) {
+                throw new Error("Selected scenario not found");
+            }
+
+            // Load the scenario on the backend
+            console.log(`Loading scenario: ${scenario.name} (ID: ${scenario.id})`);
+            const result = await loadScenario(scenario.id);
+            if (!result.success) {
+                throw new Error("Failed to load scenario");
+            }
+            
+            console.log("Scenario loaded successfully:", result.data);
+
+            // Start the simulation
+            await startPresetSim(scenario.name);
+            onSimulationStart(scenario.name);
         } catch (error) {
             console.error("Error starting simulation:", error);
             alert("Could not start the simulation. Please try again.");
@@ -71,14 +106,39 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
                 value={selectedScenario} 
                 onChange={handleScenarioChange} 
                 id="landing-dropdown"
+                disabled={loading}
             >
-                <option value="" disabled>-- Choose a scenario --</option>
-                {scenarios.map(scenario => (
-                    <option key={scenario} value={scenario}>{scenario}</option>
+                <option value="" disabled>
+                    {loading ? "Loading scenarios..." : "-- Choose a scenario --"}
+                </option>
+                {presetScenarios.map(scenario => (
+                    <option key={scenario.id} value={scenario.id}>
+                        {scenario.name}
+                    </option>
                 ))}
+                <option value="Custom">Custom</option>
             </select>
 
             {/* --- Conditional UI based on selection --- */}
+
+            {/* Show scenario description if a preset is selected */}
+            {selectedScenario && selectedScenario !== "Custom" && (
+                <div id="scenario-description">
+                    {(() => {
+                        const scenario = presetScenarios.find(s => s.id === selectedScenario);
+                        return scenario ? (
+                            <div>
+                                <h3>{scenario.name}</h3>
+                                {scenario.description && <p>{scenario.description}</p>}
+                                <p><strong>Sheep:</strong> {scenario.sheep.length} | <strong>Drones:</strong> {scenario.drones.length}</p>
+                                {scenario.tags.length > 0 && (
+                                    <p><strong>Tags:</strong> {scenario.tags.join(", ")}</p>
+                                )}
+                            </div>
+                        ) : null;
+                    })()}
+                </div>
+            )}
 
             {/* 1. Show Start Button for standard scenarios */}
             {selectedScenario && selectedScenario !== "Custom" && (

@@ -18,8 +18,8 @@ function App() {
 
   const CANVAS_SIZE = 600;
 
-  const worldMin = -60;
-  const worldMax = 60;
+  const worldMin = 0;
+  const worldMax = 250;
 
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
 

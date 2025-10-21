@@ -243,6 +243,33 @@
   text-align: right;
 }
 
+/* Scenario Description Styles */
+#scenario-description {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  text-align: left;
+}
+
+#scenario-description h3 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+#scenario-description p {
+  margin: 5px 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+#scenario-description strong {
+  color: #333;
+  font-weight: 600;
+}
+
 /* Specific field elements */
 .map-button {
   background-color: #007bff;

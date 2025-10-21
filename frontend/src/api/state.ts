@@ -2,6 +2,8 @@
  * For HTTP requests to backend.
  */
 
+import { Scenario, ScenariosResponse } from "../types";
+
 const backendURL = "http://127.0.0.1:5000";
 
 type LocData = [number, number];
@@ -114,5 +116,45 @@ export async function setJobActiveState(jobId: number, isActive: boolean) {
     } catch (err) {
         console.error(`Error setting active state for job ${jobId}:`, err);
         return null;
+    }
+}
+
+export async function getPresetScenarios(): Promise<Scenario[]> {
+    try {
+        const response = await fetch(`${backendURL}/scenarios?visibility=preset&limit=100`, {
+            method: "GET",
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data: ScenariosResponse = await response.json();
+        return data.items;
+    } catch (err) {
+        console.error("Error getting preset scenarios:", err);
+        return [];
+    }
+}
+
+export async function loadScenario(scenarioId: string): Promise<{ success: boolean; data?: any }> {
+    try {
+        const response = await fetch(`${backendURL}/load-scenario/${scenarioId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        return { success: true, data };
+    } catch (err) {
+        console.error("Error loading scenario:", err);
+        return { success: false };
     }
 }

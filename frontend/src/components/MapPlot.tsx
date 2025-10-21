@@ -43,13 +43,23 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
         xs.push(...data.jobs.flatMap(({ target }) => target == null ? [] : [target[0]]))
         ys.push(...data.jobs.flatMap(({ target }) => target == null ? [] : [target[1]]))
 
+        // If no entities, use default bounds
+        if (xs.length === 0 || ys.length === 0) {
+            return {
+                minX: zoomMin,
+                maxX: zoomMax,
+                minY: zoomMin,
+                maxY: zoomMax,
+            };
+        }
+
         return {
             minX: Math.min(...xs),
             maxX: Math.max(...xs),
             minY: Math.min(...ys),
             maxY: Math.max(...ys),
         };
-    }, [data]);
+    }, [data, zoomMin, zoomMax]);
 
     const windowSize = zoomMax - zoomMin;
 
@@ -256,8 +266,8 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                     <ObjectMarker key={`drone-${i}`} type="drone" x={scaleCoord(d[0], "x")} y={scaleCoord(d[1], "y")}/>
                 ))}
 
-                {data.jobs.map(job => job.target == null ? <></> :
-                    <ObjectMarker key={`target`} type="target" x={scaleCoord(job.target[0], "x")} y={scaleCoord(job.target[1], "y")} />
+                {data.jobs.map((job, i) => job.target == null ? null :
+                    <ObjectMarker key={`target-${i}`} type="target" x={scaleCoord(job.target[0], "x")} y={scaleCoord(job.target[1], "y")} />
                 )}
 
             </svg>
