@@ -1,4 +1,5 @@
 import ObjectMarker from "./ObjectMarker";
+import JobStatus from "./JobStatus";
 import pause_btn from "../../img/pause_button.jpg"
 import play_btn from "../../img/play_button.jpg"
 import restart_btn from "../../img/restart_icon.png"
@@ -146,24 +147,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
             const dx = e.deltaX / 20; // tweak sensitivity
             const dy = e.deltaY / 20;
 
-            
-            /*setPan(prev => {
-                const next = {
-                    x: prev.x + dx,
-                    y: prev.y + dy,
-                };
-
-                return {
-                    x: Math.min(Math.max(next.x, minPanX), maxPanX),
-                    y: Math.min(Math.max(next.y, minPanY), maxPanY),
-                };
-            });*/
-
-            /*setPan((prev) => {
-                const nextX = clamp(prev.x + dx, minPanX, maxPanX);
-                const nextY = clamp(prev.y + dy, minPanY, maxPanY);
-                return { x: nextX, y: nextY };
-            });*/
             setPan((prev) => clampPan(prev.x + dx, prev.y + dy));
         };
 
@@ -173,7 +156,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
     useEffect(() => {
         setPan((prev) => clampPan(prev.x, prev.y));
-    });
+    }, []);
 
 
     useEffect(() => {
@@ -208,21 +191,47 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
           }
     }, [panMode, data]);
 
-    console.log('rerendering', pan.x);
+    const handleSelectOnMap = (target: { lat: number; lng: number }) => {
+        console.log('Selecting on map:', target);
+        alert(`Show on map: Lat ${target.lat}, Lng ${target.lng}`);
+    };
+
+    const handlePauseToggle = (isPaused: boolean) => {
+        console.log(`Job is now ${isPaused ? 'paused' : 'unpaused'}.`);
+    };
+
+    const handleCancel = () => {
+        console.log('Job canceled.');
+        alert('Job 123 has been canceled.');
+    };
+
+    const handleDronesChange = (newCount: number) => {
+        console.log(`Drones assigned changed to: ${newCount}`);
+    };
+
     return (
         <div className="map-container">
-            <button id="choose-target-btn" onClick={() => setChoosingTarget(true)}>
-                {choosingTarget ? "Click target location on map." : "Choose Target"}
-            </button>
-            <button id="play-pause-btn" className="sim-ctrl-btn" onClick={handlePause}>
-                {paused ? (<img src={play_btn}/>): (<img src={pause_btn}/>)}
-            </button>
-            <button id="restart-btn" className="sim-ctrl-btn" onClick={() => onRestart()}>
-                <img src={restart_btn}/>
-            </button>
-            <button id="pan-mode-btn" onClick={() => setPanMode(p => p === "scroll" ? "drag" : "scroll")}>
-                Switch to {panMode === "scroll" ? "Drag" : "Scroll"} Mode
-            </button>
+            <JobStatus 
+                jobId="123"
+                initialStatus="ETA: 15m 42s"
+                target={{ lat: 34.0522, lng: -118.2437 }}
+                initialRadius={250}
+                initialDrones={5}
+                onSelectOnMap={() => setChoosingTarget(true)}
+                onPauseToggle={handlePauseToggle}
+                onCancel={handleCancel}
+                onDronesChange={handleDronesChange}
+            />
+
+            <div className="plaback-controls">
+                <button id="play-pause-btn" onClick={handlePause}>
+                    {paused ? (<img src={play_btn}/>): (<img src={pause_btn}/>)}
+                </button>
+                <button id="restart-btn" onClick={() => onRestart()}>
+                    <img src={restart_btn}/>
+                </button>
+            </div>
+
             <svg ref={svgRef} className="map"  onClick={handleClick}  >
                 {/* <ObjectMarker key={`barn`} type="barn" x={scaleCoord(50, "x")} y={scaleCoord(1, "y")} />
                 <ObjectMarker key={`windmill`} type="windmill" x={scaleCoord(80, "x")} y={scaleCoord(10, "y")} />
