@@ -30,7 +30,7 @@ class World:
         self,
         sheep_xy: np.ndarray,
         shepherd_xy: np.ndarray, # n-by-2 of the positions of all of the shepherds.
-        target_xy: list[float],
+        target_xy: list[float] | None = None,
         *,
         # geometry (paper)
         ra: float = 4.0,          # agent-agent distance
@@ -94,7 +94,7 @@ class World:
         self.V = np.zeros((self.N, 2), dtype=np.float64, order='C')  # shape (N, 2)
         
         self.dogs = shepherd_xy
-        self.target = np.asarray(target_xy, float)
+        self.target = np.asarray(target_xy, float) if target_xy is not None else None
         self.paused = False
         
         # polygon obstacles
@@ -781,7 +781,7 @@ class World:
         return state.State(
             flock=self.P.copy(),
             drones=self.dogs.copy(),
-            target=self.target.copy(),
+            target=self.target.copy() if self.target is not None else None,
             polygons=[p.copy() for p in self.polys],
         )
     

@@ -1,4 +1,5 @@
 import ObjectMarker from "./ObjectMarker";
+import JobStatus from "./JobStatus";
 import pause_btn from "../../img/pause_button.jpg"
 import play_btn from "../../img/play_button.jpg"
 import restart_btn from "../../img/restart_icon.png"
@@ -142,6 +143,26 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     }
 
     useEffect(() => {
+        if (!choosingTarget) return;
+        const svg = svgRef.current;
+        if (!svg) return;
+    
+        const handleMouseMove = (e: MouseEvent) => {
+          const pt = svg.createSVGPoint();
+          pt.x = e.clientX;
+          pt.y = e.clientY;
+          const cursorpt = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+          const x = inverseScaleCoord(cursorpt.x, "x");
+          const y = inverseScaleCoord(cursorpt.y, "y");
+          setPreviewTarget([x, y]);
+        };
+    
+        svg.addEventListener("mousemove", handleMouseMove);
+        return () => svg.removeEventListener("mousemove", handleMouseMove);
+      }, [choosingTarget]);
+    
+
+    useEffect(() => {
         if (panMode != "scroll") return;
         const svgEl = svgRef.current;
         if(!svgEl) return;
@@ -151,24 +172,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
             const dx = e.deltaX / 20; // tweak sensitivity
             const dy = e.deltaY / 20;
 
-            
-            /*setPan(prev => {
-                const next = {
-                    x: prev.x + dx,
-                    y: prev.y + dy,
-                };
-
-                return {
-                    x: Math.min(Math.max(next.x, minPanX), maxPanX),
-                    y: Math.min(Math.max(next.y, minPanY), maxPanY),
-                };
-            });*/
-
-            /*setPan((prev) => {
-                const nextX = clamp(prev.x + dx, minPanX, maxPanX);
-                const nextY = clamp(prev.y + dy, minPanY, maxPanY);
-                return { x: nextX, y: nextY };
-            });*/
             setPan((prev) => clampPan(prev.x + dx, prev.y + dy));
         };
 
@@ -178,7 +181,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
     useEffect(() => {
         setPan((prev) => clampPan(prev.x, prev.y));
-    });
+    }, []);
 
 
     useEffect(() => {
@@ -213,46 +216,42 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
           }
     }, [panMode, data]);
 
-    function handleSelectScenario(scenario: string) {
-        console.log(`Handling scenario in MapPlot: ${scenario}`);
+    const handlePauseToggle = (isPaused: boolean) => {
+        console.log(`Job is now ${isPaused ? 'paused' : 'unpaused'}.`);
+    };
 
-        if (scenario == "Clustered") {
-            // Pop up somewhere for user to input OR choose from number of clusters
-        }
-        if (scenario == "Custom") {
-            /**probably have some other function call here
-            * idea: change some state about the map so the user can choose number of animals and then also click and drag each animal
-            * or alternatively, new element entirely?? same background across same space but with moveable entities and a submit button
-            * when user clicks submit, the current positions of the animals are translated back into world coords and sent to backend.
-            **/
-        }
-        // Send request to backend? {scenario: scenario} if scenario is clustered {scenario: clustered, clusters: num}
+    const handleCancel = () => {
+        console.log('Job canceled.');
+        alert('Job 123 has been canceled.');
+    };
 
-    }
-    console.log('rerendering', pan.x);
+    const handleDronesChange = (newCount: number) => {
+        console.log(`Drones assigned changed to: ${newCount}`);
+    };
+
     return (
         <div className="map-container">
-            {isMenuOpen && (
-                <ScenarioMenu 
-                    onClose={() => setIsMenuOpen(false)} 
-                    onSelectScenario={handleSelectScenario}
-                />
-            )}
-            <div id="map-ctrl-bar">
-                <button id="scenario-menu-btn" className="sim-ctrl-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-                    <img src={menu_icon}/>
-                </button>
-                <button id="choose-target-btn" onClick={() => setChoosingTarget(true)}>
-                    {choosingTarget ? "Click target location on map." : "Choose Target"}
-                </button>
-                <button id="play-pause-btn" className="sim-ctrl-btn" onClick={handlePause}>
+            <JobStatus 
+                jobId="123"
+                initialStatus="ETA: 15m 42s"
+                target={{ lat: 34.0522, lng: -118.2437 }}
+                initialRadius={250}
+                initialDrones={5}
+                onSelectOnMap={() => setChoosingTarget(true)}
+                onPauseToggle={handlePauseToggle}
+                onCancel={handleCancel}
+                onDronesChange={handleDronesChange}
+            />
+
+            <div className="plaback-controls">
+                <button id="play-pause-btn" onClick={handlePause}>
                     {paused ? (<img src={play_btn}/>): (<img src={pause_btn}/>)}
                 </button>
-                <button id="restart-btn" className="sim-ctrl-btn" onClick={() => onRestart()}>
+                <button id="restart-btn" onClick={() => onRestart()}>
                     <img src={restart_btn}/>
                 </button>
-
             </div>
+
             <svg ref={svgRef} className="map"  onClick={handleClick}  >
                 {/* <ObjectMarker key={`barn`} type="barn" x={scaleCoord(50, "x")} y={scaleCoord(1, "y")} />
                 <ObjectMarker key={`windmill`} type="windmill" x={scaleCoord(80, "x")} y={scaleCoord(10, "y")} />
