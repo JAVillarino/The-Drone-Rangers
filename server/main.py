@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import random
-from planning import herding, plan_type
+from planning import herding, plan_type, state
 from simulation import world
 import time
 import threading
@@ -17,6 +17,8 @@ app.register_blueprint(scenarios_bp)
 # Thread-safe lock for world reinitialization
 world_lock = threading.RLock()
 current_scenario_id = None  # Track what scenario is currently loaded
+
+# TODO: Need to make the scenarios work with separate jobs instead of a target.
 
 def _create_policy_for_world(w: world.World) -> herding.ShepherdPolicy:
     """Create a herding policy matched to the given world's flock size."""
@@ -43,15 +45,25 @@ def initialize_sim():
     # Start paused by default since there's no target
     backend_adapter.paused = True
     policy = _create_policy_for_world(backend_adapter)
-    return backend_adapter, policy
 
-backend_adapter, policy = initialize_sim()
+    return backend_adapter, policy, [
+        state.Job(
+            target=None,
+            target_radius=policy.fN * 1.5,
+            remaining_time=None,
+            is_active=True,
+        )
+    ]
+
+backend_adapter, policy, jobs = initialize_sim()
 
 @app.route("/state", methods=["GET"])
 def get_state():
     """Get current simulation state with pause status."""
     with world_lock:
-        state_dict = backend_adapter.get_state().to_dict()
+        state = backend_adapter.get_state()
+        state.jobs = jobs
+        state_dict = state.to_dict()
         state_dict["paused"] = backend_adapter.paused
         return jsonify(state_dict)
 
@@ -70,17 +82,21 @@ def set_target():
     if not np.all(np.isfinite(pos)):
         return jsonify({"error": "position values must be finite numbers"}), 400
 
+    if len(jobs) == 0:
+        return
+    
     with world_lock:
-        backend_adapter.target = pos
-        return jsonify(backend_adapter.get_state().to_dict())
+        jobs[0].target = pos
+        
+    return jsonify(backend_adapter.get_state().to_dict())
 
 @app.route("/restart", methods=["POST"])
 def restart_sim():
     """Restart simulation with default parameters."""
-    global backend_adapter, policy, current_scenario_id
+    global backend_adapter, policy, jobs, current_scenario_id
     
     with world_lock:
-        backend_adapter, policy = initialize_sim()
+        backend_adapter, policy, jobs = initialize_sim()
         current_scenario_id = None  # Clear any loaded scenario
         # Ensure it starts paused since there's no target
         backend_adapter.paused = True
@@ -242,6 +258,58 @@ def get_current_scenario():
         "num_drones": len(scenario.drones),
     }), 200
 
+
+@app.route("/jobs/<int:job_id>", methods=["PATCH"])
+def patch_job(job_id):
+    """Update a specific job by its ID."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body must be JSON"}), 400
+
+    with world_lock:
+        job_to_update = None
+        for j in jobs:
+            if j.id == job_id:
+                job_to_update = j
+                break
+
+        if not job_to_update:
+            return jsonify({"error": f"Job with ID {job_id} not found"}), 404
+
+        try:
+            if "target" in data:
+                if data["target"] is None:
+                    job_to_update.target = None
+                else:
+                    pos = np.asarray(data["target"], dtype=float).reshape(2)
+                    if not np.all(np.isfinite(pos)):
+                        raise ValueError("Target values must be finite numbers")
+                    job_to_update.target = pos
+
+            if "target_radius" in data:
+                radius = float(data["target_radius"])
+                if not np.isfinite(radius) or radius < 0:
+                    raise ValueError("Target radius must be a non-negative number")
+                job_to_update.target_radius = radius
+
+            if "remaining_time" in data:
+                if data["remaining_time"] is None:
+                    job_to_update.remaining_time = None
+                else:
+                    time_val = float(data["remaining_time"])
+                    if not np.isfinite(time_val):
+                        raise ValueError("Remaining time must be a finite number")
+                    job_to_update.remaining_time = time_val
+
+            if "is_active" in data:
+                job_to_update.is_active = bool(data["is_active"])
+
+        except (ValueError, TypeError) as e:
+            return jsonify({"error": f"Invalid data format: {e}"}), 400
+
+        return jsonify(job_to_update.to_dict())
+
+
 def run_flask():
     app.run(debug=True, use_reloader=False)  # disable reloader for threads
 
@@ -264,6 +332,6 @@ if __name__ == "__main__":
 
             # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
             for _ in range(5):
-                plan = policy.plan(backend_adapter.get_state(), backend_adapter.dt)
+                plan = policy.plan(backend_adapter.get_state(), jobs, backend_adapter.dt)
                 backend_adapter.step(plan)
         

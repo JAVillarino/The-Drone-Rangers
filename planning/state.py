@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
+from itertools import count
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -16,9 +18,13 @@ class Job:
     
     # If the user pauses a job, this becomes false.
     is_active: bool
+
+    # UUID.
+    id: int = field(default_factory=count().__next__)
     
     def to_dict(self) -> dict:
         return {
+            "id": self.id,
             "target": None if self.target is None else self.target.tolist(),
             "target_radius": self.target_radius,
             "remaining_time": self.remaining_time,

@@ -6,25 +6,11 @@ import restart_btn from "../../img/restart_icon.png";
 import bg_img from "../../img/King_Ranch_better.jpg";
 //import menu_icon from "../../img/Hamburger_icon.svg.png";
 import { useState, useMemo, useRef, useEffect } from "react";
-//import ScenarioMenu from "./ScenarioMenu";
-
-
-type LocData = [number, number];
-
-export interface ObjectData {
-    flock: LocData[],
-    drones: LocData[],
-    jobs: Array<{
-        target: LocData | null,
-        target_radius: number,
-        remaining_time: number | null,
-        is_active: boolean
-    }>,
-    polygons: LocData[][]
-}
+import { State } from "../types.ts"
+import { setJobActiveState } from "../api/state.ts";
 
 interface MapPlotProps {
-    data: ObjectData,
+    data: State,
     onSetTarget: (coords: {x: number, y: number}) => void
     zoomMin: number,
     zoomMax: number,
@@ -58,22 +44,10 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     const bounds = useMemo(() => {
         const xs = [...data.flock.map(f => f[0]), ...data.drones.map(f => f[0])];
         const ys = [...data.flock.map(f => f[1]), ...data.drones.map(f => f[1])];
-        
-        // Add target coordinates if they exist
-        const activeJob = data.jobs.find(job => job.target !== null);
-        if (activeJob && activeJob.target) {
-            xs.push(activeJob.target[0]);
-            ys.push(activeJob.target[1]);
-        }
-        
-        // Add polygon coordinates if they exist
-        data.polygons.forEach(polygon => {
-            polygon.forEach(point => {
-                xs.push(point[0]);
-                ys.push(point[1]);
-            });
-        });
-        
+
+        xs.push(...data.jobs.flatMap(({ target }) => target == null ? [] : [target[0]]))
+        ys.push(...data.jobs.flatMap(({ target }) => target == null ? [] : [target[1]]))
+
         return {
             minX: Math.min(...xs),
             maxX: Math.max(...xs),
@@ -158,26 +132,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
         onSetTarget({x: inverseScaleCoord(cursorpt.x, "x"), y: inverseScaleCoord(cursorpt.y, "y")});
         setChoosingTarget(false);
     }
-
-    useEffect(() => {
-        if (!choosingTarget) return;
-        const svg = svgRef.current;
-        if (!svg) return;
-    
-        const handleMouseMove = (e: MouseEvent) => {
-          const pt = svg.createSVGPoint();
-          pt.x = e.clientX;
-          pt.y = e.clientY;
-          const cursorpt = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-          const x = inverseScaleCoord(cursorpt.x, "x");
-          const y = inverseScaleCoord(cursorpt.y, "y");
-          //setPreviewTarget([x, y]);
-        };
-    
-        svg.addEventListener("mousemove", handleMouseMove);
-        return () => svg.removeEventListener("mousemove", handleMouseMove);
-      }, [choosingTarget]);
-    
 
     useEffect(() => {
         if (panMode != "scroll") return;
@@ -272,10 +226,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
           }
     }, [panMode, data]);
 
-    const handlePauseToggle = (isPaused: boolean) => {
-        console.log(`Job is now ${isPaused ? 'paused' : 'unpaused'}.`);
-    };
-
     const handleCancel = () => {
         console.log('Job canceled.');
         alert('Job 123 has been canceled.');
@@ -291,17 +241,24 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
     return (
         <div className="map-container">
-            <JobStatus 
-                jobId="123"
-                initialStatus={hasTarget ? "ETA: 15m 42s" : "No target set - Click 'Select on Map' to set target"}
-                target={hasTarget ? { lat: activeJob!.target![0], lng: activeJob!.target![1] } : { lat: 0, lng: 0 }}
-                initialRadius={hasTarget ? activeJob!.target_radius : 0}
-                initialDrones={data.drones.length}
-                onSelectOnMap={() => setChoosingTarget(true)}
-                onPauseToggle={handlePauseToggle}
-                onCancel={handleCancel}
-                onDronesChange={handleDronesChange}
-            />
+            {data.jobs.map(job => 
+                <JobStatus 
+                    jobName="123"
+                    initialStatus="ETA: 15m 42s"
+                    target={job.target}
+                    initialRadius={job.target_radius}
+                    initialDrones={1}
+                    isActive={job.is_active}
+                    // TODO: Show if the job is active.
+                    onSelectOnMap={() => setChoosingTarget(true)}
+                    onPauseToggle={() => {
+                        setJobActiveState(job.id, !job.is_active);
+                    }}
+                    onCancel={handleCancel}
+                    onDronesChange={handleDronesChange}
+                />
+            )}
+            
 
             <div className="plaback-controls">
                 <button id="play-pause-btn" onClick={handlePause}>
@@ -322,35 +279,9 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                 {data.drones.map((d, i) => (
                     <ObjectMarker key={`drone-${i}`} type="drone" x={scaleCoord(d[0], "x")} y={scaleCoord(d[1], "y")}/>
                 ))}
-                {/* Render target only if it exists */}
-                {(() => {
-                    const activeJob = data.jobs.find(job => job.target !== null);
-                    if (activeJob && activeJob.target) {
-                        return (
-                            <ObjectMarker 
-                                key={`target`} 
-                                type="target" 
-                                x={scaleCoord(activeJob.target[0], "x")} 
-                                y={scaleCoord(activeJob.target[1], "y")} 
-                            />
-                        );
-                    }
-                    return null;
-                })()}
-                
-                {/* Show message when no target is set */}
-                {!hasTarget && (
-                    <text 
-                        x={CANVAS_SIZE / 2} 
-                        y={CANVAS_SIZE / 2} 
-                        textAnchor="middle" 
-                        dominantBaseline="middle"
-                        fill="#666"
-                        fontSize="16"
-                        fontFamily="Arial, sans-serif"
-                    >
-                        No target set - Click anywhere to set target
-                    </text>
+
+                {data.jobs.map(job => job.target == null ? <></> :
+                    <ObjectMarker key={`target`} type="target" x={scaleCoord(job.target[0], "x")} y={scaleCoord(job.target[1], "y")} />
                 )}
 
             </svg>

@@ -95,23 +95,24 @@ export async function requestRestart() {
     }
 }
 
-/**
- * Stub for a request to start a preset scenario.
- * @param scenario 
- * @returns 
- */
-export async function startPresetSimulation(scenario: string) {
-    console.log(`Sending scenario ${scenario} to the backend.`);
+export async function setJobActiveState(jobId: number, isActive: boolean) {
+    try {
+        const response = await fetch(`${backendURL}/jobs/${jobId}`, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ is_active: isActive }),
+        });
 
-    return new Promise(resolve => setTimeout(() => {
-        alert(`Simulation with scenario "${scenario}" has been started.`)
-        resolve({success: true, scenario: scenario});
-    }, 500));
-}
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Request failed with status ${response.status}`);
+        }
 
-export async function startCustomSimulation(customScenario: CustomScenario) {
-    console.log("Sending custom scenario to the backend.");
-
-    return new Promise(resolve => setTimeout(() => resolve({ success: true }), 500));
-
+        return await response.json();
+    } catch (err) {
+        console.error(`Error setting active state for job ${jobId}:`, err);
+        return null;
+    }
 }

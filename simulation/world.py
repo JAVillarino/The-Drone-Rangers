@@ -94,6 +94,7 @@ class World:
         self.V = np.zeros((self.N, 2), dtype=np.float64, order='C')  # shape (N, 2)
         
         self.dogs = shepherd_xy
+        # TODO: We should be able to move this out of here now, and have a separate jobs list which is managed elsewhere.
         self.target = np.asarray(target_xy, float) if target_xy is not None else None
         self.paused = False
         
@@ -950,22 +951,3 @@ def _repel_close_numba(P: np.ndarray, i: int, ra: float) -> np.ndarray:
             
     return repulsion
 
-
-
-def is_goal_satisfied(w: World, goal_tolerance: float) -> bool:
-    """
-    Return True if every sheep in the world's flock is within the goal tolerance
-    of the world's target.
-    """
-    
-    if w.P.size == 0:
-        return True
-
-    # squared comparison for speed / numerical stability
-    tol_sq = goal_tolerance * goal_tolerance
-
-    # distances squared from each sheep to the target
-    diffs = w.P - w.target.reshape(1, 2)
-    d2 = np.sum(diffs * diffs, axis=1)
-
-    return np.all(d2 <= tol_sq)
