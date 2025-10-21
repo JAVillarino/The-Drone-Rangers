@@ -62,13 +62,15 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     function scaleCoord(val: number, axis: "x" | "y") {
         const offset = axis === "x" ? pan.x : pan.y;
         const effectiveMin = zoomMin + offset;
-        return ((val - effectiveMin) / windowSize) * CANVAS_SIZE;
+        const scale = 0.7; // Make entities 30% smaller to fit more on screen
+        return ((val - effectiveMin) / windowSize) * CANVAS_SIZE * scale;
     }
 
     const inverseScaleCoord = (val: number, axis: "x" | "y") => {
         const offset = axis === "x" ? pan.x : pan.y;
         const effectiveMin = zoomMin + offset;
-        return ((val / CANVAS_SIZE) * windowSize + effectiveMin);
+        const scale = 0.7; // Same scale factor as scaleCoord
+        return ((val / (CANVAS_SIZE * scale)) * windowSize + effectiveMin);
     }
 
     function clampPan(x: number, y: number) {
