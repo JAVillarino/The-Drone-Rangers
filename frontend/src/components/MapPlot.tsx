@@ -7,7 +7,7 @@ import bg_img from "../../img/King_Ranch_better.jpg";
 //import menu_icon from "../../img/Hamburger_icon.svg.png";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Job, State } from "../types.ts"
-import { setJobActiveState } from "../api/state.ts";
+import { setPlayPause } from "../api/state.ts";
 
 interface MapPlotProps {
     data: State,
@@ -24,7 +24,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     if (!data) return <p>No data yet</p>;
 
     const [choosingTarget, setChoosingTarget] = useState(false);
-    const [paused, setPaused] = useState(false);
+    const paused = data.paused ?? false;
 
     //const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -90,9 +90,13 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
     const clamp = (v: number, a: number, b: number) => Math.min(Math.max(v, a), b);
 
-    function handlePause() {
-        setPaused(!paused);
-        onPlayPause();
+    async function handlePause() {
+        try {
+            //await setPlayPause();
+            onPlayPause();
+        } catch (error) {
+            console.error("Error toggling pause state:", error);
+        }
     }
 
     function handleClick(e: React.MouseEvent<SVGSVGElement, MouseEvent>) {
@@ -218,11 +222,13 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
         if (j.remaining_time == 0) {
             return "Completed";
         }
-        if (j.is_active) {
-            return "In progress"
+        if (j.target && !paused) {
+            return "In progress";
         }
-
-        return "Paused";
+        if (j.target && paused) {
+            return "Paused";
+        }
+        return "No target set";
     }
 
     // Check if there's an active target
@@ -231,17 +237,23 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
     return (
         <div className="map-container">
-            {data.jobs.map(job => 
+            {data.jobs.map((job, index) => 
                 <JobStatus 
+                    key={`job-${job.id || index}`}
                     jobName="123"
                     status={jobStatus(job)}
                     target={job.target}
                     initialRadius={job.target_radius}
                     initialDrones={1}
-                    isActive={job.is_active}
+                    isActive={job.target ? !paused : false}
                     onSelectOnMap={() => setChoosingTarget(true)}
-                    onPauseToggle={() => {
-                        setJobActiveState(job.id, !job.is_active);
+                    onPauseToggle={async () => {
+                        try {
+                            //await setPlayPause();
+                            onPlayPause();
+                        } catch (error) {
+                            console.error("Error toggling job state:", error);
+                        }
                     }}
                     onCancel={handleCancel}
                     onDronesChange={handleDronesChange}
@@ -251,7 +263,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
             <div className="playback-controls">
                 <button id="play-pause-btn" onClick={handlePause}>
-                    {!paused ? (<img src={play_btn}/>): (<img src={pause_btn}/>)}
+                    {paused ? (<img src={play_btn}/>): (<img src={pause_btn}/>)}
                 </button>
                 <button id="restart-btn" onClick={() => onRestart()}>
                     <img src={restart_btn}/>

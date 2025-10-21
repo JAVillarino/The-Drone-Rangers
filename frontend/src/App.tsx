@@ -42,6 +42,14 @@ function App() {
     mutation.mutate(coords);
   }
 
+  async function handlePlayPause() {
+    try {
+      await setPlayPause();
+    } catch (error) {
+      console.error("Error toggling pause state:", error);
+    }
+  }
+
     // This function will be passed to the LandingPage to start the simulation
     const handleSimulationStart = (scenario: string) => {
       // Here you would also likely trigger your `useQuery` to fetch initial data for the chosen scenario
@@ -92,7 +100,7 @@ function App() {
       {!activeScenario ? (
         <LandingPage onSimulationStart={handleSimulationStart} worldMax={worldMax} worldMin={worldMin} startPresetSim={startPresetSim} startCustomSim={startCustomSim}/>
       ) : (
-        <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax} onPlayPause={setPlayPause} onRestart={requestRestart}/>
+        <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax} onPlayPause={handlePlayPause} onRestart={requestRestart}/>
 
       )}
     </>

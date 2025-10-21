@@ -121,8 +121,15 @@ const JobStatus: React.FC<JobStatusProps> = ({
               aria-label="Number of drones assigned"
             />
           </div>
-          <button onClick={handlePauseToggle}>
-            {isActive ? 'Stop Job' : 'Start Job'}
+          <button 
+            onClick={handlePauseToggle}
+            disabled={!target}
+            style={{
+              opacity: target ? 1 : 0.5,
+              cursor: target ? 'pointer' : 'not-allowed'
+            }}
+          >
+            {target ? (isActive ? 'Stop Job' : 'Start Job') : 'Start Job'}
           </button>
         </div>
       )}

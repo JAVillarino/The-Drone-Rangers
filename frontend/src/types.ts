@@ -14,6 +14,7 @@ export interface State {
   drones: LocData[];
   polygons: LocData[][];
   jobs: Job[];
+  paused?: boolean;
 }
 
 export interface Scenario {
