@@ -246,7 +246,7 @@ if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
     
     while True:
-        time.sleep(0.1)
+        time.sleep(0.05)
     
         with world_lock:
             if world.is_goal_satisfied(backend_adapter, policy.fN * 1.5):
@@ -254,7 +254,7 @@ if __name__ == "__main__":
                 continue
 
             # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
-            for _ in range(10):
+            for _ in range(5):
                 plan = policy.plan(backend_adapter.get_state(), backend_adapter.dt)
                 backend_adapter.step(plan)
         
