@@ -6,7 +6,7 @@ import restart_btn from "../../img/restart_icon.png";
 import bg_img from "../../img/King_Ranch_better.jpg";
 //import menu_icon from "../../img/Hamburger_icon.svg.png";
 import { useState, useMemo, useRef, useEffect } from "react";
-import { State } from "../types.ts"
+import { Job, State } from "../types.ts"
 import { setJobActiveState } from "../api/state.ts";
 
 interface MapPlotProps {
@@ -21,10 +21,6 @@ interface MapPlotProps {
 
 
 export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPlayPause, onRestart }: MapPlotProps) {
-    useEffect(() => {
-        console.log(data);
-    }, [data]);
-
     if (!data) return <p>No data yet</p>;
 
     const [choosingTarget, setChoosingTarget] = useState(false);
@@ -38,7 +34,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     const [isPanning, setIsPanning] = useState(false);
 
     const svgRef = useRef<SVGSVGElement | null>(null);
-    const dragStart = useRef<{ x: number, y: number } | null>(null);
 
     // Compute bounding box of all objects (to limit panning)
     const bounds = useMemo(() => {
@@ -58,7 +53,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
     const windowSize = zoomMax - zoomMin;
 
-
+    // Converts into canvas units.
     function scaleCoord(val: number, axis: "x" | "y") {
         const offset = axis === "x" ? pan.x : pan.y;
         const effectiveMin = zoomMin + offset;
@@ -107,7 +102,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     }
 
     useEffect(() => {
-        if (panMode != "scroll") return;
         const svgEl = svgRef.current;
         if(!svgEl) return;
 
@@ -123,7 +117,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
         svgEl.addEventListener("wheel", handleWheel, { passive: false });
         return () => svgEl.removeEventListener("wheel", handleWheel);
-    }, [panMode, data]);
+    }, [data]);
 
     useEffect(() => {
         setPan((prev) => clampPan(prev.x, prev.y));
@@ -210,6 +204,17 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
         console.log(`Drones assigned changed to: ${newCount}`);
     };
 
+    const jobStatus = (j: Job) => {
+        if (j.remaining_time == 0) {
+            return "Completed";
+        }
+        if (j.is_active) {
+            return "In progress"
+        }
+
+        return "Paused";
+    }
+
     // Check if there's an active target
     const activeJob = data.jobs.find(job => job.target !== null);
     const hasTarget = activeJob && activeJob.target !== null;
@@ -219,12 +224,11 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
             {data.jobs.map(job => 
                 <JobStatus 
                     jobName="123"
-                    initialStatus="ETA: 15m 42s"
+                    status={jobStatus(job)}
                     target={job.target}
                     initialRadius={job.target_radius}
                     initialDrones={1}
                     isActive={job.is_active}
-                    // TODO: Show if the job is active.
                     onSelectOnMap={() => setChoosingTarget(true)}
                     onPauseToggle={() => {
                         setJobActiveState(job.id, !job.is_active);
@@ -235,7 +239,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
             )}
             
 
-            <div className="plaback-controls">
+            <div className="playback-controls">
                 <button id="play-pause-btn" onClick={handlePause}>
                     {!paused ? (<img src={play_btn}/>): (<img src={pause_btn}/>)}
                 </button>
@@ -245,9 +249,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
             </div>
 
             <svg ref={svgRef} className="map"  onClick={handleClick}  >
-                {/* <ObjectMarker key={`barn`} type="barn" x={scaleCoord(50, "x")} y={scaleCoord(1, "y")} />
-                <ObjectMarker key={`windmill`} type="windmill" x={scaleCoord(80, "x")} y={scaleCoord(10, "y")} />
-                <ObjectMarker key={`tractor`} type="tractor" x={scaleCoord(75, "x")} y={scaleCoord(40, "y")} />                 */}
                 {data.flock.map((a, i) => (
                     <ObjectMarker key={`animal-${i}`} type="animal" x={scaleCoord(a[0], "x")} y={scaleCoord(a[1], "y")} />
                 ))}

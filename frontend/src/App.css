@@ -57,7 +57,7 @@
   background-attachment: local; /* Allow background to scroll with content */
 }
 
-.plaback-controls {
+.playback-controls {
   width: 100%;
   justify-content: center;
   display: flex;
@@ -72,7 +72,7 @@
   /* No scaling needed since container is not scaled */
 }
 
-.plaback-controls img {
+.playback-controls img {
   width: 100%;
   height: 100%;
 }
