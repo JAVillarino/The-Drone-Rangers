@@ -3,7 +3,7 @@ import { LocData } from '../types.ts';
 
 interface JobStatusProps {
   jobName: string;
-  initialStatus: string;
+  status: string;
   target: LocData | null;
   initialRadius: number;
   initialDrones: number;
@@ -16,7 +16,7 @@ interface JobStatusProps {
 
 const JobStatus: React.FC<JobStatusProps> = ({
   jobName,
-  initialStatus,
+  status,
   target,
   initialRadius,
   initialDrones,
@@ -93,7 +93,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
         <div className="card-body">
           <div className="card-field">
             <strong>Status:</strong>
-            <span>{isActive ? initialStatus : 'Paused' }</span>
+            <span>{isActive ? status : 'Paused' }</span>
           </div>
           <div className="card-field">
             <strong>Target:</strong>

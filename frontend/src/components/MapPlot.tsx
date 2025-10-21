@@ -4,7 +4,7 @@ import pause_btn from "../../img/pause_button.jpg"
 import play_btn from "../../img/play_button.jpg"
 import restart_btn from "../../img/restart_icon.png"
 import { useState, useMemo, useRef, useEffect } from "react";
-import { State } from "../types.ts"
+import { Job, State } from "../types.ts"
 import { setJobActiveState } from "../api/state.ts";
 
 interface MapPlotProps {
@@ -19,10 +19,6 @@ interface MapPlotProps {
 
 
 export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPlayPause, onRestart }: MapPlotProps) {
-    // useEffect(() => {
-    //     console.log(data);
-    // }, [data]);
-
     if (!data) return <p>No data yet</p>;
 
     const [choosingTarget, setChoosingTarget] = useState(false);
@@ -130,12 +126,23 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
         console.log(`Drones assigned changed to: ${newCount}`);
     };
 
+    const jobStatus = (j: Job) => {
+        if (j.remaining_time == 0) {
+            return "Completed";
+        }
+        if (j.is_active) {
+            return "In progress"
+        }
+
+        return "Paused";
+    }
+
     return (
         <div className="map-container">
             {data.jobs.map(job => 
                 <JobStatus 
                     jobName="123"
-                    initialStatus="ETA: 15m 42s"
+                    status={jobStatus(job)}
                     target={job.target}
                     initialRadius={job.target_radius}
                     initialDrones={1}

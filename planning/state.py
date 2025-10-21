@@ -12,7 +12,7 @@ class Job:
     # 1-by-2 of the position of the drone.
     target: np.ndarray | None
     target_radius: float
-    
+
     # Estimate of the remaining time in seconds required before the job will finish.
     remaining_time: float | None
     

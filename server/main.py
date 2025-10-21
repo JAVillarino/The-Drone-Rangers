@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import random
-from planning import herding, plan_type, state
+from planning import herding, state
 from simulation import world
 import time
 import threading
@@ -315,6 +315,15 @@ if __name__ == "__main__":
     
     while True:
         time.sleep(0.05)
+        
+        for job in jobs:
+            if job.target is None:
+                job.remaining_time = None
+            elif herding.policy.is_goal_satisfied(backend_adapter.get_state(), job.target, job.target_radius):
+                job.remaining_time = 0
+            else:
+                job.remaining_time = None
+                
     
         with world_lock:
             # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
