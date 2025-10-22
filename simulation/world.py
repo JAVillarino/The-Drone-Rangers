@@ -778,20 +778,12 @@ class World:
         # Then move sheep using the new dog pos + flag
         self._sheep_step()
 
-    def get_state(self) -> state.State:
-        # Create a Job object from the target
-        job = state.Job(
-            target=self.target.copy() if self.target is not None else None,
-            target_radius=10.0,  # Default radius, could be made configurable
-            remaining_time=None,  # Not implemented yet
-            is_active=not self.paused,
-        )
-        
+    def get_state(self) -> state.State:        
         return state.State(
             flock=self.P.copy(),
             drones=self.dogs.copy(),
             polygons=[p.copy() for p in self.polys],
-            jobs=[job],
+            jobs=[],
         )
     
     def pause(self):

@@ -52,6 +52,7 @@ def initialize_sim():
             target_radius=policy.fN * 1.5,
             remaining_time=None,
             is_active=True,
+            drones=1,
         )
     ]
 

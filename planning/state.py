@@ -18,6 +18,8 @@ class Job:
     
     # If the user pauses a job, this becomes false.
     is_active: bool
+    
+    drones: int
 
     # UUID.
     id: int = field(default_factory=count().__next__)
