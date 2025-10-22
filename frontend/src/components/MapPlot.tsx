@@ -1,9 +1,6 @@
 import ObjectMarker from "./ObjectMarker";
 import JobStatus from "./JobStatus";
 import SimulationStatus from "./SimulationStatus";
-import pause_btn from "../../img/pause_button.jpg";
-import play_btn from "../../img/play_button.jpg";
-import restart_btn from "../../img/restart_icon.png";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Job, State } from "../types.ts"
 import { setJobActiveState, setJobDroneCount } from "../api/state.ts";
@@ -314,10 +311,10 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
             <div className="playback-controls">
                 <button className="sim-ctrl-btn" onClick={handlePause} title={paused ? "Play" : "Pause"}>
-                    <img src={paused ? play_btn : pause_btn} alt={paused ? "Play" : "Pause"} />
+                    <span className="control-icon">{paused ? "▶" : "⏸"}</span>
                 </button>
                 <button className="sim-ctrl-btn" onClick={() => onRestart()} title="Restart">
-                    <img src={restart_btn} alt="Restart" />
+                    <span className="control-icon">↻</span>
                 </button>
                 <div className="edit-button-container">
                     <button id="edit-btn" onClick={handleEditClick} title="Edit">
