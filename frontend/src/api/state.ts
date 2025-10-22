@@ -158,6 +158,25 @@ export async function getPresetScenarios(): Promise<Scenario[]> {
     }
 }
 
+export async function getAllScenarios(): Promise<Scenario[]> {
+    try {
+        // Fetch all scenarios (preset + custom) by not filtering by visibility
+        const response = await fetch(`${backendURL}/scenarios?limit=100&sort=-created_at`, {
+            method: "GET",
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data: ScenariosResponse = await response.json();
+        return data.items;
+    } catch (err) {
+        console.error("Error getting all scenarios:", err);
+        return [];
+    }
+}
+
 export async function createCustomScenario(scenarioData: {
     name: string;
     sheep: [number, number][];
@@ -242,8 +261,9 @@ export async function createCustomScenario(scenarioData: {
     }
 }
 
-export async function loadScenario(scenarioId: string): Promise<{ success: boolean; data?: any }> {
+export async function loadScenario(scenarioId: string): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
+        console.log(`Loading scenario: ${scenarioId}`);
         const response = await fetch(`${backendURL}/load-scenario/${scenarioId}`, {
             method: "POST",
             headers: {
@@ -252,15 +272,18 @@ export async function loadScenario(scenarioId: string): Promise<{ success: boole
         });
         
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
+            const errorData = await response.json().catch(() => ({}));
+            const errorMsg = errorData.error?.message || `HTTP error! status: ${response.status}`;
+            console.error("Load scenario error:", errorData);
+            return { success: false, error: errorMsg };
         }
         
         const data = await response.json();
-        console.log("Loaded scenario:", data);
+        console.log("Loaded scenario successfully:", data);
         return { success: true, data };
     } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : "Unknown error occurred";
         console.error("Error loading scenario:", err);
-        return { success: false };
+        return { success: false, error: errorMsg };
     }
 }

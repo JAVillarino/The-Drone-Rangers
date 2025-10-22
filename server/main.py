@@ -35,11 +35,15 @@ def _create_policy_for_world(w: world.World) -> herding.ShepherdPolicy:
 def initialize_sim():
     """Initialize a new simulation with default parameters."""
     flock_size = 50
+    # Calculate appropriate k_nn based on flock size (must be <= N-1)
+    k_nn = min(21, max(1, flock_size - 1))
+    
     backend_adapter = world.World(
         sheep_xy=np.array([[random.uniform(0, 200), random.uniform(0, 200)] for _ in range(flock_size)]),
         shepherd_xy=np.array([[0.0, 0.0]]),
         target_xy=None,  # No target by default - user must set via frontend
         boundary="none",
+        k_nn=k_nn,
         dt=0.1,
     )
     policy = _create_policy_for_world(backend_adapter)
@@ -182,7 +186,7 @@ def play_pause():
 @app.route("/load-scenario/<uuid:scenario_id>", methods=["POST"])
 def load_scenario(scenario_id):
     """Load a scenario from the repository into the running simulation."""
-    global backend_adapter, policy, current_scenario_id
+    global backend_adapter, policy, current_scenario_id, jobs
     
     scenario = REPO.get(scenario_id)
     if not scenario:
@@ -196,20 +200,41 @@ def load_scenario(scenario_id):
     
     try:
         with world_lock:
+            # Calculate appropriate k_nn based on flock size
+            # k_nn must be <= N-1, where N is number of sheep
+            num_sheep = len(scenario.sheep)
+            k_nn = min(21, max(1, num_sheep - 1))  # Default is 21, but cap at N-1
+            
             # Reinitialize world with scenario data
             backend_adapter = world.World(
                 sheep_xy=np.array(scenario.sheep, dtype=float),
                 shepherd_xy=np.array(scenario.drones, dtype=float),
-                target_xy=scenario.targets[0] if scenario.targets else None,
+                target_xy=np.array(scenario.targets[0], dtype=float) if scenario.targets else None,
                 boundary=scenario.boundary,
+                k_nn=k_nn,
                 dt=0.1,
             )
             
             # Recompute policy parameters for new flock size
             policy = _create_policy_for_world(backend_adapter)
             
+            # Initialize jobs for the scenario
+            target_pos = np.array(scenario.targets[0], dtype=float) if scenario.targets else None
+            jobs = [
+                state.Job(
+                    target=target_pos,
+                    target_radius=policy.fN * 1.5,
+                    remaining_time=None,
+                    is_active=True if target_pos is not None else False,
+                    drones=len(scenario.drones),
+                )
+            ]
+            
             # Track what's loaded
             current_scenario_id = str(scenario_id)
+            
+            # Pause the simulation so user can see the setup
+            backend_adapter.paused = True
             
         return jsonify({
             "ok": True,
@@ -218,6 +243,7 @@ def load_scenario(scenario_id):
             "num_sheep": len(scenario.sheep),
             "num_drones": len(scenario.drones),
             "boundary": scenario.boundary,
+            "has_target": len(scenario.targets) > 0 if scenario.targets else False,
             "paused": backend_adapter.paused,
         }), 200
         

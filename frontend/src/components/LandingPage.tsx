@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { CustomScenarioModal } from "./CustomScenarioModal";
-import { getPresetScenarios, loadScenario } from "../api/state";
+import { getAllScenarios, loadScenario } from "../api/state";
 import { Scenario } from "../types";
 import ranch1 from "../../img/King_Ranch_better.jpg";
 import ranch2 from "../../img/HighResRanch.png";
+import "./LandingPage.css";
 
 
 interface CustomScenario {
@@ -38,20 +39,22 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
     const [presetScenarios, setPresetScenarios] = useState<Scenario[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // Function to fetch/refresh scenarios
+    const fetchScenarios = async () => {
+        setLoading(true);
+        try {
+            const scenarios = await getAllScenarios();
+            setPresetScenarios(scenarios);
+            console.log(`Loaded ${scenarios.length} scenarios (${scenarios.filter(s => s.visibility === 'preset').length} presets, ${scenarios.filter(s => s.visibility !== 'preset').length} custom)`);
+        } catch (error) {
+            console.error("Error fetching scenarios:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    // Fetch preset scenarios on component mount
+    // Fetch all scenarios (preset + custom) on component mount
     useEffect(() => {
-        const fetchScenarios = async () => {
-            try {
-                const scenarios = await getPresetScenarios();
-                setPresetScenarios(scenarios);
-            } catch (error) {
-                console.error("Error fetching scenarios:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        
         fetchScenarios();
     }, []);
 
@@ -92,11 +95,39 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
         }
     };
 
-    const handleCustomSubmit = async (config: CustomScenario) => {
+    const handleCustomSubmit = async (config: any) => {
         try {
-            await startCustomSim(config);
-            setIsCustomizing(false);
-            onSimulationStart("Custom", selectedImage); // Notify App to switch views
+            console.log("Custom scenario submission received:", config);
+            
+            // Check if the scenario was already created by the modal (it has scenarioId)
+            if (config.scenarioId) {
+                console.log("Scenario already created with ID:", config.scenarioId);
+                setIsCustomizing(false);
+                
+                // Refresh the scenario list to show the newly created custom scenario
+                console.log("Refreshing scenario list...");
+                await fetchScenarios();
+                
+                // Select the newly created scenario
+                setSelectedScenario(config.scenarioId);
+                console.log(`Custom scenario selected with ID: ${config.scenarioId}`);
+            } else {
+                // Fallback: if for some reason the modal didn't create it, create it now
+                console.log("Creating custom scenario...");
+                const result = await startCustomSim(config);
+                console.log("Custom scenario result:", result);
+                setIsCustomizing(false);
+                
+                // Refresh the scenario list to show the newly created custom scenario
+                console.log("Refreshing scenario list...");
+                await fetchScenarios();
+                
+                // If creation was successful and we have the scenario ID, select it
+                if (result && typeof result === 'object' && 'scenarioId' in result) {
+                    setSelectedScenario(result.scenarioId as string);
+                    console.log(`Custom scenario created with ID: ${result.scenarioId}`);
+                }
+            }
         } catch (error) {
             console.error("Error submitting custom scenario:", error);
             alert("Could not submit the custom scenario.");
@@ -105,15 +136,15 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
 
 
     return (
-        <div id="landing-container">
+        <div id="landing-container" className="lp">
             <h1 id="landing-title">Simulation Setup</h1>
             <p id="landing-subtitle">Select a scenario to begin</p>
 
-            {/* Multiple Choice Options */}
-            <div className="multiple-choice-container">
-                <div className="choice-options-row">
+            <div className="lp-grid">
+                {/* Left: image cards */}
+                <div className="lp-cards">
                     <div 
-                        className={`choice-option ${selectedImage === "option1" ? "selected" : ""}`}
+                        className={`choice-option lp-card ${selectedImage === "option1" ? "selected" : ""}`}
                         onClick={() => handleImageSelect("option1")}
                     >
                         <div className="choice-radio-container">
@@ -131,12 +162,12 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
                             </label>
                         </div>
                         <div className="choice-content">
-                            <img src={ranch1} alt="Ranch 1" />
+                            <img src={ranch1} alt="Ranch 1" className="lp-card__img" />
                         </div>
                     </div>
                     
                     <div 
-                        className={`choice-option ${selectedImage === "option2" ? "selected" : ""}`}
+                        className={`choice-option lp-card ${selectedImage === "option2" ? "selected" : ""}`}
                         onClick={() => handleImageSelect("option2")}
                     >
                         <div className="choice-radio-container">
@@ -154,70 +185,94 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
                             </label>
                         </div>
                         <div className="choice-content">
-                            <img src={ranch2} alt="Ranch 2" />
+                            <img src={ranch2} alt="Ranch 2" className="lp-card__img" />
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div className="scenario-selector-container">
-                <select 
-                    value={selectedScenario} 
-                    onChange={handleScenarioChange} 
-                    id="landing-dropdown"
-                    disabled={loading}
-                >
-                    <option value="" disabled>
-                        {loading ? "Loading scenarios..." : "Preset Scenarios"}
-                    </option>
-                    {presetScenarios.map(scenario => (
-                        <option key={scenario.id} value={scenario.id}>
-                            {scenario.name}
+                {/* Right: scenario panel */}
+                <div className="lp-panel">
+                    <select 
+                        value={selectedScenario} 
+                        onChange={handleScenarioChange} 
+                        id="landing-dropdown"
+                        className="lp-select"
+                        disabled={loading}
+                    >
+                        <option value="" disabled>
+                            {loading ? "Loading scenarios..." : "Select a Scenario"}
                         </option>
-                    ))}
-                </select>
-                <p>or</p>
-                <button 
-                    id="create-custom-scenario-btn" 
-                    className="action-btn"
-                    onClick={() => setIsCustomizing(true)}
-                >
-                    Create Custom Scenario
-                </button>
+                        
+                        {/* Preset Scenarios */}
+                        {presetScenarios.filter(s => s.visibility === 'preset').length > 0 && (
+                            <optgroup label="Preset Scenarios">
+                                {presetScenarios
+                                    .filter(s => s.visibility === 'preset')
+                                    .map(scenario => (
+                                        <option key={scenario.id} value={scenario.id}>
+                                            {scenario.name}
+                                        </option>
+                                    ))
+                                }
+                            </optgroup>
+                        )}
+                        
+                        {/* Custom Scenarios */}
+                        {presetScenarios.filter(s => s.visibility !== 'preset').length > 0 && (
+                            <optgroup label="Custom Scenarios">
+                                {presetScenarios
+                                    .filter(s => s.visibility !== 'preset')
+                                    .map(scenario => (
+                                        <option key={scenario.id} value={scenario.id}>
+                                            {scenario.name}
+                                        </option>
+                                    ))
+                                }
+                            </optgroup>
+                        )}
+                    </select>
+                    <div className="lp-or">or</div>
+                    <button 
+                        id="create-custom-scenario-btn" 
+                        className="lp-btn lp-btn--ghost"
+                        onClick={() => setIsCustomizing(true)}
+                    >
+                        Create Custom Scenario
+                    </button>
+
+                    {/* Show scenario description if a preset is selected */}
+                    {selectedScenario && (
+                        <div id="scenario-description">
+                            {(() => {
+                                const scenario = presetScenarios.find(s => s.id === selectedScenario);
+                                return scenario ? (
+                                    <div>
+                                        <h3>{scenario.name}</h3>
+                                        {scenario.description && <p>{scenario.description}</p>}
+                                        <p><strong>Sheep:</strong> {scenario.sheep.length} | <strong>Drones:</strong> {scenario.drones.length}</p>
+                                        {scenario.tags.length > 0 && (
+                                            <p><strong>Tags:</strong> {scenario.tags.join(", ")}</p>
+                                        )}
+                                    </div>
+                                ) : null;
+                            })()}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* --- Conditional UI based on selection --- */}
-
-            {/* Show scenario description if a preset is selected */}
+            {/* Start button */}
             {selectedScenario && (
-                <div id="scenario-description">
-                    {(() => {
-                        const scenario = presetScenarios.find(s => s.id === selectedScenario);
-                        return scenario ? (
-                            <div>
-                                <h3>{scenario.name}</h3>
-                                {scenario.description && <p>{scenario.description}</p>}
-                                <p><strong>Sheep:</strong> {scenario.sheep.length} | <strong>Drones:</strong> {scenario.drones.length}</p>
-                                {scenario.tags.length > 0 && (
-                                    <p><strong>Tags:</strong> {scenario.tags.join(", ")}</p>
-                                )}
-                            </div>
-                        ) : null;
-                    })()}
+                <div className="lp-actions">
+                    <button 
+                        onClick={handleStartSimulation} 
+                        id="landing-start-btn"
+                        className="lp-btn lp-btn--primary"
+                    >
+                        Start Simulation
+                    </button>
                 </div>
             )}
-
-            {/* 1. Show Start Button for standard scenarios */}
-            {selectedScenario && (
-                <button 
-                    onClick={handleStartSimulation} 
-                    id="landing-start-btn"
-                    className="action-btn"
-                >
-                    Start Simulation
-                </button>
-            )}
-
 
             {isCustomizing && (
                 <CustomScenarioModal 

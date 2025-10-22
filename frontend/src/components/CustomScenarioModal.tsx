@@ -8,7 +8,7 @@ type DragItem = {
     index: number | null;
     offsetX: number;
     offsetY: number;
-    updateTimeout?: number;
+    updateTimeout?: ReturnType<typeof setTimeout>;
 };
 
 
@@ -37,7 +37,7 @@ type CustomScenarioModalProps = {
   };
 
 export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: CustomScenarioModalProps) {
-    const [numAnimals, setNumAnimals] = useState(5);
+    const [numAnimals, setNumAnimals] = useState(10);
     const [animalPositions, setAnimalPositions] = useState<[number, number][]>([]);
     const [dronePosition, setDronePosition] = useState<[number, number]>([200, 200]);
     const [targetPosition, setTargetPosition] = useState<[number, number]>([400, 200]);
@@ -154,6 +154,11 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
             alert("Please enter a scenario name");
             return;
         }
+        
+        if (numAnimals < 2) {
+            alert("Please add at least 2 animals for a meaningful simulation");
+            return;
+        }
 
         setIsSubmitting(true);
 
@@ -202,9 +207,12 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                 const loadResult = await loadScenario(result.scenarioId);
                 
                 if (loadResult.success) {
-                    // Close modal and notify parent
+                    console.log("Custom scenario created and loaded successfully!");
+                    console.log("Scenario ID:", result.scenarioId);
+                    // Close modal
                     onClose();
-                    // Call onSubmit with the scenario data
+                    // Notify parent that scenario was created (don't pass config since it's already created)
+                    // Pass a dummy config to satisfy the type, but the parent won't use it to create again
                     onSubmit({
                         name: scenarioName,
                         seed: scenarioData.seed,
@@ -213,13 +221,14 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                         shepherd: scenarioData.shepherd,
                         target: scenarioData.target,
                         bounds: scenarioData.bounds,
-                        start: true
-                    });
+                        start: true,
+                        scenarioId: result.scenarioId // Add the ID so parent knows not to recreate
+                    } as any);
                 } else {
-                    alert(`Failed to load scenario: ${loadResult.data.error || 'Unknown error'}`);
+                    alert(`Failed to load scenario: ${loadResult.error || 'Unknown error'}`);
                 }
             } else {
-                alert(`Failed to create scenario: ${result.error}`);
+                alert(`Failed to create scenario: ${result.error || 'Unknown error'}`);
             }
                 
 
@@ -236,39 +245,45 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
             <div id="modal-content" onClick={(e) => e.stopPropagation()}>
                 <div id="modal-header">
                     <h2>Customize Scenario</h2>
-                    <div id="input-group">
-                        <label htmlFor="scenario-name">Scenario Name: </label>
-                        <input
-                            id="scenario-name"
-                            type="text"
-                            value={scenarioName}
-                            onChange={(e) => setScenarioName(e.target.value)}
-                            className="text-input"
-                            placeholder="Enter scenario name"
-                            required
-                        />
-                    </div>
-                    <div id="input-group">
-                        <label htmlFor="scenario-description">Description: </label>
-                        <input
-                            id="scenario-description"
-                            type="text"
-                            value={scenarioDescription}
-                            onChange={(e) => setScenarioDescription(e.target.value)}
-                            className="text-input"
-                            placeholder="Optional description"
-                        />
-                    </div>
-                    <div id="input-group">
-                        <label htmlFor="num-animals">Number of Animals: </label>
-                        <input
-                            id="num-animals"
-                            type="number"
-                            value={numAnimals}
-                            onChange={(e) => setNumAnimals(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                            className="number-input"
-                            min="0"
-                        />
+                    <div className="modal-inputs-container">
+                        <div id="input-group">
+                            <label htmlFor="scenario-name">Scenario Name</label>
+                            <input
+                                id="scenario-name"
+                                type="text"
+                                value={scenarioName}
+                                onChange={(e) => setScenarioName(e.target.value)}
+                                className="text-input"
+                                placeholder="Enter name"
+                                required
+                            />
+                        </div>
+                        <div id="input-group">
+                            <label htmlFor="scenario-description">Description</label>
+                            <input
+                                id="scenario-description"
+                                type="text"
+                                value={scenarioDescription}
+                                onChange={(e) => setScenarioDescription(e.target.value)}
+                                className="text-input"
+                                placeholder="Optional"
+                            />
+                        </div>
+                        <div id="input-group">
+                            <label htmlFor="num-animals">Animals</label>
+                            <input
+                                id="num-animals"
+                                type="number"
+                                value={numAnimals}
+                                onChange={(e) => setNumAnimals(parseInt(e.target.value, 10) || 10)}
+                                onBlur={(e) => {
+                                    const val = parseInt(e.target.value, 10) || 10;
+                                    if (val < 2) setNumAnimals(2);
+                                }}
+                                className="number-input"
+                                min="2"
+                            />
+                        </div>
                     </div>
                 </div>
                 
