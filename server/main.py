@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import random
-from planning import herding, state
+from planning import herding, state, plan_type
 from simulation import world
 import time
 import threading

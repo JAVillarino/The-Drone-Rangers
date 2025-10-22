@@ -103,7 +103,7 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
         // No bounds constraints - entities can be placed anywhere
         // newX and newY are used directly without clamping
 
-        const { type, index } = dragItem.current;
+        const { type } = dragItem.current;
         
         // Immediate visual update using direct DOM manipulation
         const entityElement = mapRef.current.querySelector(`[data-entity-type="${type}"][data-entity-index="null"]`);

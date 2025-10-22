@@ -5,7 +5,7 @@ import play_btn from "../../img/play_button.jpg";
 import restart_btn from "../../img/restart_icon.png";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Job, State } from "../types.ts"
-import { setJobDroneCount } from "../api/state.ts";
+import { setJobActiveState, setJobDroneCount } from "../api/state.ts";
 
 interface MapPlotProps {
     data: State,
@@ -20,14 +20,10 @@ interface MapPlotProps {
 
 export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPlayPause, onRestart }: MapPlotProps) {
     if (!data) return <p>No data yet</p>;
-
-    const [choosingTarget, setChoosingTarget] = useState(false);
     const paused = data.paused ?? false;
 
+    const [choosingTarget, setChoosingTarget] = useState(false);
     const [pan, setPan] = useState({ x: 0, y: 0 });
-    const [panMode, setPanMode] = useState<"scroll" | "drag">("scroll");
-    const [isPanning, setIsPanning] = useState(false);
-
     const svgRef = useRef<SVGSVGElement | null>(null);
 
     // Compute bounding box of all objects (to limit panning)
@@ -57,7 +53,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     }, [data, zoomMin, zoomMax]);
 
     const windowSize = zoomMax - zoomMin;
-    const scale = 0.7; // Same scale factor as scaleCoord
+    const scale = 0.7;
 
     // Converts into canvas units.
     function scaleCoord(val: number, axis: "x" | "y") {
@@ -136,35 +132,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
         setPan((prev) => clampPan(prev.x, prev.y));
     }, []);
 
-    // Update background position when pan changes
-    // useEffect(() => {
-    //     const mapContainer = svgRef.current?.parentElement;
-    //     if (mapContainer) {
-    //         // Use requestAnimationFrame to smooth the background updates
-    //         const updateBackground = () => {
-    //             // Convert pan offset to background position
-    //             // The background should move in the same direction as the entities
-    //             const windowSize = zoomMax - zoomMin;
-                
-    //             // Convert pan coordinates to percentage offsets
-    //             // With 200% x 200% background, we can move 50% in each direction from center
-    //             // Clamp the movement to prevent scrolling beyond image boundaries
-    //             const maxOffset = 50; // Maximum 50% offset from center (0% to 100% range)
-    //             const percentageOffsetX = Math.max(-maxOffset, Math.min(maxOffset, (pan.x / windowSize) * 50));
-    //             const percentageOffsetY = Math.max(-maxOffset, Math.min(maxOffset, (pan.y / windowSize) * 50));
-                
-    //             // Apply the percentage offset to background position
-    //             // Positive pan should move background in same direction
-    //             const backgroundX = 50 + percentageOffsetX;
-    //             const backgroundY = 50 + percentageOffsetY;
-                
-    //             mapContainer.style.backgroundPosition = `${backgroundX}% ${backgroundY}%`;
-    //         };
-            
-    //         requestAnimationFrame(updateBackground);
-    //     }
-    // }, [pan, zoomMin, zoomMax]);
-
     const handleCancel = () => {
         console.log('Job canceled.');
         alert('Job 123 has been canceled.');
@@ -174,13 +141,14 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
         if (j.remaining_time == 0) {
             return "Completed";
         }
-        if (j.target && !paused) {
-            return "In progress";
+        if (!j.target) {
+            return "No target set";
         }
-        if (j.target && paused) {
-            return "Paused";
+        if (!j.is_active) {
+            return "Stopped";
         }
-        return "No target set";
+        
+        return "In progress"
     }
 
     return (
@@ -193,16 +161,9 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                     target={job.target}
                     initialRadius={job.target_radius}
                     initialDrones={1}
-                    isActive={job.target ? !paused : false}
+                    isActive={job.is_active}
                     onSelectOnMap={() => setChoosingTarget(true)}
-                    onPauseToggle={async () => {
-                        try {
-                            //await setPlayPause();
-                            onPlayPause();
-                        } catch (error) {
-                            console.error("Error toggling job state:", error);
-                        }
-                    }}
+                    onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
                     onCancel={handleCancel}
                     onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
                 />
