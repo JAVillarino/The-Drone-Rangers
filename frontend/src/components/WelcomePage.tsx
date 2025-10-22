@@ -7,7 +7,6 @@ interface WelcomePageProps {
 }
 
 export default function WelcomePage({ onNavigateToSimulator, onNavigateToRealSystem }: WelcomePageProps) {
-  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -26,8 +25,6 @@ export default function WelcomePage({ onNavigateToSimulator, onNavigateToRealSys
               setIsTransitioning(true);
               setTimeout(() => onNavigateToSimulator(), 500);
             }}
-            onMouseEnter={() => setHoveredCard('simulator')}
-            onMouseLeave={() => setHoveredCard(null)}
           >
             <div className="welcome-card-header">
               <div className="welcome-card-icon simulator-icon">
@@ -62,8 +59,6 @@ export default function WelcomePage({ onNavigateToSimulator, onNavigateToRealSys
               setIsTransitioning(true);
               setTimeout(() => onNavigateToRealSystem(), 500);
             }}
-            onMouseEnter={() => setHoveredCard('real')}
-            onMouseLeave={() => setHoveredCard(null)}
           >
             <div className="welcome-card-header">
               <div className="welcome-card-icon operations-icon">
