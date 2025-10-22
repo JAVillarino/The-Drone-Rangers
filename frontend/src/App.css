@@ -33,13 +33,11 @@
 .target {
   height: 48px;
   width: 48px;
-  /* position: absolute;
-  transform: translate(-50%, -50%); */
   transform: translate(-24px, -36px);
 }
 
 .map {
-  height: 95%;
+  height: 100%;
   width: 100%;
   transition: cursor 0.2s ease;
 }
@@ -49,12 +47,7 @@
   width: 100%;
   position: relative;
   overflow: hidden;
-
-  background-image: url("../../img/King_Ranch_better.jpg");
-  background-size: 225% 225%; /* Square aspect ratio to prevent white space */
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: local; /* Allow background to scroll with content */
+  background-color: #496246;
 }
 
 .playback-controls {
@@ -115,7 +108,9 @@
 
 
 
-
+.background {
+  width: 2300px;
+}
 
 
 

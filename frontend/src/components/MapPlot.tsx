@@ -24,9 +24,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     const [choosingTarget, setChoosingTarget] = useState(false);
     const paused = data.paused ?? false;
 
-    //const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [panMode, setPanMode] = useState<"scroll" | "drag">("scroll");
     const [isPanning, setIsPanning] = useState(false);
@@ -60,33 +57,37 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     }, [data, zoomMin, zoomMax]);
 
     const windowSize = zoomMax - zoomMin;
+    const scale = 0.7; // Same scale factor as scaleCoord
 
     // Converts into canvas units.
     function scaleCoord(val: number, axis: "x" | "y") {
         const offset = axis === "x" ? pan.x : pan.y;
         const effectiveMin = zoomMin + offset;
-        const scale = 0.7; // Make entities 30% smaller to fit more on screen
         return ((val - effectiveMin) / windowSize) * CANVAS_SIZE * scale;
     }
 
     const inverseScaleCoord = (val: number, axis: "x" | "y") => {
         const offset = axis === "x" ? pan.x : pan.y;
         const effectiveMin = zoomMin + offset;
-        const scale = 0.7; // Same scale factor as scaleCoord
         return ((val / (CANVAS_SIZE * scale)) * windowSize + effectiveMin);
     }
 
     function clampPan(x: number, y: number) {
-        // Clamp pan to background boundaries - this ensures entities stop when background stops
-        const backgroundLimit = windowSize * 0.5; // 50% of window size matches background offset limit
-        
-        return {
-            x: clamp(x, -backgroundLimit, backgroundLimit),
-            y: clamp(y, -backgroundLimit, backgroundLimit),
+        if (!svgRef.current) {
+            return { x, y }
         }
-    }
 
-    const clamp = (v: number, a: number, b: number) => Math.min(Math.max(v, a), b);
+        const xPadding = (svgRef.current.getBoundingClientRect().right - svgRef.current.getBoundingClientRect().left) / 2 + 50;
+        const yPadding = (svgRef.current.getBoundingClientRect().bottom - svgRef.current.getBoundingClientRect().top) / 2 + 50;
+
+        y = Math.max(y, bounds.minY - (svgRef.current.getBoundingClientRect().top + yPadding) / CANVAS_SIZE / scale * windowSize);
+        y = Math.min(y, bounds.maxY - (svgRef.current.getBoundingClientRect().bottom - yPadding) / CANVAS_SIZE / scale * windowSize);
+
+        x = Math.max(x, bounds.minX - (svgRef.current.getBoundingClientRect().left + xPadding) / CANVAS_SIZE / scale * windowSize);
+        x = Math.min(x, bounds.maxX - (svgRef.current.getBoundingClientRect().right - xPadding) / CANVAS_SIZE / scale * windowSize);
+        
+        return { x, y };
+    }
 
     async function handlePause() {
         try {
@@ -136,76 +137,33 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     }, []);
 
     // Update background position when pan changes
-    useEffect(() => {
-        const mapContainer = svgRef.current?.parentElement;
-        if (mapContainer) {
-            // Use requestAnimationFrame to smooth the background updates
-            const updateBackground = () => {
-                // Convert pan offset to background position
-                // The background should move in the same direction as the entities
-                const windowSize = zoomMax - zoomMin;
+    // useEffect(() => {
+    //     const mapContainer = svgRef.current?.parentElement;
+    //     if (mapContainer) {
+    //         // Use requestAnimationFrame to smooth the background updates
+    //         const updateBackground = () => {
+    //             // Convert pan offset to background position
+    //             // The background should move in the same direction as the entities
+    //             const windowSize = zoomMax - zoomMin;
                 
-                // Convert pan coordinates to percentage offsets
-                // With 200% x 200% background, we can move 50% in each direction from center
-                // Clamp the movement to prevent scrolling beyond image boundaries
-                const maxOffset = 50; // Maximum 50% offset from center (0% to 100% range)
-                const percentageOffsetX = Math.max(-maxOffset, Math.min(maxOffset, (pan.x / windowSize) * 50));
-                const percentageOffsetY = Math.max(-maxOffset, Math.min(maxOffset, (pan.y / windowSize) * 50));
+    //             // Convert pan coordinates to percentage offsets
+    //             // With 200% x 200% background, we can move 50% in each direction from center
+    //             // Clamp the movement to prevent scrolling beyond image boundaries
+    //             const maxOffset = 50; // Maximum 50% offset from center (0% to 100% range)
+    //             const percentageOffsetX = Math.max(-maxOffset, Math.min(maxOffset, (pan.x / windowSize) * 50));
+    //             const percentageOffsetY = Math.max(-maxOffset, Math.min(maxOffset, (pan.y / windowSize) * 50));
                 
-                // Apply the percentage offset to background position
-                // Positive pan should move background in same direction
-                const backgroundX = 50 + percentageOffsetX;
-                const backgroundY = 50 + percentageOffsetY;
+    //             // Apply the percentage offset to background position
+    //             // Positive pan should move background in same direction
+    //             const backgroundX = 50 + percentageOffsetX;
+    //             const backgroundY = 50 + percentageOffsetY;
                 
-                mapContainer.style.backgroundPosition = `${backgroundX}% ${backgroundY}%`;
-            };
+    //             mapContainer.style.backgroundPosition = `${backgroundX}% ${backgroundY}%`;
+    //         };
             
-            requestAnimationFrame(updateBackground);
-        }
-    }, [pan, zoomMin, zoomMax]);
-
-
-    /*useEffect(() => {
-        if (panMode != "drag") return;
-
-        const svgEl = svgRef.current;
-        if (!svgEl) return;
-
-        const handleMouseDown = (e: MouseEvent) => {
-            dragStart.current = { x: e.clientX, y: e.clientY };
-            setIsPanning(true);
-            // Change cursor to indicate dragging
-            if (svgEl) {
-                svgEl.style.cursor = 'grabbing';
-            }
-          };
-          const handleMouseMove = (e: MouseEvent) => {
-            if (!dragStart.current) return;
-            const dx = -(e.clientX - dragStart.current.x) / 3; // Slower dragging
-            const dy = -(e.clientY - dragStart.current.y) / 3;
-            dragStart.current = { x: e.clientX, y: e.clientY };
-      
-            setPan(prev => clampPan(prev.x + dx, prev.y + dy));
-          };
-          const handleMouseUp = () => {
-            dragStart.current = null;
-            setIsPanning(false);
-            // Reset cursor
-            if (svgEl) {
-                svgEl.style.cursor = panMode === 'drag' ? 'grab' : 'default';
-            }
-          };
-      
-          svgEl.addEventListener("mousedown", handleMouseDown);
-          window.addEventListener("mousemove", handleMouseMove);
-          window.addEventListener("mouseup", handleMouseUp);
-      
-          return () => {
-            svgEl.removeEventListener("mousedown", handleMouseDown);
-            window.removeEventListener("mousemove", handleMouseMove);
-            window.removeEventListener("mouseup", handleMouseUp);
-          }
-    }, [panMode, data]);*/
+    //         requestAnimationFrame(updateBackground);
+    //     }
+    // }, [pan, zoomMin, zoomMax]);
 
     const handleCancel = () => {
         console.log('Job canceled.');
@@ -224,10 +182,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
         }
         return "No target set";
     }
-
-    // Check if there's an active target
-    const activeJob = data.jobs.find(job => job.target !== null);
-    const hasTarget = activeJob && activeJob.target !== null;
 
     return (
         <div className="map-container">
@@ -265,6 +219,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
             </div>
 
             <svg ref={svgRef} className="map"  onClick={handleClick}  >
+                <image x={scaleCoord(-500, "x")} y={scaleCoord(-350, "y")} href="../../img/HighResRanch.png" className="background"/>
                 {data.flock.map((a, i) => (
                     <ObjectMarker key={`animal-${i}`} type="animal" x={scaleCoord(a[0], "x")} y={scaleCoord(a[1], "y")} />
                 ))}

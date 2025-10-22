@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import ObjectMarker from "./ObjectMarker";
-import map_bg from "../../img/King_Ranch_Zoom.png";
 
 type DragItem = {
     type: 'animal' | 'drone' | 'target';

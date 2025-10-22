@@ -6,13 +6,6 @@ import { State } from "./types.ts"
 import './App.css'
 import LandingPage from "./components/LandingPage";
 
-
-/*interface ObjectData {
-    flock: LocData[],
-    drone: LocData,
-    target: LocData
-}*/
-
 function App() {
   const queryClient = useQueryClient();
 
