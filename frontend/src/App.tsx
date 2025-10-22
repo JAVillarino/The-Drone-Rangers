@@ -56,6 +56,13 @@ function App() {
       }
     };
 
+    // This function will be passed to MapPlot to go back to the landing page
+    const handleBack = () => {
+      console.log('Going back to landing page');
+      setActiveScenario(null);
+      setSelectedImage("");
+    };
+
     // Dummy function for starting preset simulations
     const startPresetSim = async (scenario: string): Promise<unknown> => {
       console.log(`Starting preset simulation: ${scenario}`);
@@ -98,7 +105,7 @@ function App() {
       {!activeScenario ? (
         <LandingPage onSimulationStart={handleSimulationStart} worldMax={worldMax} worldMin={worldMin} startPresetSim={startPresetSim} startCustomSim={createCustomScenario}/>
       ) : (
-        <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax} onPlayPause={handlePlayPause} onRestart={requestRestart} selectedImage={selectedImage}/>
+        <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax} onPlayPause={handlePlayPause} onRestart={requestRestart} onBack={handleBack} selectedImage={selectedImage}/>
 
       )}
     </>
