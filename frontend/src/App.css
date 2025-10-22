@@ -294,7 +294,7 @@
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   z-index: 1001;
-  width: 130px;
+  width: 160px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -312,6 +312,57 @@
 
 .kebab-menu button:hover {
   background-color: #f0f0f0;
+}
+
+/* Drone Health Status Styles */
+.kebab-section {
+  padding: 8px 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.kebab-section-header {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #666;
+  padding: 6px 14px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.drone-health-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 14px;
+  font-size: 0.85rem;
+  color: #333;
+}
+
+.drone-name {
+  font-weight: 500;
+}
+
+.health-status {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.health-status.healthy {
+  color: #22c55e;
+}
+
+.health-status.warning {
+  color: #f59e0b;
+}
+
+.health-status.critical {
+  color: #ef4444;
+}
+
+.kebab-divider {
+  height: 1px;
+  background-color: #e0e0e0;
+  margin: 4px 0;
 }
 
 /* Card Body Styles */
