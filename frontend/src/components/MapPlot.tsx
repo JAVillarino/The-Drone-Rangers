@@ -176,6 +176,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                     onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
                     onCancel={handleCancel}
                     onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
+                    onEdit={() => console.log('Edit job:', job.id)}
                 />
             )}
             
