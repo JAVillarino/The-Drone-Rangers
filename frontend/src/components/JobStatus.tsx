@@ -12,7 +12,6 @@ interface JobStatusProps {
   onPauseToggle: () => void;
   onCancel: () => void;
   onDronesChange: (newCount: number) => void;
-  onEdit?: () => void;
 }
 
 const JobStatus: React.FC<JobStatusProps> = ({
@@ -26,7 +25,6 @@ const JobStatus: React.FC<JobStatusProps> = ({
   onPauseToggle,
   onCancel,
   onDronesChange,
-  onEdit,
 }) => {
   // State for managing the card's UI
   const [isFolded, setIsFolded] = useState<boolean>(false);
@@ -59,14 +57,6 @@ const JobStatus: React.FC<JobStatusProps> = ({
     setIsKebabMenuOpen(false); // Close menu
   };
 
-  // Handler for editing the job
-  const handleEdit = () => {
-    if (onEdit) {
-      onEdit();
-    }
-    setIsKebabMenuOpen(false); // Close menu after action
-  };
-
   // Handler for updating the drone count
   const handleDroneCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const count = parseInt(e.target.value, 10);
@@ -94,7 +84,6 @@ const JobStatus: React.FC<JobStatusProps> = ({
           </button>
           {isKebabMenuOpen && (
             <div className="kebab-menu">
-              {onEdit && <button onClick={handleEdit}>Edit Job</button>}
               <button onClick={handleCancel}>Cancel Job</button>
             </div>
           )}

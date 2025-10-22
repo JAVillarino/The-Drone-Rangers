@@ -70,6 +70,74 @@
   height: 100%;
 }
 
+/* Edit Button Styling - matches global button styles */
+#edit-btn {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#edit-btn:hover {
+  border-color: #646cff;
+}
+
+#edit-btn:focus,
+#edit-btn:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  #edit-btn {
+    background-color: #f9f9f9;
+  }
+}
+
+/* Edit Menu Styling */
+.edit-button-container {
+  position: relative;
+  display: inline-block;
+}
+
+.edit-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 8px 0;
+  min-width: 120px;
+  z-index: 1001;
+  margin-bottom: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+.edit-menu-item {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 8px 16px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #333;
+  transition: background-color 0.2s ease;
+}
+
+.edit-menu-item:hover {
+  background-color: #f0f0f0;
+}
+
 
 .sim-ctrl-btn {
   max-height: 30px;
@@ -659,4 +727,154 @@
   margin-bottom: 20px;
   border: 1px solid #e0e0e0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Simulation Status Component Styles */
+.simulation-status-container {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 1000;
+}
+
+.simulation-status-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+  background-color: #f8f9fa;
+  color: #495057;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.simulation-status-button:hover {
+  background-color: #e9ecef;
+  border-color: #dee2e6;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.simulation-status-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  min-width: 200px;
+  z-index: 1001;
+  margin-top: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+.simulation-status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f3f4;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.simulation-status-item:last-child {
+  border-bottom: none;
+}
+
+.simulation-status-item.clickable {
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 4px -12px;
+  transition: background-color 0.2s ease;
+}
+
+.simulation-status-item.clickable:hover {
+  background-color: #f0f0f0;
+}
+
+.simulation-status-item strong {
+  color: #000;
+  font-weight: 500;
+}
+
+.simulation-status-item span {
+  color: #444;
+  font-weight: 500;
+  text-align: right;
+}
+
+/* Drone Detail Panel Styles */
+.simulation-status-drone-detail {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 12px;
+  margin: 8px 0;
+  font-size: 0.85rem;
+}
+
+.drone-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.drone-detail-header strong {
+  color: #000;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.drone-id {
+  color: #6c757d;
+  font-weight: 500;
+  font-size: 0.8rem;
+  font-family: 'Courier New', monospace;
+}
+
+.drone-detail-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.drone-detail-info span {
+  color: #495057;
+  font-weight: 500;
+}
+
+/* Battery Level Color Coding */
+.battery-level {
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.battery-high {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.battery-medium {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+.battery-low {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
 }

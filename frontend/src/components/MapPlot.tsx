@@ -1,5 +1,6 @@
 import ObjectMarker from "./ObjectMarker";
 import JobStatus from "./JobStatus";
+import SimulationStatus from "./SimulationStatus";
 import pause_btn from "../../img/pause_button.jpg";
 import play_btn from "../../img/play_button.jpg";
 import restart_btn from "../../img/restart_icon.png";
@@ -34,6 +35,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
     const [choosingTarget, setChoosingTarget] = useState(false);
     const [pan, setPan] = useState({ x: 0, y: 0 });
+    const [isEditMenuOpen, setIsEditMenuOpen] = useState(false);
 
     const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -103,6 +105,15 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
             console.error("Error toggling pause state:", error);
         }
     }
+
+    const handleEditClick = () => {
+        setIsEditMenuOpen(!isEditMenuOpen);
+    };
+
+    const handleAddObstacle = () => {
+        console.log('Add obstacle clicked');
+        setIsEditMenuOpen(false);
+    };
 
     function handleClick(e: React.MouseEvent<SVGSVGElement, MouseEvent>) {
         if (!choosingTarget) {
@@ -176,10 +187,10 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                     onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
                     onCancel={handleCancel}
                     onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
-                    onEdit={() => console.log('Edit job:', job.id)}
                 />
             )}
             
+            <SimulationStatus data={data} />
 
             <div className="playback-controls">
                 <button id="play-pause-btn" onClick={handlePause}>
@@ -188,6 +199,18 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                 <button id="restart-btn" onClick={() => onRestart()}>
                     <img src={restart_btn}/>
                 </button>
+                <div className="edit-button-container">
+                    <button id="edit-btn" onClick={handleEditClick}>
+                        ✏️
+                    </button>
+                    {isEditMenuOpen && (
+                        <div className="edit-menu">
+                            <button className="edit-menu-item" onClick={handleAddObstacle}>
+                                Add obstacle
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <svg ref={svgRef} className="map"  onClick={handleClick}  >
