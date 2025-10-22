@@ -4,6 +4,7 @@ import { fetchState, setTarget, setPlayPause, requestRestart, createCustomScenar
 import { MapPlot } from './components/MapPlot'
 import { State } from "./types.ts"
 import './App.css'
+import WelcomePage from "./components/WelcomePage";
 import LandingPage from "./components/LandingPage";
 
 function App() {
@@ -14,7 +15,7 @@ function App() {
   const worldMin = 0;
   const worldMax = 250;
 
-  const [activeScenario, setActiveScenario] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<'welcome' | 'simulator' | 'simulation'>('welcome');
   const [selectedImage, setSelectedImage] = useState<string>("");
 
 
@@ -44,23 +45,40 @@ function App() {
     }
   }
 
+    // Navigation handlers
+    const handleNavigateToSimulator = () => {
+      console.log('Navigating to simulator');
+      setCurrentView('simulator');
+    };
+
+    const handleNavigateToRealSystem = () => {
+      console.log('Navigating to real drone system');
+      // For now, just show an alert since we won't implement the real system
+      alert('Real drone system integration coming soon! This would connect to live drone operations.');
+    };
+
+    const handleBackToWelcome = () => {
+      console.log('Going back to welcome page');
+      setCurrentView('welcome');
+      setSelectedImage("");
+    };
+
+    const handleBackToSimulator = () => {
+      console.log('Going back to simulator');
+      setCurrentView('simulator');
+      setSelectedImage("");
+    };
+
     // This function will be passed to the LandingPage to start the simulation
     const handleSimulationStart = (scenario: string, selectedImage?: string) => {
       // Here you would also likely trigger your `useQuery` to fetch initial data for the chosen scenario
       // For now.. just set sim to pause maybe? can connect once endpoint.
       console.log(`App is now starting the simulation for: ${scenario}`);
       console.log(`Selected image: ${selectedImage}`);
-      setActiveScenario(scenario);
       if (selectedImage) {
         setSelectedImage(selectedImage);
       }
-    };
-
-    // This function will be passed to MapPlot to go back to the landing page
-    const handleBack = () => {
-      console.log('Going back to landing page');
-      setActiveScenario(null);
-      setSelectedImage("");
+      setCurrentView('simulation');
     };
 
     // Dummy function for starting preset simulations
@@ -102,11 +120,32 @@ function App() {
 
   return (
     <>
-      {!activeScenario ? (
-        <LandingPage onSimulationStart={handleSimulationStart} worldMax={worldMax} worldMin={worldMin} startPresetSim={startPresetSim} startCustomSim={createCustomScenario}/>
+      {currentView === 'welcome' ? (
+        <WelcomePage 
+          onNavigateToSimulator={handleNavigateToSimulator} 
+          onNavigateToRealSystem={handleNavigateToRealSystem} 
+        />
+      ) : currentView === 'simulator' ? (
+        <LandingPage 
+          onSimulationStart={handleSimulationStart} 
+          worldMax={worldMax} 
+          worldMin={worldMin} 
+          startPresetSim={startPresetSim} 
+          startCustomSim={createCustomScenario}
+          onBack={handleBackToWelcome}
+        />
       ) : (
-        <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax} onPlayPause={handlePlayPause} onRestart={requestRestart} onBack={handleBack} selectedImage={selectedImage}/>
-
+        <MapPlot 
+          data={data} 
+          onSetTarget={handleSetTarget} 
+          CANVAS_SIZE={CANVAS_SIZE} 
+          zoomMin={worldMin} 
+          zoomMax={worldMax} 
+          onPlayPause={handlePlayPause} 
+          onRestart={requestRestart} 
+          onBack={handleBackToSimulator} 
+          selectedImage={selectedImage}
+        />
       )}
     </>
   );

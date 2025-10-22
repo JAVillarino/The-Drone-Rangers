@@ -29,15 +29,17 @@ interface LandingPageProps {
     worldMin: number, 
     worldMax: number, 
     startPresetSim: (scenario: string) => Promise<unknown>,
-    startCustomSim: (scenario: CustomScenario) => Promise<unknown>
+    startCustomSim: (scenario: CustomScenario) => Promise<unknown>,
+    onBack: () => void
 }
 
-export default function LandingPage({onSimulationStart, worldMin, worldMax, startPresetSim, startCustomSim}: LandingPageProps) {
+export default function LandingPage({onSimulationStart, worldMin, worldMax, startPresetSim, startCustomSim, onBack}: LandingPageProps) {
     const [selectedScenario, setSelectedScenario] = useState<string>("");
     const [selectedImage, setSelectedImage] = useState<string>("");
     const [isCustomizing, setIsCustomizing] = useState(false);
     const [presetScenarios, setPresetScenarios] = useState<Scenario[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isStarting, setIsStarting] = useState(false);
 
     // Function to fetch/refresh scenarios
     const fetchScenarios = async () => {
@@ -70,6 +72,8 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
     const handleStartSimulation = async () => {
         if (!selectedScenario || selectedScenario === "Custom") return;
 
+        setIsStarting(true);
+        
         try {
             // Find the selected scenario
             const scenario = presetScenarios.find(s => s.id === selectedScenario);
@@ -86,12 +90,16 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
             
             console.log("Scenario loaded successfully:", result.data);
 
+            // Add a small delay for the animation
+            await new Promise(resolve => setTimeout(resolve, 800));
+
             // Start the simulation
             await startPresetSim(scenario.name);
             onSimulationStart(scenario.name, selectedImage);
         } catch (error) {
             console.error("Error starting simulation:", error);
             alert("Could not start the simulation. Please try again.");
+            setIsStarting(false);
         }
     };
 
@@ -136,9 +144,22 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
 
 
     return (
-        <div id="landing-container" className="lp">
-            <h1 id="landing-title">Simulation Setup</h1>
-            <p id="landing-subtitle">Select a scenario to begin</p>
+        <div id="landing-container" className={`lp ${isStarting ? 'transitioning' : ''}`}>
+            <div className="lp-header">
+                <button 
+                    className="lp-back-btn" 
+                    onClick={() => {
+                        console.log('Back button clicked');
+                        onBack();
+                    }}
+                    onMouseEnter={() => console.log('Button hovered')}
+                    onMouseLeave={() => console.log('Button unhovered')}
+                >
+                    Back to Welcome
+                </button>
+                <h1 id="landing-title">Simulation Setup</h1>
+                <p id="landing-subtitle">Select a scenario to begin</p>
+            </div>
 
             <div className="lp-grid">
                 {/* Left: image cards */}
@@ -267,9 +288,17 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
                     <button 
                         onClick={handleStartSimulation} 
                         id="landing-start-btn"
-                        className="lp-btn lp-btn--primary"
+                        className={`lp-btn lp-btn--primary ${isStarting ? 'starting' : ''}`}
+                        disabled={isStarting}
                     >
-                        Start Simulation
+                        {isStarting ? (
+                            <>
+                                <div className="loading-spinner"></div>
+                                Starting Simulation...
+                            </>
+                        ) : (
+                            'Start Simulation'
+                        )}
                     </button>
                 </div>
             )}
