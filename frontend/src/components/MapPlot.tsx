@@ -24,6 +24,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
     const [choosingTarget, setChoosingTarget] = useState(false);
     const [pan, setPan] = useState({ x: 0, y: 0 });
+
     const svgRef = useRef<SVGSVGElement | null>(null);
 
     // Compute bounding box of all objects (to limit panning)
@@ -87,7 +88,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
 
     async function handlePause() {
         try {
-            //await setPlayPause();
             onPlayPause();
         } catch (error) {
             console.error("Error toggling pause state:", error);

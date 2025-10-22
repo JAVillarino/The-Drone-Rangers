@@ -93,7 +93,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
         <div className="card-body">
           <div className="card-field">
             <strong>Status:</strong>
-            <span>{isActive ? status : 'Paused' }</span>
+            <span>{status}</span>
           </div>
           <div className="card-field">
             <strong>Target:</strong>

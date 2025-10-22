@@ -73,9 +73,7 @@ export async function setPlayPause() {
             {
                 method: "POST",
                 headers: {"Content-Length": "0"},
-
             }
-
         );
         return await response.json();
     } catch (err) {

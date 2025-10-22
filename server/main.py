@@ -42,8 +42,6 @@ def initialize_sim():
         boundary="none",
         dt=0.1,
     )
-    # Start paused by default since there's no target
-    backend_adapter.paused = True
     policy = _create_policy_for_world(backend_adapter)
 
     return backend_adapter, policy, [
@@ -51,7 +49,7 @@ def initialize_sim():
             target=None,
             target_radius=policy.fN * 1.5,
             remaining_time=None,
-            is_active=True,
+            is_active=False,
             drones=1,
         )
     ]
@@ -213,10 +211,6 @@ def load_scenario(scenario_id):
             # Track what's loaded
             current_scenario_id = str(scenario_id)
             
-            # Start paused after loading - user must unpause to begin
-            # Also pause if no target is set
-            backend_adapter.paused = True or (backend_adapter.target is None)
-            
         return jsonify({
             "ok": True,
             "loaded_scenario_id": str(scenario_id),
@@ -341,13 +335,9 @@ if __name__ == "__main__":
     
         with world_lock:
             # Skip planning if paused or no target is set
-            if backend_adapter.paused or backend_adapter.target is None:
+            if backend_adapter.paused:
                 continue
-                
-            if world.is_goal_satisfied(backend_adapter, policy.fN * 1.5):
-                backend_adapter.step(plan_type.DoNothing())
-                continue
-
+            
             # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
             for _ in range(5):
                 plan = policy.plan(backend_adapter.get_state(), jobs, backend_adapter.dt)
