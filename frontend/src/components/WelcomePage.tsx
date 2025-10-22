@@ -8,6 +8,7 @@ interface WelcomePageProps {
 
 export default function WelcomePage({ onNavigateToSimulator, onNavigateToRealSystem }: WelcomePageProps) {
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   return (
@@ -25,6 +26,8 @@ export default function WelcomePage({ onNavigateToSimulator, onNavigateToRealSys
               setIsTransitioning(true);
               setTimeout(() => onNavigateToSimulator(), 500);
             }}
+            onMouseEnter={() => setHoveredCard('simulator')}
+            onMouseLeave={() => setHoveredCard(null)}
           >
             <div className="welcome-card-header">
               <div className="welcome-card-icon simulator-icon">
@@ -59,6 +62,8 @@ export default function WelcomePage({ onNavigateToSimulator, onNavigateToRealSys
               setIsTransitioning(true);
               setTimeout(() => onNavigateToRealSystem(), 500);
             }}
+            onMouseEnter={() => setHoveredCard('real')}
+            onMouseLeave={() => setHoveredCard(null)}
           >
             <div className="welcome-card-header">
               <div className="welcome-card-icon operations-icon">
@@ -89,7 +94,7 @@ export default function WelcomePage({ onNavigateToSimulator, onNavigateToRealSys
         {/* Description Panel */}
         <div className="lp-panel">
           <div className="welcome-description">
-            {selectedCard === 'simulator' ? (
+            {(selectedCard || hoveredCard) === 'simulator' ? (
               <div>
                 <h3>Simulation Environment</h3>
                 <p>Test and refine your herding strategies in a safe, controlled environment. Perfect for training, scenario planning, and algorithm development.</p>
@@ -105,7 +110,7 @@ export default function WelcomePage({ onNavigateToSimulator, onNavigateToRealSys
                   </div>
                 </div>
               </div>
-            ) : selectedCard === 'real' ? (
+            ) : (selectedCard || hoveredCard) === 'real' ? (
               <div>
                 <h3>Live Operations</h3>
                 <p>Deploy your drone fleet for real-world herding operations. Connect to live drone systems and execute autonomous herding missions.</p>

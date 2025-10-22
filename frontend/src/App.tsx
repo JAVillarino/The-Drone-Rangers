@@ -6,6 +6,7 @@ import { State } from "./types.ts"
 import './App.css'
 import WelcomePage from "./components/WelcomePage";
 import LandingPage from "./components/LandingPage";
+import LiveSystemPage from "./components/LiveSystemPage";
 
 function App() {
   const queryClient = useQueryClient();
@@ -15,7 +16,7 @@ function App() {
   const worldMin = 0;
   const worldMax = 250;
 
-  const [currentView, setCurrentView] = useState<'welcome' | 'simulator' | 'simulation'>('welcome');
+  const [currentView, setCurrentView] = useState<'welcome' | 'simulator' | 'simulation' | 'live-system'>('welcome');
   const [selectedImage, setSelectedImage] = useState<string>("");
 
 
@@ -52,15 +53,19 @@ function App() {
     };
 
     const handleNavigateToRealSystem = () => {
-      console.log('Navigating to real drone system');
-      // For now, just show an alert since we won't implement the real system
-      alert('Real drone system integration coming soon! This would connect to live drone operations.');
+      console.log('Navigating to live system');
+      setCurrentView('live-system');
     };
 
     const handleBackToWelcome = () => {
       console.log('Going back to welcome page');
       setCurrentView('welcome');
       setSelectedImage("");
+    };
+
+    const handleBackFromLiveSystem = () => {
+      console.log('Going back to welcome page from live system');
+      setCurrentView('welcome');
     };
 
     const handleBackToSimulator = () => {
@@ -109,6 +114,10 @@ function App() {
           startPresetSim={startPresetSim} 
           startCustomSim={createCustomScenario}
           onBack={handleBackToWelcome}
+        />
+      ) : currentView === 'live-system' ? (
+        <LiveSystemPage 
+          onBack={handleBackFromLiveSystem}
         />
       ) : (
         <MapPlot 

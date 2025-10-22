@@ -144,7 +144,32 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
 
 
     return (
-        <div id="landing-container" className={`lp ${isStarting ? 'transitioning' : ''}`}>
+        <>
+            {isStarting && (
+                <div className="sheep-startup-overlay">
+                    <div className="sheep-startup-content">
+                        <h2>Starting Simulation...</h2>
+                        <div className="sheep-loading-animation">
+                            <div className="sheep-icon">
+                                <img src="../../img/sheep-icon.svg" alt="Sheep" width="40" height="40"/>
+                            </div>
+                            <div className="sheep-icon">
+                                <img src="../../img/sheep-icon.svg" alt="Sheep" width="40" height="40"/>
+                            </div>
+                            <div className="sheep-icon">
+                                <img src="../../img/sheep-icon.svg" alt="Sheep" width="40" height="40"/>
+                            </div>
+                            <div className="sheep-icon">
+                                <img src="../../img/sheep-icon.svg" alt="Sheep" width="40" height="40"/>
+                            </div>
+                            <div className="sheep-icon">
+                                <img src="../../img/sheep-icon.svg" alt="Sheep" width="40" height="40"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            <div id="landing-container" className={`lp ${isStarting ? 'transitioning' : ''}`}>
             <div className="lp-header">
                 <button 
                     className="lp-back-btn" 
@@ -292,10 +317,7 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
                         disabled={isStarting}
                     >
                         {isStarting ? (
-                            <>
-                                <div className="loading-spinner"></div>
-                                Starting Simulation...
-                            </>
+                            'Starting Simulation...'
                         ) : (
                             'Start Simulation'
                         )}
@@ -311,7 +333,8 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
                     worldMin={worldMin}
                 />
             )}
-        </div>
+            </div>
+        </>
     );
 }/**
  * Ideas:
