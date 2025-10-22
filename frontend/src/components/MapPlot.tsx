@@ -223,7 +223,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                 />
             )}
             
-            <SimulationStatus data={data} />
 
             {isDrawingObstacle && (
                 <div style={{
@@ -294,7 +293,10 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                     Click on map to set target location
                 </div>
             )}
+            
 
+            <SimulationStatus data={data} />
+            
             {onBack && (
                 <button 
                     className="back-btn"
@@ -302,7 +304,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                     style={{
                         position: 'absolute',
                         top: '20px',
-                        left: '20px',
+                        left: '80px',
                         zIndex: 2000
                     }}
                 >
