@@ -222,7 +222,27 @@ def load_scenario(scenario_id):
         }), 200
         
     except Exception as e:
-        return jsonify({"error": {"type": "ServerError", "message": f"Failed to load scenario: {str(e)}"}}), 500
+        import traceback
+        error_details = {
+            "type": "ServerError",
+            "message": f"Failed to load scenario: {str(e)}",
+            "scenario_id": str(scenario_id),
+            "scenario_found": scenario is not None,
+            "scenario_data": {
+                "name": scenario.name if scenario else None,
+                "sheep_count": len(scenario.sheep) if scenario and scenario.sheep else 0,
+                "drones_count": len(scenario.drones) if scenario and scenario.drones else 0,
+                "targets_count": len(scenario.targets) if scenario and scenario.targets else 0,
+                "boundary": scenario.boundary if scenario else None,
+                "bounds": scenario.bounds if scenario else None,
+                "sheep_sample": scenario.sheep[:3] if scenario and scenario.sheep else None,
+                "drones_sample": scenario.drones[:3] if scenario and scenario.drones else None,
+                "targets_sample": scenario.targets[:3] if scenario and scenario.targets else None,
+            },
+            "traceback": traceback.format_exc()
+        }
+        print(f"Load scenario error: {error_details}")
+        return jsonify({"error": error_details}), 500
 
 @app.route("/current-scenario", methods=["GET"])
 def get_current_scenario():

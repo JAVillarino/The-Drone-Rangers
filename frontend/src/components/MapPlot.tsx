@@ -14,13 +14,23 @@ interface MapPlotProps {
     zoomMax: number,
     CANVAS_SIZE: number,
     onPlayPause: () => void,
-    onRestart: () => void
+    onRestart: () => void,
+    selectedImage?: string
 }
 
 
-export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPlayPause, onRestart }: MapPlotProps) {
+export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPlayPause, onRestart, selectedImage }: MapPlotProps) {
     if (!data) return <p>No data yet</p>;
     const paused = data.paused ?? false;
+
+    // Map selected image IDs to actual image paths
+    const imageMap: { [key: string]: string } = {
+        "option1": "../../img/King_Ranch_better.jpg",
+        "option2": "../../img/HighResRanch.png"
+    };
+
+    // Get the background image path, default to HighResRanch if no selection
+    const backgroundImage = selectedImage && imageMap[selectedImage] ? imageMap[selectedImage] : "../../img/HighResRanch.png";
 
     const [choosingTarget, setChoosingTarget] = useState(false);
     const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -180,7 +190,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
             </div>
 
             <svg ref={svgRef} className="map"  onClick={handleClick}  >
-                <image x={scaleCoord(-500, "x")} y={scaleCoord(-350, "y")} href="../../img/HighResRanch.png" className="background"/>
+                <image x={scaleCoord(-500, "x")} y={scaleCoord(-350, "y")} href={backgroundImage} className="background"/>
                 {data.flock.map((a, i) => (
                     <ObjectMarker key={`animal-${i}`} type="animal" x={scaleCoord(a[0], "x")} y={scaleCoord(a[1], "y")} />
                 ))}

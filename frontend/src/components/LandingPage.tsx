@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { CustomScenarioModal } from "./CustomScenarioModal";
 import { getPresetScenarios, loadScenario } from "../api/state";
 import { Scenario } from "../types";
+import ranch1 from "../../img/King_Ranch_better.jpg";
+import ranch2 from "../../img/HighResRanch.png";
 
 
 interface CustomScenario {
@@ -22,8 +24,8 @@ interface CustomScenario {
 }
 
 interface LandingPageProps {
-    onSimulationStart: (scenario: string) => void,
-    worldMin: number,
+    onSimulationStart: (scenario: string, selectedImage?: string) => void,
+    worldMin: number, 
     worldMax: number, 
     startPresetSim: (scenario: string) => Promise<unknown>,
     startCustomSim: (scenario: CustomScenario) => Promise<unknown>
@@ -31,9 +33,11 @@ interface LandingPageProps {
 
 export default function LandingPage({onSimulationStart, worldMin, worldMax, startPresetSim, startCustomSim}: LandingPageProps) {
     const [selectedScenario, setSelectedScenario] = useState<string>("");
+    const [selectedImage, setSelectedImage] = useState<string>("");
     const [isCustomizing, setIsCustomizing] = useState(false);
     const [presetScenarios, setPresetScenarios] = useState<Scenario[]>([]);
     const [loading, setLoading] = useState(true);
+
 
     // Fetch preset scenarios on component mount
     useEffect(() => {
@@ -50,6 +54,11 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
         
         fetchScenarios();
     }, []);
+
+
+    const handleImageSelect = (imageId: string) => {
+        setSelectedImage(imageId);
+    };
 
     const handleScenarioChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
         setSelectedScenario(event.target.value);
@@ -76,7 +85,7 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
 
             // Start the simulation
             await startPresetSim(scenario.name);
-            onSimulationStart(scenario.name);
+            onSimulationStart(scenario.name, selectedImage);
         } catch (error) {
             console.error("Error starting simulation:", error);
             alert("Could not start the simulation. Please try again.");
@@ -87,42 +96,100 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
         try {
             await startCustomSim(config);
             setIsCustomizing(false);
-            onSimulationStart("Custom"); // Notify App to switch views
+            onSimulationStart("Custom", selectedImage); // Notify App to switch views
         } catch (error) {
             console.error("Error submitting custom scenario:", error);
             alert("Could not submit the custom scenario.");
         }
     };
 
-    // Determine if the start button should be disabled
-    //const isStartButtonDisabled = !selectedScenario || selectedScenario === "Custom";
 
     return (
         <div id="landing-container">
             <h1 id="landing-title">Simulation Setup</h1>
             <p id="landing-subtitle">Select a scenario to begin</p>
 
-            <select 
-                value={selectedScenario} 
-                onChange={handleScenarioChange} 
-                id="landing-dropdown"
-                disabled={loading}
-            >
-                <option value="" disabled>
-                    {loading ? "Loading scenarios..." : "-- Choose a scenario --"}
-                </option>
-                {presetScenarios.map(scenario => (
-                    <option key={scenario.id} value={scenario.id}>
-                        {scenario.name}
+            {/* Multiple Choice Options */}
+            <div className="multiple-choice-container">
+                <div className="choice-options-row">
+                    <div 
+                        className={`choice-option ${selectedImage === "option1" ? "selected" : ""}`}
+                        onClick={() => handleImageSelect("option1")}
+                    >
+                        <div className="choice-radio-container">
+                            <input 
+                                type="radio" 
+                                id="option1" 
+                                name="choice" 
+                                value="option1"
+                                checked={selectedImage === "option1"}
+                                onChange={() => handleImageSelect("option1")}
+                                className="choice-radio"
+                            />
+                            <label htmlFor="option1" className="choice-label">
+                                Option 1
+                            </label>
+                        </div>
+                        <div className="choice-content">
+                            <img src={ranch1} alt="Ranch 1" />
+                        </div>
+                    </div>
+                    
+                    <div 
+                        className={`choice-option ${selectedImage === "option2" ? "selected" : ""}`}
+                        onClick={() => handleImageSelect("option2")}
+                    >
+                        <div className="choice-radio-container">
+                            <input 
+                                type="radio" 
+                                id="option2" 
+                                name="choice" 
+                                value="option2"
+                                checked={selectedImage === "option2"}
+                                onChange={() => handleImageSelect("option2")}
+                                className="choice-radio"
+                            />
+                            <label htmlFor="option2" className="choice-label">
+                                Option 2
+                            </label>
+                        </div>
+                        <div className="choice-content">
+                            <img src={ranch2} alt="Ranch 2" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="scenario-selector-container">
+                <select 
+                    value={selectedScenario} 
+                    onChange={handleScenarioChange} 
+                    id="landing-dropdown"
+                    disabled={loading}
+                >
+                    <option value="" disabled>
+                        {loading ? "Loading scenarios..." : "Preset Scenarios"}
                     </option>
-                ))}
-                <option value="Custom">Custom</option>
-            </select>
+                    {presetScenarios.map(scenario => (
+                        <option key={scenario.id} value={scenario.id}>
+                            {scenario.name}
+                        </option>
+                    ))}
+                </select>
+                <p>or</p>
+                <button 
+                    id="create-custom-scenario-btn" 
+                    className="action-btn"
+                    onClick={() => setIsCustomizing(true)}
+                >
+                    Create Custom Scenario
+                </button>
+            </div>
 
             {/* --- Conditional UI based on selection --- */}
 
             {/* Show scenario description if a preset is selected */}
-            {selectedScenario && selectedScenario !== "Custom" && (
+            {selectedScenario && (
                 <div id="scenario-description">
                     {(() => {
                         const scenario = presetScenarios.find(s => s.id === selectedScenario);
@@ -141,7 +208,7 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
             )}
 
             {/* 1. Show Start Button for standard scenarios */}
-            {selectedScenario && selectedScenario !== "Custom" && (
+            {selectedScenario && (
                 <button 
                     onClick={handleStartSimulation} 
                     id="landing-start-btn"
@@ -151,12 +218,6 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
                 </button>
             )}
 
-            {/* 2. Show a different UI for the "Custom" scenario */}
-            {selectedScenario === "Custom" && (
-                <button onClick={() => setIsCustomizing(true)} id="custom-scen-btn" className="action-btn">
-                    Customize Scenario
-                </button>
-            )}
 
             {isCustomizing && (
                 <CustomScenarioModal 
@@ -168,9 +229,7 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
             )}
         </div>
     );
-}
-
-/**
+}/**
  * Ideas:
  * Header with App Name
  * Maybe:
@@ -183,3 +242,4 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
  *          - the names should be retrieved from a call to the backend - backend presets
  *          - + "Custom" which would allow the user to fully customize their own scenario
  */
+

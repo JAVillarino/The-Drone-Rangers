@@ -1,6 +1,6 @@
 import {useState} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { fetchState, setTarget, setPlayPause, requestRestart } from './api/state'
+import { fetchState, setTarget, setPlayPause, requestRestart, createCustomScenario } from './api/state'
 import { MapPlot } from './components/MapPlot'
 import { State } from "./types.ts"
 import './App.css'
@@ -15,6 +15,7 @@ function App() {
   const worldMax = 250;
 
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string>("");
 
 
 
@@ -44,11 +45,15 @@ function App() {
   }
 
     // This function will be passed to the LandingPage to start the simulation
-    const handleSimulationStart = (scenario: string) => {
+    const handleSimulationStart = (scenario: string, selectedImage?: string) => {
       // Here you would also likely trigger your `useQuery` to fetch initial data for the chosen scenario
       // For now.. just set sim to pause maybe? can connect once endpoint.
       console.log(`App is now starting the simulation for: ${scenario}`);
+      console.log(`Selected image: ${selectedImage}`);
       setActiveScenario(scenario);
+      if (selectedImage) {
+        setSelectedImage(selectedImage);
+      }
     };
 
     // Dummy function for starting preset simulations
@@ -61,7 +66,7 @@ function App() {
     };
 
     // Dummy function for starting custom simulations
-    const startCustomSim = async (scenario: {
+    /*const startCustomSim = async (scenario: {
       name: string;
       seed: number;
       flockSize: number;
@@ -81,7 +86,7 @@ function App() {
       // For now, just simulate a delay
       await new Promise(resolve => setTimeout(resolve, 500));
       return { success: true, scenario };
-    };
+    };*/
 
   
   if (isLoading) return <p>Loading...</p>;
@@ -91,9 +96,9 @@ function App() {
   return (
     <>
       {!activeScenario ? (
-        <LandingPage onSimulationStart={handleSimulationStart} worldMax={worldMax} worldMin={worldMin} startPresetSim={startPresetSim} startCustomSim={startCustomSim}/>
+        <LandingPage onSimulationStart={handleSimulationStart} worldMax={worldMax} worldMin={worldMin} startPresetSim={startPresetSim} startCustomSim={createCustomScenario}/>
       ) : (
-        <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax} onPlayPause={handlePlayPause} onRestart={requestRestart}/>
+        <MapPlot data={data} onSetTarget={handleSetTarget} CANVAS_SIZE={CANVAS_SIZE} zoomMin={worldMin} zoomMax={worldMax} onPlayPause={handlePlayPause} onRestart={requestRestart} selectedImage={selectedImage}/>
 
       )}
     </>

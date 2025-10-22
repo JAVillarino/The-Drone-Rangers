@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import ObjectMarker from "./ObjectMarker";
-import map_bg from "../../img/King_Ranch_better.jpg";
+import map_bg from "../../img/HighResRanch.png";
+import { createCustomScenario, loadScenario } from "../api/state";
 
 type DragItem = {
     type: 'animal' | 'drone' | 'target';
@@ -40,6 +41,9 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
     const [animalPositions, setAnimalPositions] = useState<[number, number][]>([]);
     const [dronePosition, setDronePosition] = useState<[number, number]>([200, 200]);
     const [targetPosition, setTargetPosition] = useState<[number, number]>([400, 200]);
+    const [scenarioName, setScenarioName] = useState("");
+    const [scenarioDescription, setScenarioDescription] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
     
     const dragItem = useRef<DragItem | null>(null); // { type: 'animal' | 'drone' | 'target', id: number | null, offsetX: number, offsetY: number }
     const mapRef = useRef<SVGSVGElement | null>(null);
@@ -142,42 +146,89 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
         handleGlobalMouseUp();
     };
     
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!mapRef.current) return;
+        
+        // Validate required fields
+        if (!scenarioName.trim()) {
+            alert("Please enter a scenario name");
+            return;
+        }
 
-        const mapRect = mapRef.current.getBoundingClientRect();
-        
-        // --- Coordinate Transformation ---
-        // These values should match your MapPlot component for consistency
-        
-        const canvasWidth = mapRect.width;
-        const canvasHeight = mapRect.height;
+        setIsSubmitting(true);
 
-        const transform = (pos: [number, number]): [number, number] => {
-            const worldX = (pos[0] / canvasWidth) * (worldMax - worldMin) + worldMin;
-            // Note: SVG/HTML Y is top-to-bottom, simulation Y might be bottom-to-top.
-            // Inverting Y axis for a more standard cartesian coordinate system.
-            const worldY = ((canvasHeight - pos[1]) / canvasHeight) * (worldMax - worldMin) + worldMin;
-            return [parseFloat(worldX.toFixed(2)), parseFloat(worldY.toFixed(2))];
-        };
-        
-        const config: CustomScenario = {
-            name: "Custom Scenario", // eventually change so the user can input this
-            seed: 123, // eventually change?
-            flockSize: numAnimals,
-            sheep: animalPositions.map(transform),
-            shepherd: transform(dronePosition),
-            target: transform(targetPosition), 
-            bounds: {
-                xmin: worldMin,
-                xmax: worldMax,
-                ymax: worldMax,
-                ymin: worldMin
-            },
-            start: true
-        };
-        
-        onSubmit(config);
+        try {
+            const mapRect = mapRef.current.getBoundingClientRect();
+            
+            // --- Coordinate Transformation ---
+            // These values should match your MapPlot component for consistency
+            
+            const canvasWidth = mapRect.width;
+            const canvasHeight = mapRect.height;
+
+            const transform = (pos: [number, number]): [number, number] => {
+                const worldX = (pos[0] / canvasWidth) * (worldMax - worldMin) + worldMin;
+                // Note: SVG/HTML Y is top-to-bottom, simulation Y might be bottom-to-top.
+                // Inverting Y axis for a more standard cartesian coordinate system.
+                const worldY = ((canvasHeight - pos[1]) / canvasHeight) * (worldMax - worldMin) + worldMin;
+                return [parseFloat(worldX.toFixed(2)), parseFloat(worldY.toFixed(2))];
+            };
+            
+            // Create the scenario data for the API
+            const scenarioData = {
+                name: scenarioName.trim(),
+                description: scenarioDescription.trim() || `Custom scenario with ${numAnimals} sheep`,
+                sheep: animalPositions.map(transform),
+                shepherd: transform(dronePosition),
+                target: transform(targetPosition),
+                bounds: {
+                    xmin: worldMin,
+                    xmax: worldMax,
+                    ymin: worldMin,
+                    ymax: worldMax
+                },
+                seed: Math.floor(Math.random() * 1000000),
+                tags: ["custom"],
+                flockSize: numAnimals,
+                start: true,
+                visibility: "public"
+            };
+
+            // Send to backend
+            const result = await createCustomScenario(scenarioData);
+            
+            if (result.success && result.scenarioId) {
+                // Load the created scenario into the running simulation
+                const loadResult = await loadScenario(result.scenarioId);
+                
+                if (loadResult.success) {
+                    // Close modal and notify parent
+                    onClose();
+                    // Call onSubmit with the scenario data
+                    onSubmit({
+                        name: scenarioName,
+                        seed: scenarioData.seed,
+                        flockSize: numAnimals,
+                        sheep: scenarioData.sheep,
+                        shepherd: scenarioData.shepherd,
+                        target: scenarioData.target,
+                        bounds: scenarioData.bounds,
+                        start: true
+                    });
+                } else {
+                    alert(`Failed to load scenario: ${loadResult.data.error || 'Unknown error'}`);
+                }
+            } else {
+                alert(`Failed to create scenario: ${result.error}`);
+            }
+                
+
+        } catch (error) {
+            console.error("Error creating scenario:", error);
+            alert("An error occurred while creating the scenario");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -185,6 +236,29 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
             <div id="modal-content" onClick={(e) => e.stopPropagation()}>
                 <div id="modal-header">
                     <h2>Customize Scenario</h2>
+                    <div id="input-group">
+                        <label htmlFor="scenario-name">Scenario Name: </label>
+                        <input
+                            id="scenario-name"
+                            type="text"
+                            value={scenarioName}
+                            onChange={(e) => setScenarioName(e.target.value)}
+                            className="text-input"
+                            placeholder="Enter scenario name"
+                            required
+                        />
+                    </div>
+                    <div id="input-group">
+                        <label htmlFor="scenario-description">Description: </label>
+                        <input
+                            id="scenario-description"
+                            type="text"
+                            value={scenarioDescription}
+                            onChange={(e) => setScenarioDescription(e.target.value)}
+                            className="text-input"
+                            placeholder="Optional description"
+                        />
+                    </div>
                     <div id="input-group">
                         <label htmlFor="num-animals">Number of Animals: </label>
                         <input
@@ -217,8 +291,14 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                 </svg>
 
                 <div id="modal-footer">
-                    <button className="modal-btn cancel-btn" onClick={onClose}>Cancel</button>
-                    <button className="modal-btn submit-btn" onClick={handleSubmit}>Submit Scenario</button>
+                    <button className="modal-btn cancel-btn" onClick={onClose} disabled={isSubmitting}>Cancel</button>
+                    <button 
+                        className="modal-btn submit-btn" 
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || !scenarioName.trim()}
+                    >
+                        {isSubmitting ? "Creating..." : "Submit Scenario"}
+                    </button>
                 </div>
             </div>
         </div>

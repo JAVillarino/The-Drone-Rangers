@@ -158,6 +158,90 @@ export async function getPresetScenarios(): Promise<Scenario[]> {
     }
 }
 
+export async function createCustomScenario(scenarioData: {
+    name: string;
+    sheep: [number, number][];
+    shepherd: [number, number];
+    target: [number, number];
+    bounds: {
+        xmin: number;
+        xmax: number;
+        ymin: number;
+        ymax: number;
+    };
+    seed?: number;
+    description?: string;
+    tags?: string[];
+}): Promise<{ success: boolean; scenarioId?: string; error?: string }> {
+    try {
+        // Validate and convert coordinates to ensure they're finite numbers
+        const validateCoordinate = (coord: number): number => {
+            if (!isFinite(coord) || isNaN(coord)) {
+                throw new Error(`Invalid coordinate: ${coord}`);
+            }
+            return Number(coord.toFixed(9)); // Match backend precision
+        };
+
+        const validatePosition = (pos: [number, number]): [number, number] => {
+            return [validateCoordinate(pos[0]), validateCoordinate(pos[1])];
+        };
+
+        // Convert the custom scenario data to the format expected by the backend
+        const requestBody = {
+            name: scenarioData.name,
+            description: scenarioData.description || `Custom scenario with ${scenarioData.sheep.length} sheep`,
+            tags: scenarioData.tags || ["custom"],
+            visibility: "public",
+            world: {
+                boundary: "none",
+                bounds: [
+                    validateCoordinate(scenarioData.bounds.xmin),
+                    validateCoordinate(scenarioData.bounds.xmax),
+                    validateCoordinate(scenarioData.bounds.ymin),
+                    validateCoordinate(scenarioData.bounds.ymax)
+                ],
+                seed: scenarioData.seed || Math.floor(Math.random() * 1000000)
+            },
+            entities: {
+                sheep: scenarioData.sheep.map(validatePosition),
+                drones: [validatePosition(scenarioData.shepherd)],
+                targets: [validatePosition(scenarioData.target)]
+            }
+        };
+
+        console.log("Sending scenario data:", JSON.stringify(requestBody, null, 2));
+
+        const response = await fetch(`${backendURL}/scenarios`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Idempotency-Key": `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error("Backend error:", errorData);
+            console.error("Response status:", response.status);
+            throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
+        }
+
+        const createdScenario = await response.json();
+        console.log("Created scenario:", createdScenario);
+        return { 
+            success: true, 
+            scenarioId: createdScenario.id 
+        };
+    } catch (err) {
+        console.error("Error creating custom scenario:", err);
+        return { 
+            success: false, 
+            error: err instanceof Error ? err.message : "Unknown error occurred" 
+        };
+    }
+}
+
 export async function loadScenario(scenarioId: string): Promise<{ success: boolean; data?: any }> {
     try {
         const response = await fetch(`${backendURL}/load-scenario/${scenarioId}`, {
@@ -173,6 +257,7 @@ export async function loadScenario(scenarioId: string): Promise<{ success: boole
         }
         
         const data = await response.json();
+        console.log("Loaded scenario:", data);
         return { success: true, data };
     } catch (err) {
         console.error("Error loading scenario:", err);
