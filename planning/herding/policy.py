@@ -128,8 +128,10 @@ class ShepherdPolicy:
         # Some sheep are intrinsically good to herd, but different drones might be suitable for targeting different sheep. We'll adjust each sheep's score for each drone to figure out which is most suitable for each drone.
         target_sheep_indices = []
         for i in range(N_drones):
+            # If there are more drones, the closeness will get accounted for by the min_distance_other stuff.
+            closeness_importance = 0.03 * (1 / N_drones)
             # Make the score worse the farther away that sheep is.
-            score = intrinsic_score - 0.03 * dD_all[:, i]
+            score = intrinsic_score - closeness_importance * dD_all[:, i]
             # Compute how close the other drones are to this sheep.
             d_other_drones = np.hstack((dD_all[:, :i], dD_all[:, i+1:]))
             

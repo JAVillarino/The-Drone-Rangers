@@ -378,7 +378,6 @@ if __name__ == "__main__":
                 
     
         with world_lock:
-            # Skip planning if paused or no target is set
             if backend_adapter.paused:
                 continue
             
