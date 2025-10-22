@@ -35,7 +35,7 @@ class World:
         # geometry (paper)
         ra: float = 4.0,          # agent-agent distance
         rs: float = 65.0,         # shepherd detection
-        k_nn: int = 21,           # nearest neighbors
+        k_nn: int = 19,           # nearest neighbors
 
         # timing & speeds (paper: 1 m/ts, dog 1.5 m/ts)
         dt: float = 1.0,

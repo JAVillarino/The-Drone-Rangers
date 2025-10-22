@@ -109,7 +109,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
           </div>
           <div className="card-field">
             <strong>Target Radius (m):</strong>
-            <span>{initialRadius}</span>
+            <span>{initialRadius.toFixed(0)}</span>
           </div>
           <div className="card-field">
             <strong>Drones Assigned:</strong>

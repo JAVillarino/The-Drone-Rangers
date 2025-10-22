@@ -89,30 +89,6 @@ function App() {
       await new Promise(resolve => setTimeout(resolve, 500));
       return { success: true, scenario };
     };
-
-    // Dummy function for starting custom simulations
-    /*const startCustomSim = async (scenario: {
-      name: string;
-      seed: number;
-      flockSize: number;
-      sheep: [number, number][];
-      shepherd: [number, number];
-      target: [number, number];
-      bounds: {
-        xmin: number;
-        xmax: number;
-        ymin: number;
-        ymax: number;
-      };
-      start: boolean;
-    }): Promise<unknown> => {
-      console.log(`Starting custom simulation:`, scenario);
-      // TODO: Replace with actual API call to start custom scenario
-      // For now, just simulate a delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return { success: true, scenario };
-    };*/
-
   
   if (isLoading) return <p>Loading...</p>;
   if (error instanceof Error) return <p>Error: {error.message}</p>;
