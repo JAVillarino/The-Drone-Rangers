@@ -127,7 +127,7 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
                                 className="choice-radio"
                             />
                             <label htmlFor="option1" className="choice-label">
-                                Option 1
+                                King Ranch
                             </label>
                         </div>
                         <div className="choice-content">
@@ -150,7 +150,7 @@ export default function LandingPage({onSimulationStart, worldMin, worldMax, star
                                 className="choice-radio"
                             />
                             <label htmlFor="option2" className="choice-label">
-                                Option 2
+                                Southfork Ranch
                             </label>
                         </div>
                         <div className="choice-content">

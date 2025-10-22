@@ -18,8 +18,6 @@ app.register_blueprint(scenarios_bp)
 world_lock = threading.RLock()
 current_scenario_id = None  # Track what scenario is currently loaded
 
-# TODO: Need to make the scenarios work with separate jobs instead of a target.
-
 def _create_policy_for_world(w: world.World) -> herding.ShepherdPolicy:
     """Create a herding policy matched to the given world's flock size."""
     total_area = 0.5 * w.N * (w.ra ** 2)

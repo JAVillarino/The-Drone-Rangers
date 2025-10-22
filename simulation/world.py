@@ -636,9 +636,6 @@ class World:
     def _handle_near_sheep(self, near_mask: np.ndarray, near_dog_distances_sq: np.ndarray, G: np.ndarray, min_near_distances: np.ndarray):
         """Handle sheep that are near a drone (flocking behavior)."""
         near_indices = np.where(near_mask)[0]
-
-        # turn_off_now = self._should_ignore_dog_repulsion(near_indices, G)
-        # print("Should ignore", turn_off_now)
         ws_global = self.ws
         
         # Compute obstacle forces for all near sheep at once (unchanged)
@@ -662,12 +659,7 @@ class World:
         P_near = self.P[near_indices]
 
         # Iterate over drones to compute combined repulsion
-        for j in range(self.dogs.shape[0]):
-            # TODO: Add this back.
-            # Skip if repulsion is ignored for this drone
-            # if not self.apply_repulsion[j]:
-            #     continue
-            
+        for j in range(self.dogs.shape[0]):            
             D = self.dogs[j] # Drone position
             d_sq = near_dog_distances_sq[:, j] # Distances to this drone
             d = np.sqrt(d_sq) # Distance to this drone

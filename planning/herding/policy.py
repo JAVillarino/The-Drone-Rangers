@@ -63,18 +63,13 @@ class ShepherdPolicy:
         num_drones = world.drones.shape[0]
         
         # Get target from jobs array
-        target = None
-        for job in world.jobs:
-            if job.target is not None:
-                target = job.target
-                break
         
-        if target is None:
+        if world.target is None:
             # If no target is set, return current drone positions (no movement)
             return world.drones.copy()
         
         # Vector from G to Target
-        dir_GT = target - G
+        dir_GT = world.target - G
         L_GT = np.linalg.norm(dir_GT)
         ghat = dir_GT / (L_GT + 1e-9)
                 
@@ -113,19 +108,12 @@ class ShepherdPolicy:
         P = world.flock                       # (N,2)
         D = world.drones                      # (N_drones, 2)
         N_drones = D.shape[0]
-        
-        # Get target from jobs array
-        target = None
-        for job in world.jobs:
-            if job.target is not None:
-                target = job.target
-                break
-        
-        if target is None:
+                
+        if world.target is None:
             # If no target is set, use a default position or skip goal-based calculations
             dGoal = np.zeros(P.shape[0])  # No goal distance when no target
         else:
-            dGoal = np.linalg.norm(P - target, axis=1) # distance to goal
+            dGoal = np.linalg.norm(P - world.target, axis=1) # distance to goal
         
         dG = np.linalg.norm(P - G, axis=1)    # distance to global COM
         
@@ -186,19 +174,12 @@ class ShepherdPolicy:
         # This is sort of like the element-wise dot product.
         towards_gcm = np.sum(drone_to_sheep * sheep_to_gcm, axis=1)
         towards_gcm_fraction = np.sum(towards_gcm > 0) / relevant_count
-        
-        # Get target from jobs array
-        target = None
-        for job in world.jobs:
-            if job.target is not None:
-                target = job.target
-                break
-        
-        if target is None:
+                
+        if world.target is None:
             # If no target is set, only use GCM-based calculation
             towards_target_fraction = 0
         else:
-            sheep_to_target = target - relevant_flock
+            sheep_to_target = world.target - relevant_flock
             sheep_to_target_norm = np.linalg.norm(sheep_to_target, axis=1, keepdims=True)
             sheep_to_target /= sheep_to_target_norm
             # This is sort of like the element-wise dot product.
@@ -207,13 +188,13 @@ class ShepherdPolicy:
         
         cohesiveness = self._cohesiveness(world, gcm)
         value = towards_gcm_fraction * max(0, 1 - cohesiveness) + towards_target_fraction
-        
+                
         if cohesiveness < 0.8 and towards_gcm_fraction > 0.6:
             return True
 
         # If the cohesiveness is high, then we don't care about going towards the GCM.
         # Selecting this value is still very much in progress.
-        return 1 if (value > 0.75) else 0
+        return 1 if (value > 0.7) else 0
         
 
     # ------------------ Main Planning Method ------------------
