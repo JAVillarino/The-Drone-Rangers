@@ -129,7 +129,7 @@ class ShepherdPolicy:
         target_sheep_indices = []
         for i in range(N_drones):
             # Make the score worse the farther away that sheep is.
-            score = intrinsic_score - 0.01 * dD_all[:, i]
+            score = intrinsic_score - 0.03 * dD_all[:, i]
             # Compute how close the other drones are to this sheep.
             d_other_drones = np.hstack((dD_all[:, :i], dD_all[:, i+1:]))
             
@@ -163,7 +163,7 @@ class ShepherdPolicy:
         relevant_flock = world.flock[close_mask]
         relevant_count = relevant_flock.shape[0]
         if relevant_count == 0:
-            return 1
+            return 0
         
         drone_to_sheep = relevant_flock - world.drones[drone_idx]
         
