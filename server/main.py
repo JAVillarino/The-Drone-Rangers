@@ -382,7 +382,7 @@ if __name__ == "__main__":
                 continue
             
             # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
-            for _ in range(5):
+            for _ in range(15):
                 plan = policy.plan(backend_adapter.get_state(), jobs, backend_adapter.dt)
                 backend_adapter.step(plan)
         

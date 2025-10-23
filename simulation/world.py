@@ -45,7 +45,7 @@ class World:
         # weights (paper-ish)
         wr: float = 50.0,          # ρ_a repulsion
         wa: float = 1.05,         # c attraction
-        ws: float = 10.0,          # ρ_s dog repulsion
+        ws: float = 100.0,          # ρ_s dog repulsion
         wm: float = 20,          # h inertia
         w_align: float = 0.0,     # no alignment in base paper
 
