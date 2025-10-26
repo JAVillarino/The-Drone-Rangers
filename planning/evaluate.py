@@ -8,7 +8,7 @@ over n different random seeds for a scenario.
 import numpy as np
 import pandas as pd
 from simulation import world
-from herding import policy
+from planning.herding import policy
 # Assumes spawn functions are in this module
 from simulation.scenarios import spawn_circle, spawn_uniform, spawn_clusters, spawn_corners, spawn_line
 from datetime import datetime
@@ -23,7 +23,6 @@ base_config = {
     "max_steps": 2000,
     "boundary": "none",
     "clusters": 3,
-    "dog_xy": np.array([[-20, -35]]),
 }
 
 
@@ -33,7 +32,7 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
     Returns a tuple: (was_successful, steps_taken).
     """
     # Define world geometry
-    spawn_bounds = (-25.0, 65.0, -40.0, 35.0)
+    spawn_bounds = (0.0, 250.0, 0.0, 250.0)
 
     # Spawn sheep based on the specified scenario
     if spawn_type == "circle":
@@ -48,7 +47,7 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
         sheep_xy = spawn_line(config["N"], spawn_bounds, seed=seed)
 
     dog_xy = config["dog_xy"]
-    target_xy = np.array([60, 30])
+    target_xy = np.array([240, 240])
 
     # Build world with simulation parameters
     world_kwargs = {
@@ -82,7 +81,7 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
     )
     
     if visualize:
-        renderer = Renderer(W, bounds=(-50, 150, -50, 150))
+        renderer = Renderer(W, bounds=(0, 250, 0, 250))
 
     # Main simulation loop for this trial
     for t in range(config["max_steps"]):
@@ -121,18 +120,18 @@ if __name__ == "__main__":
     date = datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
 
     # Run the evaluation and collect trial-by-trial data
-    Ns = [100, 200, 300]
-    spawn_types = ["circle", "uniform"]
-    seeds = range(10)
-    flyovers = [False, True]
+    Ns = list(range(120, 130))
+    n_values = list(range(1, 129))
+    spawn_types = ["uniform"]
+    seeds = range(3)
+    flyovers = [False]
     dog_xy = [
-        np.array([[-20, -35]]),
-        np.array([[-20, -36], [-20, -34]]),
-        np.array([[-20, -36], [-20, -35], [-20, -34]]),
+        np.array([[0, 0]]),
     ]
     scenarios_to_run = [
-        {**base_config, "dog_xy": dog_xy, "conditionally_apply_repulsion": flyover, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (1/2) * 4 }
-        for seed, N, pattern, flyover, dog_xy in product(seeds, Ns, spawn_types, flyovers, dog_xy)
+        {**base_config, "dog_xy": dog_xy, "k_nn": n_nb, "conditionally_apply_repulsion": flyover, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (1/2) * 4 }
+        for seed, N, pattern, flyover, n_nb, dog_xy in product(seeds, Ns, spawn_types, flyovers, n_values, dog_xy)
+        if n_nb < N
     ]
 
     trial_results_list = []
