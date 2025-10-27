@@ -5,10 +5,11 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from simulation import world
 from planning.herding import policy
+from planning.state import Job
 from simulation.scenarios import *
 
 class Renderer:
-    def __init__(self, world, bounds=(0.0, 500.0, 0.0, 500.0)):
+    def __init__(self, world, target, bounds=(0.0, 500.0, 0.0, 500.0)):
         """Initialize figure, axes, and scatter plots."""
         xmin, xmax, ymin, ymax = bounds
 
@@ -30,9 +31,9 @@ class Renderer:
         state = world.get_state()
         self.sheep_sc = self.ax.scatter(state.flock[:, 0], state.flock[:, 1], s=20)
         self.dog_sc   = self.ax.scatter([state.drones[:, 0]], [state.drones[:, 1]], marker='x')
-        self.targ_sc  = self.ax.scatter([state.target[0]], [state.target[1]], marker='*')
+        self.targ_sc  = self.ax.scatter([target[0]], [target[1]], marker='*')
 
-    def render_world(self, world, plan, step_number, debug=False):
+    def render_world(self, world, plan, step_number, target, debug=False):
         """Update the scatter plots for the current state of the world."""
         state = world.get_state()
 
@@ -48,7 +49,7 @@ class Renderer:
 
         # Update dog and target markers
         self.dog_sc.set_offsets(state.drones)
-        self.targ_sc.set_offsets([state.target])
+        self.targ_sc.set_offsets([target])
 
         # Title
         self.ax.set_title(f"Step {step_number}")
@@ -83,7 +84,7 @@ if __name__ == "__main__":
     else:  # line
         sheep_xy = spawn_line(args.N, spawn_bounds, seed=args.seed)
 
-    dog_xy = np.array(np.array([[-20, -36], [-20, -35], [-20, -34]]),)
+    dog_xy = np.array(np.array([[-20, -36]]),)
     target_xy = np.array([240.0, 240.0])
 
     # Create example polygon obstacles
@@ -149,15 +150,27 @@ if __name__ == "__main__":
     #     patch = Polygon(closed_poly[:-1], facecolor='red', alpha=0.3, edgecolor='red')
     #     ax.add_patch(patch)
         # polygon_patches.append(patch)
+
+    s0 = W.get_state()
+    num_drones = s0.drones.shape[0]
+
+    jobs = [Job(
+        target=target_xy.copy(),
+        target_radius=10.0,
+        remaining_time=None,
+        is_active=True,
+        drones=num_drones,
+    )]
     
-    renderer = Renderer(W)
+    renderer = Renderer(W, jobs[0].target)
+
     for t in range(args.steps):
-        plan = shepherd_policy.plan(W.get_state(), W.dt)
+        plan = shepherd_policy.plan(W.get_state(), jobs, W.dt)
         W.step(plan)
         
         if t % 2 == 0:
             state = W.get_state()
-            renderer.render_world(W, plan, t, debug=True)
+            renderer.render_world(W, plan, t, jobs[0].target, debug=True)
     
         plt.pause(0.01)
 
