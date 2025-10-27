@@ -55,7 +55,7 @@ class ShepherdPolicy:
         return self.fN / r
 
     # ------------------ Multi-Drone Drive Logic ------------------
-    def _drive_points(self, world: state.State, G: np.ndarray) -> np.ndarray:
+    def _drive_points(self, world: state.State, G: np.ndarray, target: np.ndarray) -> np.ndarray:
         """
         Calculates drive points for all drones.
         Points are spread in a circular arc behind the G-to-Target line.
@@ -64,12 +64,12 @@ class ShepherdPolicy:
         
         # Get target from jobs array
         
-        if world.target is None:
+        if target is None:
             # If no target is set, return current drone positions (no movement)
             return world.drones.copy()
         
         # Vector from G to Target
-        dir_GT = world.target - G
+        dir_GT = target - G
         L_GT = np.linalg.norm(dir_GT)
         ghat = dir_GT / (L_GT + 1e-9)
                 
@@ -100,7 +100,7 @@ class ShepherdPolicy:
 
 
     # ------------------ Multi-Drone Collect Logic ------------------
-    def _collect_points(self, world: state.State, G: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _collect_points(self, world: state.State, G: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Assigns each drone to collect an individual outermost sheep.
         Returns target points for all drones and the indices of the assigned sheep.
@@ -109,11 +109,11 @@ class ShepherdPolicy:
         D = world.drones                      # (N_drones, 2)
         N_drones = D.shape[0]
                 
-        if world.target is None:
+        if target is None:
             # If no target is set, use a default position or skip goal-based calculations
             dGoal = np.zeros(P.shape[0])  # No goal distance when no target
         else:
-            dGoal = np.linalg.norm(P - world.target, axis=1) # distance to goal
+            dGoal = np.linalg.norm(P - target, axis=1) # distance to goal
         
         dG = np.linalg.norm(P - G, axis=1)    # distance to global COM
         
@@ -156,7 +156,7 @@ class ShepherdPolicy:
         return collect_points, target_sheep_indices
 
     # ------------------ Flyover Logic (Per-Drone) ------------------
-    def _should_apply_repulsion(self, world: state.State, drone_idx: int, gcm: np.ndarray) -> bool:
+    def _should_apply_repulsion(self, world: state.State, drone_idx: int, gcm: np.ndarray, target: np.ndarray) -> bool:
         """Check if a specific drone should apply repulsion. Returns true if the drone's repulsive force points either towards the GCM or towards the overall target. """
         # Compute squared distances from this drone to all sheep
         dist_sq = np.sum((world.flock - world.drones[drone_idx])**2, axis=1)
@@ -177,11 +177,11 @@ class ShepherdPolicy:
         towards_gcm = np.sum(drone_to_sheep * sheep_to_gcm, axis=1)
         towards_gcm_fraction = np.sum(towards_gcm > 0) / relevant_count
                 
-        if world.target is None:
+        if target is None:
             # If no target is set, only use GCM-based calculation
             towards_target_fraction = 0
         else:
-            sheep_to_target = world.target - relevant_flock
+            sheep_to_target = target - relevant_flock
             sheep_to_target_norm = np.linalg.norm(sheep_to_target, axis=1, keepdims=True)
             sheep_to_target /= sheep_to_target_norm
             # This is sort of like the element-wise dot product.
@@ -202,7 +202,7 @@ class ShepherdPolicy:
     # ------------------ Main Planning Method ------------------
     def plan(self, world: state.State, jobs: list[state.Job], dt: float) -> Plan:
         """Return the movement plan for all drones."""
-        world.target = None
+        target = None
         all_jobs_satisfied = True
         for job in jobs:
             if job.is_active and job.target is not None:
@@ -210,7 +210,7 @@ class ShepherdPolicy:
                     all_jobs_satisfied = False
                 
                 # TODO: We should be able to do better than this. We should instead assign drones to different jobs here and don't mess with the world.
-                world.target = job.target
+                target = job.target
                 break
             
         if all_jobs_satisfied:
@@ -226,18 +226,18 @@ class ShepherdPolicy:
 
         if is_cohesive:
             # DRIVE PHASE: All drones drive to their assigned drive point
-            target_positions = self._drive_points(world, G)
+            target_positions = self._drive_points(world, G, target)
             # Repulsion is ON (False) by default and remains so in drive phase
         else:
             # COLLECT PHASE: Each drone targets an outermost sheep's standoff point
-            collect_points, target_indices = self._collect_points(world, G)
+            collect_points, target_indices = self._collect_points(world, G, target)
             target_positions = collect_points
             
             # Check flyover status for each drone individually
             if self.conditionally_apply_repulsion:
                 for i in range(N_drones):
                     # Check if the path from current drone position to its assigned collect point needs a flyover
-                    apply_repulsion[i] = self._should_apply_repulsion(world, i, G)
+                    apply_repulsion[i] = self._should_apply_repulsion(world, i, G, target)
         
         # Vector from drone to target position
         dir_to_target = target_positions - world.drones 
