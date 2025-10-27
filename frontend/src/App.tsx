@@ -7,6 +7,7 @@ import './App.css'
 import WelcomePage from "./components/WelcomePage";
 import LandingPage from "./components/LandingPage";
 import LiveSystemPage from "./components/LiveSystemPage";
+import { useSSE } from './hooks/useSSE';
 
 function App() {
   const queryClient = useQueryClient();
@@ -19,13 +20,36 @@ function App() {
   const [currentView, setCurrentView] = useState<'welcome' | 'simulator' | 'simulation' | 'live-system'>('welcome');
   const [selectedImage, setSelectedImage] = useState<string>("");
 
+  // Determine if we should use SSE (when simulation view is active)
+  const shouldUseSSE = currentView === 'simulation';
+  
+  // SSE connection for real-time updates
+  const { data: sseData, isConnected, hasError } = useSSE({
+    url: 'http://127.0.0.1:5000/stream/state', // PLACEHOLDER URL - update with actual SSE endpoint
+    enabled: shouldUseSSE,
+    onError: (error) => {
+      console.error('SSE error, falling back to polling:', error);
+    }
+  });
 
+  // Log connection status for debugging
+  if (shouldUseSSE) {
+    console.log('SSE connection status:', isConnected, 'hasError:', hasError);
+  }
 
-  const { data, isLoading, error } = useQuery<State>({
+  // Determine if we should actually use SSE data (only if connected and have data)
+  const actuallyUsingSSE = shouldUseSSE && isConnected;
+
+  // Traditional polling (use when SSE is not actually working)
+  const { data: pollingData, isLoading, error } = useQuery<State>({
     queryKey: ["objects"],
     queryFn: fetchState,
-    refetchInterval: 25
+    refetchInterval: (currentView === 'simulation' && !actuallyUsingSSE) ? 25 : false, // Only poll during simulation if SSE is not actually working
+    enabled: currentView === 'simulation' && !actuallyUsingSSE // Only query when on simulation view and SSE is not active
   });
+
+  // Use SSE data when actually connected, otherwise use polling data
+  const data = actuallyUsingSSE && sseData ? sseData : pollingData;
 
   const mutation = useMutation({
     mutationFn: setTarget,
@@ -95,9 +119,12 @@ function App() {
       return { success: true, scenario };
     };
   
-  if (isLoading) return <p>Loading...</p>;
-  if (error instanceof Error) return <p>Error: {error.message}</p>;
-  if (!data) return <p>No data</p>;
+    // Only show loading/error states when on simulation view
+    if (currentView === 'simulation') {
+      if (isLoading) return <p>Loading...</p>;
+      if (error instanceof Error) return <p>Error: {error.message}</p>;
+      if (!data) return <p>No data</p>;
+    }
 
   return (
     <>
@@ -120,7 +147,7 @@ function App() {
           onBack={handleBackFromLiveSystem}
         />
       ) : (
-        <MapPlot 
+        data && <MapPlot 
           data={data} 
           onSetTarget={handleSetTarget} 
           CANVAS_SIZE={CANVAS_SIZE} 

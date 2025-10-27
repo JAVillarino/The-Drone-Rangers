@@ -6,6 +6,11 @@ import { Scenario, ScenariosResponse } from "../types";
 
 const backendURL = "http://127.0.0.1:5000";
 
+// SSE endpoint constants
+export const SSE_ENDPOINTS = {
+  state: `${backendURL}/stream/state`, // PLACEHOLDER URL - update with actual SSE endpoint
+} as const;
+
 type LocData = [number, number];
 
 interface ObjectData {
