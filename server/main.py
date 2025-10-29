@@ -12,7 +12,9 @@ CORS(app, origins=["http://localhost:5173"])
 
 # Register scenarios API blueprint
 from server.scenarios_api import scenarios_bp, REPO
+from server.drone_management import drones_bp
 app.register_blueprint(scenarios_bp)
+app.register_blueprint(drones_bp)
 
 # Thread-safe lock for world reinitialization
 world_lock = threading.RLock()

@@ -1,10 +1,9 @@
-import React from 'react';
-
 interface LiveSystemPageProps {
   onBack: () => void;
+  onManageDrones: () => void;
 }
 
-export default function LiveSystemPage({ onBack }: LiveSystemPageProps) {
+export default function LiveSystemPage({ onBack, onManageDrones }: LiveSystemPageProps) {
   return (
     <div className="lp">
       <div className="lp-header">
@@ -35,7 +34,19 @@ export default function LiveSystemPage({ onBack }: LiveSystemPageProps) {
             <p>Direct control of drone systems with live telemetry</p>
           </div>
           
-          <div className="feature-item">
+          <div
+            className="feature-item"
+            style={{ cursor: "pointer" }}
+            onClick={onManageDrones}
+            onKeyDown={e => {
+              if (onManageDrones && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                onManageDrones();
+              }
+            }}
+            aria-label="Go to Drone Management"
+            role={"button"}
+          >
             <div className="feature-icon">📊</div>
             <h3>Live Monitoring</h3>
             <p>Monitor drone status, battery, and mission progress</p>

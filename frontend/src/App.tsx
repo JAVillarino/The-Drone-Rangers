@@ -7,6 +7,7 @@ import './App.css'
 import WelcomePage from "./components/WelcomePage";
 import LandingPage from "./components/LandingPage";
 import RealFarmView from "./components/RealFarmView";
+import DroneManagementPage from "./components/DroneManagementPage";
 import { useSSE } from './hooks/useSSE';
 
 function App() {
@@ -17,7 +18,7 @@ function App() {
   const worldMin = 0;
   const worldMax = 250;
 
-  const [currentView, setCurrentView] = useState<'welcome' | 'simulator' | 'simulation' | 'live-system'>('welcome');
+  const [currentView, setCurrentView] = useState<'welcome' | 'simulator' | 'simulation' | 'live-system' | 'drone-management'>('welcome');
   const [selectedImage, setSelectedImage] = useState<string>("");
 
   // Determine if we should use SSE (when simulation view is active)
@@ -93,6 +94,16 @@ function App() {
     const handleBackFromLiveSystem = () => {
       console.log('Going back to welcome page from live system');
       setCurrentView('welcome');
+    };
+
+    const handleNavigateToDroneManagement = () => {
+      console.log('Navigating to drone management');
+      setCurrentView('drone-management');
+    };
+    
+    const handleBackFromDroneManagement = () => {
+      console.log('Going back to live system from drone management');
+      setCurrentView('live-system');
     };
 
     const handleBackToSimulator = () => {
