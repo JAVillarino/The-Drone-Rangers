@@ -1,3 +1,5 @@
 __pycache__
 LOG.md
 node_modules
+
+server/tmp/*

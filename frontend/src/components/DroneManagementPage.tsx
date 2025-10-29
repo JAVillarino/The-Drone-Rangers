@@ -1,10 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface Drone {
   id: string;
   make: string;
   model: string;
-  batteryPercent: number;
 }
 
 interface DroneManagementPageProps {
@@ -12,15 +11,38 @@ interface DroneManagementPageProps {
 }
 
 export default function DroneManagementPage({ onBack }: DroneManagementPageProps) {
-  const [drones, setDrones] = useState<Drone[]>([
-    { id: 'DR-001', make: 'DJI', model: 'Mavic 3', batteryPercent: 82 },
-    { id: 'DR-002', make: 'Skydio', model: 'X2', batteryPercent: 64 },
-  ]);
+  const [drones, setDrones] = useState<Drone[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void handleReload();
+  }, []);
+
+  const handleReload = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const resp = await fetch('http://127.0.0.1:5000/drones');
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`);
+      }
+      const data = await resp.json();
+      const items: Array<{ id: string; make: string; model: string }> = data.items || [];
+      setDrones(items.map(d => ({ id: d.id, make: d.make, model: d.model })));
+    } catch (e) {
+      console.error('Failed to load drones:', e);
+      setLoadError('Failed to load drones.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newMake, setNewMake] = useState('');
   const [newModel, setNewModel] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const openAddModal = () => {
     setNewMake('');
@@ -33,20 +55,31 @@ export default function DroneManagementPage({ onBack }: DroneManagementPageProps
     setIsModalOpen(false);
   };
 
-  const handleCreateDrone = () => {
+  const handleCreateDrone = async () => {
     if (!newMake.trim() || !newModel.trim()) {
       setError('Please enter both make and model.');
       return;
     }
-    const newIdNumeric = drones.length + 1;
-    const newDrone: Drone = {
-      id: `DR-${String(newIdNumeric).padStart(3, '0')}`,
-      make: newMake.trim(),
-      model: newModel.trim(),
-      batteryPercent: Math.min(100, Math.max(10, Math.round(50 + Math.random() * 50))),
-    };
-    setDrones(prev => [...prev, newDrone]);
-    setIsModalOpen(false);
+    try {
+      setIsSubmitting(true);
+      const resp = await fetch('http://127.0.0.1:5000/drones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ make: newMake.trim(), model: newModel.trim() })
+      });
+      if (!resp.ok) {
+        const txt = await resp.text().catch(() => '');
+        throw new Error(`Create failed (${resp.status}) ${txt}`);
+      }
+      const created: { id: string; make: string; model: string } = await resp.json();
+      setDrones(prev => [...prev, { id: created.id, make: created.make, model: created.model }]);
+      setIsModalOpen(false);
+    } catch (e) {
+      console.error('Failed to create drone:', e);
+      setError('Failed to create drone. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -57,7 +90,16 @@ export default function DroneManagementPage({ onBack }: DroneManagementPageProps
       </div>
 
       <div className="lp-panel" style={{ padding: 16 }}>
-        {drones.length === 0 ? (
+        {isLoading ? (
+          <div style={{ padding: 24, textAlign: 'center', opacity: 0.8 }}>Loading drones...</div>
+        ) : loadError ? (
+          <div className="lp-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ color: '#e53935' }}>{loadError}</div>
+            <div>
+              <button className="lp-btn lp-btn--primary" onClick={handleReload}>Retry</button>
+            </div>
+          </div>
+        ) : drones.length === 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
             <button onClick={openAddModal} className="lp-card" style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px dashed #ccc', background: 'transparent' }}>
               + Add New Drone
@@ -73,10 +115,7 @@ export default function DroneManagementPage({ onBack }: DroneManagementPageProps
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span>Battery:</span>
-                  <div style={{ flex: 1, height: 8, background: '#eee', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: `${drone.batteryPercent}%`, height: '100%', background: drone.batteryPercent > 50 ? '#4caf50' : drone.batteryPercent > 20 ? '#ffb300' : '#e53935' }} />
-                  </div>
-                  <span>{drone.batteryPercent}%</span>
+                  <span style={{ opacity: 0.7 }}>—</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                   <button className="lp-btn lp-btn--ghost" onClick={() => { /* Intentionally unimplemented */ }}>
@@ -135,8 +174,8 @@ export default function DroneManagementPage({ onBack }: DroneManagementPageProps
               </label>
               {error && <div style={{ color: '#e53935' }}>{error}</div>}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-                <button className="lp-btn lp-btn--ghost" onClick={closeAddModal}>Cancel</button>
-                <button className="lp-btn lp-btn--primary" onClick={handleCreateDrone}>Create</button>
+                <button className="lp-btn lp-btn--ghost" onClick={closeAddModal} disabled={isSubmitting}>Cancel</button>
+                <button className="lp-btn lp-btn--primary" onClick={handleCreateDrone} disabled={isSubmitting}>{isSubmitting ? 'Creating...' : 'Create'}</button>
               </div>
             </div>
           </div>
