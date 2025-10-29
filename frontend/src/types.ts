@@ -43,3 +43,31 @@ export interface ScenariosResponse {
   limit: number;
   offset: number;
 }
+
+export interface FarmJob {
+  id: string;
+  job_type: 'immediate' | 'scheduled';
+  scheduled_time?: string; // ISO 8601 datetime, only for scheduled jobs
+  is_recurring: boolean;
+  target: [number, number]; // World coordinates [x, y]
+  target_radius: number;
+  drone_count: number;
+  status: 'pending' | 'active' | 'completed' | 'cancelled';
+  created_at: string;
+  updated_at: string;
+  duration?: number; // Estimated duration in seconds
+}
+
+export interface CreateFarmJobRequest {
+  job_type: 'immediate' | 'scheduled';
+  scheduled_time?: string; // ISO 8601, required if job_type === 'scheduled'
+  is_recurring: boolean;
+  target: [number, number];
+  target_radius: number;
+  drone_count: number;
+}
+
+export interface FarmJobsResponse {
+  jobs: FarmJob[];
+  total: number;
+}
