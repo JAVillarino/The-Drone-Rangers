@@ -85,6 +85,7 @@ class World:
 
         # rng
         seed: int = 0,
+        flock_init: float = 0.0,     # initial flocking level (0=grazing, 1=flocking)
         **_kw_ignore,
     ):
         self.N = sheep_xy.shape[0]
@@ -154,6 +155,7 @@ class World:
         self.eps_move = max(1e-6, 0.4*self.ra)
         # Auto-toggle: enable cache for large flocks only
         self.use_neighbor_cache = (self.N >= 512)
+        self.flock = np.full(self.N, float(np.clip(flock_init, 0.0, 1.0)), dtype=np.float64)
 
     # ---------- polygon management ----------
     def add_polygon(self, polygon: np.ndarray) -> None:
@@ -540,6 +542,18 @@ class World:
         # If a given drone isn't applying repulsion, just make it seem like that drone is a bajillion miles away.
         # dog_distances_sq[:, self.apply_repulsion] = 1_000_000
         dog_distances_sq[:, self.apply_repulsion == 0] = 1_000_000
+
+        # --- NEW: continuous flock factor update ---
+        d_all = np.sqrt(np.maximum(dog_distances_sq, 0.0))
+        # push_j ∈ [0,1], already distance-ramped by your smooth_push
+        push_all = np.clip(smooth_push(d_all, self.rs), 0.0, 1.0)
+
+        # Combine multiple drones as union probability of "being pushed"
+        repel_level = 1.0 - np.prod(1.0 - push_all, axis=1)   # ∈ [0,1]
+
+        # EMA smooth with previous value
+        self.flock = 0.5*self.flock + (1 - 0.5)*repel_level
+        self.flock = np.clip(self.flock, 0.0, 1.0)
         
         # Get the distance to the *closest* drone
         min_dog_distances_sq = np.min(dog_distances_sq, axis=1)
@@ -622,7 +636,34 @@ class World:
             Hn = np.linalg.norm(H)
             if Hn > 0:
                 h = H / Hn
-            
+
+            A = self._lcm_vec(i) - self.P[i]
+            AL = self._align_vec(i)
+
+            # Previous velocity unit
+            vel_sq = np.sum(self.V[i]**2)
+            if vel_sq > 0.0:
+                prev = self.V[i] / (np.sqrt(vel_sq) + 1e-9)
+            else:
+                prev = np.zeros(2)
+
+            H_flockish = self.wr*R + self.wa*A + self.wm*prev + self.w_align*AL
+            # small nudge toward COM (g_tug) like your near handler
+            gcm_vec = G - self.P[i]
+            gcm_n = np.linalg.norm(gcm_vec)
+            if gcm_n > 1e-9:
+                H_flockish += self.g_tug * (gcm_vec / (gcm_n + 1e-9))
+
+            # Blend: alpha = self.flock[i]  (0=grazing-only, 1=flock-only)
+            H_mixed = self._blend(H_flockish, H, alpha=float(self.flock[i]))
+
+            # Renormalize mixed heading for stepping
+            Hn = np.linalg.norm(H_mixed)
+            if Hn > 0:
+                h = H_mixed / Hn
+            else:
+                h = np.zeros(2)
+
             # Momentum update
             v_des = self.vmax * h
             v_new = decay * self.V[i] + (1.0 - decay) * v_des
@@ -728,6 +769,28 @@ class World:
             if vel_norm > 0.3 * self.vmax:
                 noise *= 0.5
             H = H + noise
+
+            rnd = self.rng.normal(size=2) * 0.2
+            R_farish = self._repel_close_vec(i)
+            H_grazeish = self.wr*R_farish + rnd
+
+            # Preserve your obstacle nudges on the graze-ish side too
+            H_grazeish += self.w_obs * nrm[idx]
+            if np.dot(tng[idx], tng[idx]) > 0.0 and np.dot(H_grazeish, nrm[idx]) < 0.0:
+                H_grazeish += self.w_tan * tng[idx]
+
+            # If inside keep-out, project graze-ish out of wall
+            if s[idx] <= self.keep_out:
+                n_unit = nrm[idx]
+                L = np.sqrt(np.dot(n_unit, n_unit)) + 1e-12
+                n_unit = n_unit / L
+                into = np.dot(H_grazeish, n_unit)
+                if into < 0.0:
+                    H_grazeish = H_grazeish - into * n_unit
+
+            # --- Blend using per-sheep alpha ---
+            alpha = float(self.flock[i])      # 0→grazeish, 1→flock H
+            H = self._blend(H, H_grazeish, alpha)
             
             # Normalize and step - cache inverse norm
             h_sq = np.sum(H**2)
@@ -742,6 +805,13 @@ class World:
             new_pos = self.P[i] + step * h
             self.V[i] = (new_pos - self.P[i]) / self.dt
             self.P[i] = new_pos
+
+    def _blend(self, H_flock: np.ndarray, H_graze: np.ndarray, alpha: float) -> np.ndarray:
+        """
+        Blend two 'force-like' headings H = alpha*H_flock + (1-alpha)*H_graze.
+        alpha∈[0,1]. Works with 1D (len=2) vectors.
+        """
+        return alpha * H_flock + (1.0 - alpha) * H_graze
 
     # ---------- public API ----------
     def step(self, plan: Plan):
