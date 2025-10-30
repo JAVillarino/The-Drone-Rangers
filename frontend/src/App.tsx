@@ -6,7 +6,7 @@ import { State } from "./types.ts"
 import './App.css'
 import WelcomePage from "./components/WelcomePage";
 import LandingPage from "./components/LandingPage";
-import LiveSystemPage from "./components/LiveSystemPage";
+import RealFarmView from "./components/RealFarmView";
 import DroneManagementPage from "./components/DroneManagementPage";
 import { useSSE } from './hooks/useSSE';
 
@@ -36,12 +36,15 @@ function App() {
   // Determine if we should actually use SSE data (only if connected and have data)
   const actuallyUsingSSE = shouldUseSSE && isConnected;
 
-  // Traditional polling (use when SSE is not actually working)
+  // Check if we need state data (simulation or live-system views)
+  const needsStateData = currentView === 'simulation' || currentView === 'live-system';
+
+  // Traditional polling (use when SSE is not actually working, or for live-system view)
   const { data: pollingData, isLoading, error } = useQuery<State>({
     queryKey: ["objects"],
     queryFn: fetchState,
-    refetchInterval: (currentView === 'simulation' && !actuallyUsingSSE) ? 25 : false, // Only poll during simulation if SSE is not actually working
-    enabled: currentView === 'simulation' && !actuallyUsingSSE // Only query when on simulation view and SSE is not active
+    refetchInterval: needsStateData && !actuallyUsingSSE ? 25 : false, // Poll for both simulation and live-system if SSE not active
+    enabled: needsStateData && !actuallyUsingSSE // Query for both simulation and live-system views when SSE is not active
   });
 
   // Use SSE data when actually connected, otherwise use polling data
@@ -125,11 +128,11 @@ function App() {
       return { success: true, scenario };
     };
   
-    // Only show loading/error states when on simulation view
-    if (currentView === 'simulation') {
+    // Show loading/error states when on simulation or live-system views that need data
+    if (needsStateData) {
       if (isLoading) return <p>Loading...</p>;
       if (error instanceof Error) return <p>Error: {error.message}</p>;
-      if (!data) return <p>No data</p>;
+      if (!data && currentView === 'simulation') return <p>No data</p>;
     }
 
   return (
@@ -139,7 +142,14 @@ function App() {
           onNavigateToSimulator={handleNavigateToSimulator} 
           onNavigateToRealSystem={handleNavigateToRealSystem} 
         />
-      ) : currentView === 'simulator' ? (
+      ) : currentView === 'drone-management' ? (
+        data ? (
+        <DroneManagementPage 
+          data={data}
+          onBack={handleBackFromDroneManagement} 
+        />) : (
+          <p>Loading farm data...</p>
+        )) : currentView === 'simulator' ? (
         <LandingPage 
           onSimulationStart={handleSimulationStart} 
           startPresetSim={startPresetSim} 
@@ -147,15 +157,18 @@ function App() {
           onBack={handleBackToWelcome}
         />
       ) : currentView === 'live-system' ? (
-        <LiveSystemPage 
-          onBack={handleBackFromLiveSystem}
-          onManageDrones={handleNavigateToDroneManagement}
-        />
-      ) : currentView === 'drone-management' ? (
-        <DroneManagementPage 
-          data={data}
-          onBack={handleBackFromDroneManagement}
-        />
+        data ? (
+          <RealFarmView 
+            onBack={handleBackFromLiveSystem}
+            data={data}
+            onSetTarget={handleSetTarget}
+            onPlayPause={handlePlayPause}
+            onRestart={requestRestart}
+            selectedImage={selectedImage}
+          />
+        ) : (
+          <p>Loading farm data...</p>
+        )
       ) : (
         data && <SimulationMapPlot 
           data={data} 

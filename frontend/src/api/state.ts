@@ -2,7 +2,7 @@
  * For HTTP requests to backend.
  */
 
-import { Scenario, ScenariosResponse } from "../types";
+import { Scenario, ScenariosResponse, FarmJob, CreateFarmJobRequest, FarmJobsResponse } from "../types";
 
 const backendURL = "http://127.0.0.1:5000";
 
@@ -290,5 +290,56 @@ export async function loadScenario(scenarioId: string): Promise<{ success: boole
         const errorMsg = err instanceof Error ? err.message : "Unknown error occurred";
         console.error("Error loading scenario:", err);
         return { success: false, error: errorMsg };
+    }
+}
+
+/**
+ * Fetch farm jobs for calendar display
+ */
+export async function fetchFarmJobs(params?: {
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+}): Promise<FarmJob[]> {
+    try {
+        const queryParams = new URLSearchParams();
+        if (params?.startDate) queryParams.append('start_date', params.startDate);
+        if (params?.endDate) queryParams.append('end_date', params.endDate);
+        if (params?.status) queryParams.append('status', params.status);
+        if (params?.limit) queryParams.append('limit', params.limit.toString());
+        if (params?.offset) queryParams.append('offset', params.offset.toString());
+
+        const response = await fetch(`${backendURL}/api/farm-jobs?${queryParams}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: FarmJobsResponse = await response.json();
+        return data.jobs;
+    } catch (err) {
+        console.error("Error fetching farm jobs:", err);
+        throw err;
+    }
+}
+
+/**
+ * Create a new farm job
+ */
+export async function createFarmJob(jobData: CreateFarmJobRequest): Promise<FarmJob> {
+    try {
+        const response = await fetch(`${backendURL}/api/farm-jobs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(jobData),
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.error?.message || `HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (err) {
+        console.error("Error creating farm job:", err);
+        throw err;
     }
 }
