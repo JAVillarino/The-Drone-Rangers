@@ -26,14 +26,16 @@ interface CustomScenario {
 
 interface LandingPageProps {
     onSimulationStart: (scenario: string, selectedImage?: string) => void,
-    worldMin: number, 
-    worldMax: number, 
     startPresetSim: (scenario: string) => Promise<unknown>,
     startCustomSim: (scenario: CustomScenario) => Promise<unknown>,
     onBack: () => void
 }
 
-export default function LandingPage({onSimulationStart, worldMin, worldMax, startPresetSim, startCustomSim, onBack}: LandingPageProps) {
+
+const worldMin = 0;
+const worldMax = 250;
+
+export default function LandingPage({onSimulationStart, startPresetSim, startCustomSim, onBack}: LandingPageProps) {
     const [selectedScenario, setSelectedScenario] = useState<string>("");
     const [selectedImage, setSelectedImage] = useState<string>("");
     const [isCustomizing, setIsCustomizing] = useState(false);

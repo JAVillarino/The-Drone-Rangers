@@ -1,24 +1,26 @@
-import ObjectMarker from "./ObjectMarker";
-import JobStatus from "./JobStatus";
-import SimulationStatus from "./SimulationStatus";
-import { useState, useMemo, useRef, useEffect } from "react";
+import JobStatus from "./JobStatus.tsx";
+import SimulationStatus from "./SimulationStatus.tsx";
+import { useState } from "react";
 import { Job, State } from "../types.ts"
 import { setJobActiveState, setJobDroneCount } from "../api/state.ts";
+import { Map, usePan } from "./UsePan.tsx";
 
 interface MapPlotProps {
     data: State,
     onSetTarget: (coords: {x: number, y: number}) => void
-    zoomMin: number,
-    zoomMax: number,
-    CANVAS_SIZE: number,
     onPlayPause: () => void,
     onRestart: () => void,
     onBack?: () => void,
     selectedImage?: string
 }
 
+const CANVAS_SIZE = 600;
 
-export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPlayPause, onRestart, onBack, selectedImage }: MapPlotProps) {
+const zoomMin = 0;
+const zoomMax = 250;
+
+
+export function SimulationMapPlot({ data, onSetTarget, onPlayPause, onRestart, onBack, selectedImage }: MapPlotProps) {
     if (!data) return <p>No data yet</p>;
     const paused = data.paused ?? false;
 
@@ -31,73 +33,13 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
     // Get the background image path, default to HighResRanch if no selection
     const backgroundImage = selectedImage && imageMap[selectedImage] ? imageMap[selectedImage] : "../../img/HighResRanch.png";
 
+    const { svgRef, scaleCoord, inverseScaleCoord } = usePan({ data, zoomMin, zoomMax, scale: 0.7, canvasSize: CANVAS_SIZE });
+
     const [choosingTarget, setChoosingTarget] = useState(false);
-    const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isEditMenuOpen, setIsEditMenuOpen] = useState(false);
     const [isDrawingObstacle, setIsDrawingObstacle] = useState(false);
     const [obstaclePoints, setObstaclePoints] = useState<[number, number][]>([]);
     const [obstacles, setObstacles] = useState<[number, number][][]>([]);
-
-    const svgRef = useRef<SVGSVGElement | null>(null);
-
-    // Compute bounding box of all objects (to limit panning)
-    const bounds = useMemo(() => {
-        const xs = [...data.flock.map(f => f[0]), ...data.drones.map(f => f[0])];
-        const ys = [...data.flock.map(f => f[1]), ...data.drones.map(f => f[1])];
-
-        xs.push(...data.jobs.flatMap(({ target }) => target == null ? [] : [target[0]]))
-        ys.push(...data.jobs.flatMap(({ target }) => target == null ? [] : [target[1]]))
-
-        // If no entities, use default bounds
-        if (xs.length === 0 || ys.length === 0) {
-            return {
-                minX: zoomMin,
-                maxX: zoomMax,
-                minY: zoomMin,
-                maxY: zoomMax,
-            };
-        }
-
-        return {
-            minX: Math.min(...xs),
-            maxX: Math.max(...xs),
-            minY: Math.min(...ys),
-            maxY: Math.max(...ys),
-        };
-    }, [data, zoomMin, zoomMax]);
-
-    const windowSize = zoomMax - zoomMin;
-    const scale = 0.7;
-
-    // Converts into canvas units.
-    function scaleCoord(val: number, axis: "x" | "y") {
-        const offset = axis === "x" ? pan.x : pan.y;
-        const effectiveMin = zoomMin + offset;
-        return ((val - effectiveMin) / windowSize) * CANVAS_SIZE * scale;
-    }
-
-    const inverseScaleCoord = (val: number, axis: "x" | "y") => {
-        const offset = axis === "x" ? pan.x : pan.y;
-        const effectiveMin = zoomMin + offset;
-        return ((val / (CANVAS_SIZE * scale)) * windowSize + effectiveMin);
-    }
-
-    function clampPan(x: number, y: number) {
-        if (!svgRef.current) {
-            return { x, y }
-        }
-
-        const xPadding = (svgRef.current.getBoundingClientRect().right - svgRef.current.getBoundingClientRect().left) / 2 + 50;
-        const yPadding = (svgRef.current.getBoundingClientRect().bottom - svgRef.current.getBoundingClientRect().top) / 2 + 50;
-
-        y = Math.max(y, bounds.minY - (svgRef.current.getBoundingClientRect().top + yPadding) / CANVAS_SIZE / scale * windowSize);
-        y = Math.min(y, bounds.maxY - (svgRef.current.getBoundingClientRect().bottom - yPadding) / CANVAS_SIZE / scale * windowSize);
-
-        x = Math.max(x, bounds.minX - (svgRef.current.getBoundingClientRect().left + xPadding) / CANVAS_SIZE / scale * windowSize);
-        x = Math.min(x, bounds.maxX - (svgRef.current.getBoundingClientRect().right - xPadding) / CANVAS_SIZE / scale * windowSize);
-        
-        return { x, y };
-    }
 
     async function handlePause() {
         try {
@@ -160,28 +102,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
             return;
         }
     }
-
-    useEffect(() => {
-        const svgEl = svgRef.current;
-        if(!svgEl) return;
-
-        const handleWheel = (e: WheelEvent) => {
-            e.preventDefault();
-            // Slower, smoother scrolling
-            const sensitivity = 0.2; // Reduced from 0.5 to 0.2
-            const dx = e.deltaX * sensitivity;
-            const dy = e.deltaY * sensitivity;
-
-            setPan((prev) => clampPan(prev.x + dx, prev.y + dy));
-        };
-
-        svgEl.addEventListener("wheel", handleWheel, { passive: false });
-        return () => svgEl.removeEventListener("wheel", handleWheel);
-    }, [data]);
-
-    useEffect(() => {
-        setPan((prev) => clampPan(prev.x, prev.y));
-    }, []);
 
     const handleCancel = () => {
         console.log('Job canceled.');
@@ -336,18 +256,7 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                 onClick={handleClick}
                 style={{ cursor: isDrawingObstacle ? 'crosshair' : choosingTarget ? 'crosshair' : 'default' }}
             >
-                <image x={scaleCoord(-500, "x")} y={scaleCoord(-350, "y")} href={backgroundImage} className="background"/>
-                
-                {/* Render completed obstacles */}
-                {obstacles.map((obstacle, i) => (
-                    <polygon
-                        key={`obstacle-${i}`}
-                        points={obstacle.map(([x, y]) => `${scaleCoord(x, "x")},${scaleCoord(y, "y")}`).join(' ')}
-                        fill="rgba(139, 69, 19, 0.6)"
-                        stroke="#8B4513"
-                        strokeWidth="2"
-                    />
-                ))}
+                <Map data={data} obstacles={obstacles} backgroundImage={backgroundImage} scaleCoord={scaleCoord} />
 
                 {/* Render obstacle being drawn */}
                 {isDrawingObstacle && obstaclePoints.length > 0 && (
@@ -369,17 +278,6 @@ export function MapPlot({ data, onSetTarget, zoomMin, zoomMax, CANVAS_SIZE, onPl
                             />
                         ))}
                     </>
-                )}
-
-                {data.flock.map((a, i) => (
-                    <ObjectMarker key={`animal-${i}`} type="animal" x={scaleCoord(a[0], "x")} y={scaleCoord(a[1], "y")} />
-                ))}
-                {data.drones.map((d, i) => (
-                    <ObjectMarker key={`drone-${i}`} type="drone" x={scaleCoord(d[0], "x")} y={scaleCoord(d[1], "y")}/>
-                ))}
-
-                {data.jobs.map((job, i) => job.target == null ? null :
-                    <ObjectMarker key={`target-${i}`} type="target" x={scaleCoord(job.target[0], "x")} y={scaleCoord(job.target[1], "y")} />
                 )}
 
             </svg>

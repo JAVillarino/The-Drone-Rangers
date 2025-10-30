@@ -1,7 +1,7 @@
 import {useState} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchState, setTarget, setPlayPause, requestRestart, createCustomScenario } from './api/state'
-import { MapPlot } from './components/MapPlot'
+import { SimulationMapPlot } from './components/SimulationMapPlot.tsx'
 import { State } from "./types.ts"
 import './App.css'
 import WelcomePage from "./components/WelcomePage";
@@ -12,11 +12,6 @@ import { useSSE } from './hooks/useSSE';
 
 function App() {
   const queryClient = useQueryClient();
-
-  const CANVAS_SIZE = 600;
-
-  const worldMin = 0;
-  const worldMax = 250;
 
   const [currentView, setCurrentView] = useState<'welcome' | 'simulator' | 'simulation' | 'live-system' | 'drone-management'>('welcome');
   const [selectedImage, setSelectedImage] = useState<string>("");
@@ -97,7 +92,7 @@ function App() {
       console.log('Navigating to drone management');
       setCurrentView('drone-management');
     };
-    
+
     const handleBackFromDroneManagement = () => {
       console.log('Going back to live system from drone management');
       setCurrentView('live-system');
@@ -147,8 +142,6 @@ function App() {
       ) : currentView === 'simulator' ? (
         <LandingPage 
           onSimulationStart={handleSimulationStart} 
-          worldMax={worldMax} 
-          worldMin={worldMin} 
           startPresetSim={startPresetSim} 
           startCustomSim={createCustomScenario}
           onBack={handleBackToWelcome}
@@ -160,15 +153,13 @@ function App() {
         />
       ) : currentView === 'drone-management' ? (
         <DroneManagementPage 
+          data={data}
           onBack={handleBackFromDroneManagement}
         />
       ) : (
-        data && <MapPlot 
+        data && <SimulationMapPlot 
           data={data} 
           onSetTarget={handleSetTarget} 
-          CANVAS_SIZE={CANVAS_SIZE} 
-          zoomMin={worldMin} 
-          zoomMax={worldMax} 
           onPlayPause={handlePlayPause} 
           onRestart={requestRestart} 
           onBack={handleBackToSimulator} 
