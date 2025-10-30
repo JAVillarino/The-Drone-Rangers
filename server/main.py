@@ -7,15 +7,6 @@ import time
 import threading
 import numpy as np
 
-app = Flask(__name__)
-CORS(app, origins=["http://localhost:5173"])
-
-# Register scenarios API blueprint
-from server.scenarios_api import scenarios_bp, REPO
-from server.drone_management import drones_bp
-app.register_blueprint(scenarios_bp)
-app.register_blueprint(drones_bp)
-
 # Thread-safe lock for world reinitialization
 world_lock = threading.RLock()
 current_scenario_id = None  # Track what scenario is currently loaded
@@ -59,6 +50,15 @@ def initialize_sim():
     ]
 
 backend_adapter, policy, jobs = initialize_sim()
+
+app = Flask(__name__)
+CORS(app, origins=["http://localhost:5173"])
+
+# Register scenarios API blueprint
+from server.scenarios_api import scenarios_bp, REPO
+from server.drone_management import create_drones_blueprint
+app.register_blueprint(scenarios_bp)
+app.register_blueprint(create_drones_blueprint(backend_adapter))
 
 @app.route("/state", methods=["GET"])
 def get_state():
@@ -348,10 +348,6 @@ def patch_job(job_id):
 
             if "drone_count" in data:
                 job_to_update.drones = int(data["drone_count"])
-                if job_to_update.drones > len(backend_adapter.dogs):
-                    backend_adapter.dogs = np.concatenate([backend_adapter.dogs, np.zeros((job_to_update.drones - len(backend_adapter.dogs), 2))])
-                elif job_to_update.drones < len(backend_adapter.dogs):
-                    backend_adapter.dogs = backend_adapter.dogs[:job_to_update.drones]
 
         except (ValueError, TypeError) as e:
             return jsonify({"error": f"Invalid data format: {e}"}), 400
@@ -378,11 +374,7 @@ if __name__ == "__main__":
             else:
                 job.remaining_time = None
                 
-    
-        with world_lock:
-            if backend_adapter.paused:
-                continue
-            
+        with world_lock:            
             # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
             for _ in range(15):
                 plan = policy.plan(backend_adapter.get_state(), jobs, backend_adapter.dt)
