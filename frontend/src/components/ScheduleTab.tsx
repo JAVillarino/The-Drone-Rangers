@@ -1,4 +1,3 @@
-import React from 'react';
 import { FarmJob } from '../types';
 import ScheduleViewControls from './ScheduleViewControls';
 import JobCalendar from './JobCalendar';

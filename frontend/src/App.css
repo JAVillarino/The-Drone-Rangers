@@ -1039,12 +1039,9 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
-}
 
-.real-farm-header {
-  padding: 20px;
-  background-color: #fff;
-  border-bottom: 1px solid #e0e0e0;
+  --nav-height: 5rem;
+  box-sizing: border-box;
 }
 
 /* Tab Navigation Styles */
@@ -1054,6 +1051,15 @@
   padding: 16px 20px;
   background-color: #f8f9fa;
   border-bottom: 1px solid #e0e0e0;
+
+  height: var(--nav-height);
+}
+
+.tab-content {
+  flex: 1;
+  overflow: auto;
+  background-color: #fff;
+  height: calc(100vh - var(--nav-height));
 }
 
 .tab-button {
@@ -1079,12 +1085,6 @@
   color: #2b6cb0;
   border-bottom-color: #2b6cb0;
   font-weight: 600;
-}
-
-.tab-content {
-  flex: 1;
-  overflow: auto;
-  background-color: #fff;
 }
 
 /* Live Farm Tab Styles */

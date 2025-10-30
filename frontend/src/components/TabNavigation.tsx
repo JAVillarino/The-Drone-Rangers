@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface TabNavigationProps {
   activeTab: 'schedule' | 'live-farm';
   onTabChange: (tab: 'schedule' | 'live-farm') => void;

@@ -71,12 +71,6 @@ export default function RealFarmView({
 
   return (
     <div className="real-farm-view">
-      <div className="real-farm-header">
-        <button className="back-btn" onClick={onBack}>
-          ← Back
-        </button>
-      </div>
-
       <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
       <div className="tab-content">
