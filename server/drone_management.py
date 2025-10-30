@@ -1,13 +1,15 @@
 from flask import Blueprint, jsonify, request
 import sqlite3
 import os
-import random
+import pathlib
 import re
 
 
 drones_bp = Blueprint("drones", __name__)
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "tmp", "drones.sqlite3")
+TMP_DIRECTORY = os.path.join(os.path.dirname(__file__), "tmp")
+pathlib.Path(TMP_DIRECTORY).mkdir(exist_ok=True)
+DB_PATH = os.path.join(TMP_DIRECTORY, "drones.sqlite3")
 
 
 def _get_db_connection():

@@ -1,13 +1,10 @@
-import JobStatus from "./JobStatus.tsx";
 import SimulationStatus from "./SimulationStatus.tsx";
 import { useState } from "react";
-import { Job, State } from "../types.ts"
-import { setJobActiveState, setJobDroneCount } from "../api/state.ts";
+import { State } from "../types.ts"
 import { Map, usePan } from "./UsePan.tsx";
 
 interface MapPlotProps {
     data: State,
-    onSetTarget: (coords: {x: number, y: number}) => void
     onPlayPause: () => void,
     onRestart: () => void,
     onBack?: () => void,
@@ -20,7 +17,7 @@ const zoomMin = 0;
 const zoomMax = 250;
 
 
-export function SimulationMapPlot({ data, onSetTarget, onPlayPause, onRestart, onBack, selectedImage }: MapPlotProps) {
+export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, selectedImage }: MapPlotProps) {
     if (!data) return <p>No data yet</p>;
     const paused = data.paused ?? false;
 
@@ -92,55 +89,10 @@ export function SimulationMapPlot({ data, onSetTarget, onPlayPause, onRestart, o
             setObstaclePoints([...obstaclePoints, [cursorpt.x, cursorpt.y]]);
             return;
         }
-
-        if (choosingTarget) {
-            if (!e.target) {
-                throw new Error("No target found for click.");
-            }
-            onSetTarget({x: inverseScaleCoord(cursorpt.x, "x"), y: inverseScaleCoord(cursorpt.y, "y")});
-            setChoosingTarget(false);
-            return;
-        }
-    }
-
-    const handleCancel = () => {
-        console.log('Job canceled.');
-        alert('Job 123 has been canceled.');
-    };
-
-    const jobStatus = (j: Job) => {
-        if (j.remaining_time == 0) {
-            return "Completed";
-        }
-        if (!j.target) {
-            return "No target set";
-        }
-        if (!j.is_active) {
-            return "Stopped";
-        }
-        
-        return "In progress"
     }
 
     return (
-        <div className="map-container">
-            {data.jobs.map((job, index) => 
-                <JobStatus 
-                    key={`job-${job.id || index}`}
-                    jobName="123"
-                    status={jobStatus(job)}
-                    target={job.target}
-                    initialRadius={job.target_radius}
-                    initialDrones={1}
-                    isActive={job.is_active}
-                    onSelectOnMap={() => setChoosingTarget(true)}
-                    onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
-                    onCancel={handleCancel}
-                    onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
-                />
-            )}
-            
-
+        <div className="map-container">           
             {isDrawingObstacle && (
                 <div style={{
                     position: 'absolute',

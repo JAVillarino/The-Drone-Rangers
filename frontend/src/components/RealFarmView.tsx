@@ -29,7 +29,7 @@ export default function RealFarmView({
   onRestart,
   selectedImage
 }: RealFarmViewProps) {
-  const [activeTab, setActiveTab] = useState<'schedule' | 'live-farm' | 'drone-management'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'live-farm' | 'drone-management'>('live-farm');
   const [scheduleView, setScheduleView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false);
 
@@ -72,8 +72,8 @@ export default function RealFarmView({
     <div className="real-farm-view">
       <TabNavigation
           tabs={[
-            { key: 'schedule', label: 'Schedule View' },
-            { key: 'live-farm', label: 'Live Farm View' },
+            { key: 'live-farm', label: 'Live Monitoring' },
+            { key: 'schedule', label: 'Mission Planning' },
             { key: 'drone-management', label: 'Drone Management' },
           ]}
           activeTab={activeTab}
