@@ -39,7 +39,10 @@ export default function RealFarmView({
   // Fetch farm jobs
   const { data: jobs = [], isLoading: jobsLoading } = useQuery({
     queryKey: ['farm-jobs'],
-    queryFn: fetchFarmJobs,
+    queryFn: ({ queryKey }) => {
+      const [_key, _params] = queryKey;
+      return fetchFarmJobs();
+    },
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
@@ -89,9 +92,6 @@ export default function RealFarmView({
           <LiveFarmTab
             data={data}
             onSetTarget={onSetTarget}
-            zoomMin={zoomMin}
-            zoomMax={zoomMax}
-            CANVAS_SIZE={CANVAS_SIZE}
             onPlayPause={onPlayPause}
             onRestart={onRestart}
             onBack={onBack}
