@@ -10,10 +10,9 @@ interface Drone {
 
 interface DroneManagementPageProps {
   data: State;
-  onBack: () => void;
 }
 
-export default function DroneManagementPage({ data, onBack }: DroneManagementPageProps) {
+export default function DroneManagementPage({ data }: DroneManagementPageProps) {
   const [drones, setDrones] = useState<Drone[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -89,10 +88,6 @@ export default function DroneManagementPage({ data, onBack }: DroneManagementPag
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', height: '100vh' }}>
       <div style={{ height: '100vh',  overflowY: 'auto' }}>
         <div className="lp">
-          <div className="lp-header" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button className="lp-back-btn" onClick={onBack}>Back</button>
-          </div>
-
           <div className="lp-panel" style={{ padding: 16 }}>
             {isLoading ? (
               <div style={{ padding: 24, textAlign: 'center', opacity: 0.8 }}>Loading drones...</div>
@@ -184,14 +179,15 @@ export default function DroneManagementPage({ data, onBack }: DroneManagementPag
       </div>
 
       <div>
-        <SimulationMapPlot
+        Hello world.
+        {/* <SimulationMapPlot
             data={data} 
             onSetTarget={handleSetTarget} 
             onPlayPause={handlePlayPause} 
             onRestart={requestRestart} 
             onBack={handleBackToSimulator} 
             selectedImage={selectedImage}
-          />
+          /> */}
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import TabNavigation from './TabNavigation';
 import ScheduleTab from './ScheduleTab';
 import LiveFarmTab from './LiveFarmTab';
 import AddJobModal from './AddJobModal';
+import DroneManagementPage from './DroneManagementPage.tsx';
 
 interface RealFarmViewProps {
   onBack: () => void;
@@ -16,8 +17,6 @@ interface RealFarmViewProps {
   onRestart: () => void;
   selectedImage?: string;
 }
-
-const CANVAS_SIZE = 600;
 
 const zoomMin = 0;
 const zoomMax = 250;
@@ -30,7 +29,7 @@ export default function RealFarmView({
   onRestart,
   selectedImage
 }: RealFarmViewProps) {
-  const [activeTab, setActiveTab] = useState<'schedule' | 'live-farm'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'live-farm' | 'drone-management'>('schedule');
   const [scheduleView, setScheduleView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false);
 
@@ -71,7 +70,15 @@ export default function RealFarmView({
 
   return (
     <div className="real-farm-view">
-      <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+      <TabNavigation
+          tabs={[
+            { key: 'schedule', label: 'Schedule View' },
+            { key: 'live-farm', label: 'Live Farm View' },
+            { key: 'drone-management', label: 'Drone Management' },
+          ]}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
 
       <div className="tab-content">
         {activeTab === 'schedule' ? (
@@ -82,7 +89,7 @@ export default function RealFarmView({
             jobs={jobs}
             isLoading={jobsLoading}
           />
-        ) : (
+        ) : activeTab == 'live-farm' ? (
           <LiveFarmTab
             data={data}
             onSetTarget={onSetTarget}
@@ -91,6 +98,13 @@ export default function RealFarmView({
             onBack={onBack}
             selectedImage={selectedImage}
           />
+        ) : (
+          data ? (
+            <DroneManagementPage 
+              data={data}
+            />) : (
+              <p>Loading farm data...</p>
+            )
         )}
       </div>
 
