@@ -72,7 +72,7 @@ class World:
         flock_init: float = 0.0,     # initial flocking level (0=grazing, 1=flocking)
 
         # knn calculation radius
-        r_attr: float = 65.0,
+        r_attr: float = 30.0,
 
         **_kw_ignore,
     ):
