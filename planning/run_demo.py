@@ -128,6 +128,7 @@ if __name__ == "__main__":
         stuck_speed_ratio=0.08,
         near_wall_ratio=0.8,
         k_nn=8,
+        dt=1,
     )
 
     total_area = 0.5 * W.N * (W.ra ** 2)
