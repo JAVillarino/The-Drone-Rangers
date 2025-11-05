@@ -1,1 +1,0 @@
-We shouldn't present the sheep herding in the corners simulation, the sim looks absolutely terrible in that case.

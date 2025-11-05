@@ -19,12 +19,6 @@ class World:
     """
     Stable flock + rectangular boundaries.
       boundary ∈ {"reflect","wrap","none"}
-
-    Far-field behavior is controllable:
-      - wa_far, g_tug_far: 0.0 → no self-gathering when dog is far
-      - wr_far: gentle anti-crowding during grazing
-      - pre-gather ramp (optional) via pre_gather=True to ease grouping as dog approaches
-    
     """
     def __init__(
         self,
@@ -57,13 +51,6 @@ class World:
 
         # noise (use vector noise as your stand-in for angular e≈0.3)
         sigma: float = 0.3,
-
-        # far-field knobs off (paper)
-        wa_far: float = 0.0,
-        g_tug_far: float = 0.0,
-        wr_far: float = 0.0,
-        pre_gather: bool = False,
-        pre_gather_scale: float = 1.5,
 
         graze_p: float = 0.05,
         
@@ -116,11 +103,6 @@ class World:
         # Cache squared distances for performance
         self.ra_sq = ra * ra
         self.rs_sq = rs * rs
-
-        # far-field behavior
-        self.wa_far, self.g_tug_far, self.wr_far = wa_far, g_tug_far, wr_far
-        self.pre_gather = pre_gather
-        self.pre_gather_scale = max(1.0, float(pre_gather_scale))
 
         # boundaries
         self.boundary = boundary
