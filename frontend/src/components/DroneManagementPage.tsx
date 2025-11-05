@@ -40,6 +40,25 @@ export default function DroneManagementPage({ data }: DroneManagementPageProps) 
     }
   };
 
+  // 🗑️ DELETE handler
+  const handleDeleteDrone = async (droneId: string) => {
+    if (!confirm('Are you sure you want to delete this drone?')) return;
+
+    try {
+      const resp = await fetch(`http://127.0.0.1:5000/drones/${droneId}`, {
+        method: 'DELETE',
+      });
+      if (!resp.ok) {
+        const txt = await resp.text().catch(() => '');
+        throw new Error(`Delete failed (${resp.status}) ${txt}`);
+      }
+      setDrones(prev => prev.filter(d => d.id !== droneId));
+    } catch (e) {
+      console.error('Failed to delete drone:', e);
+      alert('Failed to delete drone. Please try again.');
+    }
+  };
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newMake, setNewMake] = useState('');
   const [newModel, setNewModel] = useState('');
@@ -86,7 +105,7 @@ export default function DroneManagementPage({ data }: DroneManagementPageProps) 
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', height: '100vh' }}>
-      <div style={{ height: '100vh',  overflowY: 'auto' }}>
+      <div style={{ height: '100vh', overflowY: 'auto' }}>
         <div className="lp">
           <div className="lp-panel" style={{ padding: 16 }}>
             {isLoading ? (
@@ -110,7 +129,23 @@ export default function DroneManagementPage({ data }: DroneManagementPageProps) 
                   <div key={drone.id} className="lp-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <strong>{drone.make} {drone.model}</strong>
-                      <span style={{ fontFamily: 'monospace' }}>{drone.id}</span>
+                      <button
+                        onClick={() => handleDeleteDrone(drone.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#e53935',
+                          cursor: 'pointer',
+                          fontWeight: 'bold',
+                          fontSize: 16,
+                        }}
+                        title="Delete drone"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontFamily: 'monospace', opacity: 0.7 }}>{drone.id}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span>Battery:</span>
@@ -192,5 +227,3 @@ export default function DroneManagementPage({ data }: DroneManagementPageProps) 
     </div>
   );
 }
-
-
