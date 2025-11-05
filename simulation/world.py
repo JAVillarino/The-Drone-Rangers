@@ -27,7 +27,7 @@ class World:
         target_xy: list[float] | None = None,
         *,
         # geometry (paper)
-        ra: float = 2.0,          # agent-agent distance
+        ra: float = 4.0,          # agent-agent distance
         rs: float = 65.0,         # shepherd detection
         k_nn: int = 19,           # nearest neighbors
 
