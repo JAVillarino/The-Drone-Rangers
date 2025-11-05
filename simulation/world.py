@@ -27,7 +27,7 @@ class World:
         target_xy: list[float] | None = None,
         *,
         # geometry (paper)
-        ra: float = 4.0,          # agent-agent distance
+        ra: float = 2.0,          # agent-agent distance
         rs: float = 65.0,         # shepherd detection
         k_nn: int = 19,           # nearest neighbors
 
@@ -70,6 +70,10 @@ class World:
         # rng
         seed: int = 0,
         flock_init: float = 0.0,     # initial flocking level (0=grazing, 1=flocking)
+
+        # knn calculation radius
+        r_attr: float = 65.0,
+
         **_kw_ignore,
     ):
         self.N = sheep_xy.shape[0]
@@ -136,6 +140,9 @@ class World:
         self.use_neighbor_cache = (self.N >= 512)
         # Controls what fraction of the self.V velocity calculation for each sheep should be attributed to flocking behavior, and what fraction to grazing behavior.
         self.flock = np.full(self.N, float(np.clip(flock_init, 0.0, 1.0)), dtype=np.float64)
+
+        self.r_attr = float(r_attr)
+        self.r_attr_sq = self.r_attr * self.r_attr
 
     # ---------- polygon management ----------
     def add_polygon(self, polygon: np.ndarray) -> None:
@@ -399,46 +406,75 @@ class World:
             inv_d = 1.0 / d
             vecs = -(d_vec * inv_d[:, None])
             return vecs.sum(axis=0)
+        
+    def _neighbors_within(self, i: int, r_sq: float, max_k: int | None = None) -> np.ndarray:
+        """
+        Return indices of neighbors within distance^2 <= r_sq (excluding i).
+        If max_k is set, cap to that many nearest by distance.
+        """
+        if self.use_neighbor_cache:
+            idx = self.nb_idx[i]
+            k = np.count_nonzero(idx >= 0)
+            if k == 0:
+                # fall back to full scan
+                P_i = self.P[i]
+                d2 = np.sum((self.P - P_i) ** 2, axis=1)
+                mask = (d2 > 0) & (d2 <= r_sq)
+                cand = np.where(mask)[0]
+                if cand.size == 0: 
+                    return cand
+                if max_k is not None and cand.size > max_k:
+                    # take max_k nearest
+                    order = np.argpartition(d2[cand], max_k - 1)[:max_k]
+                    return cand[order]
+                return cand
+            else:
+                cand = idx[:k]
+                # compute distances only to cached neighbors
+                d2 = np.sum((self.P[cand] - self.P[i]) ** 2, axis=1)
+                keep = d2 <= r_sq
+                cand = cand[keep]
+                if cand.size == 0:
+                    return cand
+                if max_k is not None and cand.size > max_k:
+                    order = np.argpartition(d2[keep], max_k - 1)[:max_k]
+                    cand = cand[order]
+                return cand
+        else:
+            P_i = self.P[i]
+            d2 = np.sum((self.P - P_i) ** 2, axis=1)
+            mask = (d2 > 0) & (d2 <= r_sq)
+            cand = np.where(mask)[0]
+            if cand.size == 0:
+                return cand
+            if max_k is not None and cand.size > max_k:
+                order = np.argpartition(d2[cand], max_k - 1)[:max_k]
+                return cand[order]
+            return cand
 
     def _lcm_vec(self, i: int) -> np.ndarray:
-        """Vectorized local center of mass calculation using contiguous arrays."""
-        if self.use_neighbor_cache:
-            idx = self.nb_idx[i]; k = np.count_nonzero(idx >= 0)
-            if k == 0:
-                # Fallback to base path if cache empty
-                idx2 = self._kNN_vec(i, self.k_nn)
-                if idx2.size == 0:
-                    return self.P[i].copy()
-                return np.mean(self.P[idx2], axis=0)
-            return np.mean(self.P[idx[:k]], axis=0)
-        else:
-            idx = self._kNN_vec(i, self.k_nn)
-            if idx.size == 0:
-                return self.P[i].copy()
-            return np.mean(self.P[idx], axis=0)
+        """
+        Local center of mass using only neighbors within r_attr.
+        If none, return self.P[i] so (LCM - P[i]) becomes zero attraction.
+        """
+        idx = self._neighbors_within(i, self.r_attr_sq, self.k_nn)
+        if idx.size == 0:
+            return self.P[i].copy()
+        return np.mean(self.P[idx], axis=0)
 
     def _align_vec(self, i: int) -> np.ndarray:
-        """Vectorized velocity alignment calculation using contiguous arrays."""
-        if self.use_neighbor_cache:
-            idx = self.nb_idx[i]; k = np.count_nonzero(idx >= 0)
-            if k == 0:
-                # Fallback to base path if cache empty
-                idx2 = self._kNN_vec(i, self.k_nn)
-                if idx2.size == 0:
-                    return np.zeros(2)
-                vbar = np.mean(self.V[idx2], axis=0)
-            else:
-                vbar = np.mean(self.V[idx[:k]], axis=0)
-        else:
-            idx = self._kNN_vec(i, self.k_nn)
-            if idx.size == 0:
-                return np.zeros(2)
-            vbar = np.mean(self.V[idx], axis=0)
-        vbar_norm = np.sqrt(np.sum(vbar**2))
-        
-        if vbar_norm == 0:
+        """
+        Alignment using neighbors within r_attr. If none, zero vector.
+        """
+        idx = self._neighbors_within(i, self.r_attr_sq, self.k_nn)
+        if idx.size == 0:
             return np.zeros(2)
-        return vbar / (vbar_norm + 1e-9)
+        vbar = np.mean(self.V[idx], axis=0)
+        n = np.sqrt(np.sum(vbar * vbar))
+        if n == 0.0:
+            return np.zeros(2)
+        return vbar / (n + 1e-9)
+
 
     # ---------- boundaries ----------
     def _apply_bounds_sheep_inplace(self):
