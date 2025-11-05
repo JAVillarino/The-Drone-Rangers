@@ -60,9 +60,9 @@ class Renderer:
 # ---------- main ----------
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--N", type=int, default=100)
+    p.add_argument("--N", type=int, default=10)
     p.add_argument("--spawn", choices=["circle","uniform","clusters","corners","line"],
-                   default="circle", help="initial sheep distribution")
+                   default="corners", help="initial sheep distribution")
     p.add_argument("--clusters", type=int, default=3, help="#clusters for spawn=clusters")
     p.add_argument("--seed", type=int, default=3)
     p.add_argument("--steps", type=int, default=10000)
@@ -127,6 +127,7 @@ if __name__ == "__main__":
         wall_follow_boost=6.0,
         stuck_speed_ratio=0.08,
         near_wall_ratio=0.8,
+        k_nn=8,
     )
 
     total_area = 0.5 * W.N * (W.ra ** 2)
