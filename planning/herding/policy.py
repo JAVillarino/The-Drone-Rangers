@@ -32,12 +32,11 @@ class ShepherdPolicy:
     - Collect: Each drone collects an assigned outermost sheep.
     """
     
-    def __init__(self, *, fN: float, umax: float, too_close: float, collect_standoff: float, drive_standoff: float, conditionally_apply_repulsion: bool = True):
+    def __init__(self, *, fN: float, umax: float, too_close: float, collect_standoff: float, conditionally_apply_repulsion: bool = True):
         self.fN = fN
         self.umax = umax
         self.too_close = too_close
         self.collect_standoff = collect_standoff
-        self.drive_standoff = drive_standoff
         self.conditionally_apply_repulsion = conditionally_apply_repulsion
 
     def _gcm(self, world: state.State) -> np.ndarray:
@@ -53,51 +52,6 @@ class ShepherdPolicy:
         if world.flock.shape[0] == 0: return True
         r = np.max(np.linalg.norm(world.flock - G, axis=1))
         return self.fN / r
-
-    # ------------------ Multi-Drone Drive Logic ------------------
-    def _drive_points(self, world: state.State, G: np.ndarray, target: np.ndarray) -> np.ndarray:
-        """
-        Calculates drive points for all drones.
-        Points are spread in a circular arc behind the G-to-Target line.
-        """
-        num_drones = world.drones.shape[0]
-        
-        # Get target from jobs array
-        
-        if target is None:
-            # If no target is set, return current drone positions (no movement)
-            return world.drones.copy()
-        
-        # Vector from G to Target
-        dir_GT = target - G
-        L_GT = np.linalg.norm(dir_GT)
-        ghat = dir_GT / (L_GT + 1e-9)
-                
-        # Angle spread for points (e.g., 90 degrees total spread)
-        max_angle = np.pi / 2 # 90 degrees total spread
-        
-        # Generate N evenly spaced angles, from -max_angle/2 to +max_angle/2
-        if num_drones > 1:
-            angles = np.linspace(-max_angle / 2, max_angle / 2, num_drones)
-        else:
-            angles = np.array([0.0])
-        
-        drive_points = np.zeros((num_drones, 2))
-        
-        for i in range(num_drones):
-            # Rotate the base standoff vector by the calculated angle
-            # Rotation matrix: [[cos(a), -sin(a)], [sin(a), cos(a)]]
-            ca, sa = np.cos(angles[i]), np.sin(angles[i])
-            rot_matrix = np.array([[ca, -sa], [sa, ca]])
-            
-            # The vector from G to the drone's drive point
-            standoff_vec = -ghat * self.drive_standoff
-            rotated_vec = np.dot(rot_matrix, standoff_vec)
-            
-            drive_points[i] = G + rotated_vec
-            
-        return drive_points
-
 
     # ------------------ Multi-Drone Collect Logic ------------------
     def _collect_points(self, world: state.State, G: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -122,14 +76,23 @@ class ShepherdPolicy:
         for i in range(N_drones):
             dD_all[:, i] = np.linalg.norm(P - D[i], axis=1)        
         
+        # works well for 3-4 sheep in each corner
+        # gcm_weight = 0.7
+        # goal_weight = 0.3
+        # closeness_importance = 1
+        
+        gcm_weight = 0.7
+        goal_weight = 0.3
+        closeness_importance = 1
+        
         # Final Score: Far from G, Far from Target, 
-        intrinsic_score = 0.7 * dG + 0.3 * dGoal
+        intrinsic_score = gcm_weight * dG + goal_weight * dGoal
 
         # Some sheep are intrinsically good to herd, but different drones might be suitable for targeting different sheep. We'll adjust each sheep's score for each drone to figure out which is most suitable for each drone.
         target_sheep_indices = []
         for i in range(N_drones):
             # If there are more drones, the closeness will get accounted for by the min_distance_other stuff.
-            closeness_importance = 0.03 * (1 / N_drones)
+            closeness_importance = closeness_importance * (1 / N_drones)
             # Make the score worse the farther away that sheep is.
             score = intrinsic_score - closeness_importance * dD_all[:, i]
             # Compute how close the other drones are to this sheep.
@@ -158,6 +121,8 @@ class ShepherdPolicy:
     # ------------------ Flyover Logic (Per-Drone) ------------------
     def _should_apply_repulsion(self, world: state.State, drone_idx: int, gcm: np.ndarray, target: np.ndarray) -> bool:
         """Check if a specific drone should apply repulsion. Returns true if the drone's repulsive force points either towards the GCM or towards the overall target. """
+        # TODO: Bring this back. Not sure if it'll be easier to tune with or without this.
+        return False
         # Compute squared distances from this drone to all sheep
         dist_sq = np.sum((world.flock - world.drones[drone_idx])**2, axis=1)
 
@@ -218,26 +183,25 @@ class ShepherdPolicy:
         
         N_drones = world.drones.shape[0]
         G = self._gcm(world)
-        is_cohesive = self._cohesive(world, G)
         # Initialize arrays for the plan
         target_positions = np.zeros((N_drones, 2))
         apply_repulsion = np.full(N_drones, 1)
         target_indices = np.full(N_drones, -1, dtype=int)
 
-        if is_cohesive:
-            # DRIVE PHASE: All drones drive to their assigned drive point
-            target_positions = self._drive_points(world, G, target)
-            # Repulsion is ON (False) by default and remains so in drive phase
-        else:
-            # COLLECT PHASE: Each drone targets an outermost sheep's standoff point
-            collect_points, target_indices = self._collect_points(world, G, target)
-            target_positions = collect_points
-            
-            # Check flyover status for each drone individually
-            if self.conditionally_apply_repulsion:
-                for i in range(N_drones):
-                    # Check if the path from current drone position to its assigned collect point needs a flyover
-                    apply_repulsion[i] = self._should_apply_repulsion(world, i, G, target)
+        # COLLECT PHASE: Each drone targets an outermost sheep's standoff point
+        target_positions, target_indices = self._collect_points(world, G, target)
+        
+        # Check flyover status for each drone individually
+        if self.conditionally_apply_repulsion:
+            for i in range(N_drones):
+                # If the drone has reached it's target position, then it should always apply repulsion, otherwise it will just get stuck.
+                if np.linalg.norm(target_positions[i] - world.drones[i]) < 1:
+                    print("Overriding")
+                    apply_repulsion[i] = True
+                    continue
+                
+                # Check if the path from current drone position to its assigned collect point needs a flyover
+                apply_repulsion[i] = self._should_apply_repulsion(world, i, G, target)
         
         # Vector from drone to target position
         dir_to_target = target_positions - world.drones 

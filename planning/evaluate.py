@@ -76,7 +76,6 @@ def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visuali
         # TODO: Initialize these from the config.
         too_close = 1.5 * W.ra,
         collect_standoff = 1.0 * W.ra,
-        drive_standoff   = 1.0 * W.ra + collected_herd_radius,
         conditionally_apply_repulsion=config["conditionally_apply_repulsion"],
     )
     

@@ -139,7 +139,6 @@ if __name__ == "__main__":
         umax = W.umax,                    # keep in sync with world
         too_close = 1.5 * W.ra,             # safety stop
         collect_standoff = 1.0 * W.ra,    # paper: r_a behind the stray
-        drive_standoff   = 1.0 * W.ra + collected_herd_radius,  # paper: r_a * sqrt(N) behind COM
         conditionally_apply_repulsion=True,
     )
 

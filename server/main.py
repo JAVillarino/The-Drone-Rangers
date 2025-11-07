@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import random
-from planning import herding, state, plan_type
+from planning import herding, state
 from simulation import world
 import time
 import threading
@@ -20,7 +20,6 @@ def _create_policy_for_world(w: world.World) -> herding.ShepherdPolicy:
         umax=w.umax,
         too_close=1.5 * w.ra,
         collect_standoff=1.0 * w.ra,
-        drive_standoff=1.0 * w.ra + collected_herd_radius,
     )
 
 def initialize_sim():
