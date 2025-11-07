@@ -446,14 +446,17 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
         db_jobs = repo.list(status=normalized_status)
 
         # Filter by date range if provided
+        # For calendar views, filter by scheduled time (start_at), fallback to created_at for immediate jobs
         if start_date or end_date:
             start_ts = _parse_iso_timestamp(start_date) if start_date else None
             end_ts = _parse_iso_timestamp(end_date) if end_date else None
 
             def in_date_range(job: Job) -> bool:
-                if start_ts and job.created_at < start_ts:
+                # Use start_at (scheduled time) for scheduled jobs, created_at for immediate jobs
+                job_date = job.start_at if job.start_at is not None else job.created_at
+                if start_ts and job_date < start_ts:
                     return False
-                if end_ts and job.created_at > end_ts:
+                if end_ts and job_date > end_ts:
                     return False
                 return True
 
