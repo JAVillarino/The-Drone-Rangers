@@ -105,10 +105,7 @@ class ShepherdPolicy:
         closeness_weight = lerp_clamped(1, 0.2, 0.3, 1.5, cohesiveness)
         # The closer the sheep are to the goal, the less it matters how far the drone is from the sheep.
         closeness_weight *= lerp_clamped(0.2, 1, 2, 4, goal_distance)
-        print(f"{goal_distance:.2f}; {gcm_weight:.2f}, {goal_weight:.2f}, {closeness_weight:.2f}")
-
         
-        # Final Score: Far from G, Far from Target, 
         intrinsic_score = gcm_weight * dG + goal_weight * dGoal
 
         # Some sheep are intrinsically good to herd, but different drones might be suitable for targeting different sheep. We'll adjust each sheep's score for each drone to figure out which is most suitable for each drone.
