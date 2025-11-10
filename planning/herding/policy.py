@@ -4,6 +4,11 @@ from planning.plan_type import DoNothing, Plan, DronePositions
 from planning import state
 
 
+def lerp_clamped(a: float, b: float, t1: float, t2: float, t: float) -> float:
+            """Linearly interpolate between a and b by t, but clamp t to [0,1]."""
+            t = (t - t1) / (t2 - t1)
+            t = max(0.0, min(1.0, t))
+            return a + (b - a) * t
 
 def is_goal_satisfied(w: state.State, target: np.ndarray, goal_tolerance: float) -> bool:
     """
@@ -47,10 +52,16 @@ class ShepherdPolicy:
         """Check for flock cohesiveness."""
         return self._cohesiveness(world, G) > 1
     
-    def _cohesiveness(self, world: state.State, G: np.ndarray) -> bool:
-        """Check for flock cohesiveness."""
+    def _cohesiveness(self, world: state.State, G: np.ndarray) -> float:
+        """Check for flock cohesiveness. Always greater than 0, this is more than 1 when the flock is contained within self.fN of the GCM"""
         if world.flock.shape[0] == 0: return True
         r = np.max(np.linalg.norm(world.flock - G, axis=1))
+        return self.fN / r
+    
+    def _mean_cohesiveness(self, world: state.State, G: np.ndarray) -> float:
+        """Check for flock cohesiveness. Always greater than 0, this is more than 1 when the flock is contained within self.fN of the GCM"""
+        if world.flock.shape[0] == 0: return True
+        r = np.mean(np.linalg.norm(world.flock - G, axis=1))
         return self.fN / r
 
     # ------------------ Multi-Drone Collect Logic ------------------
@@ -76,14 +87,26 @@ class ShepherdPolicy:
         for i in range(N_drones):
             dD_all[:, i] = np.linalg.norm(P - D[i], axis=1)        
         
-        # works well for 3-4 sheep in each corner
+        # works well for 3-4 sheep in each corner. Also worked fairly well for there being a big uniform one.
         # gcm_weight = 0.7
         # goal_weight = 0.3
-        # closeness_importance = 1
-        
-        gcm_weight = 0.7
-        goal_weight = 0.3
-        closeness_importance = 1
+        # closeness_weight = 1
+                
+        # I'm thinking maybe the problem is that herding towards the GCM doesn't work very well if it's already cohesive, because it should be herding towards the goal.
+        cohesiveness = self._mean_cohesiveness(world, G)
+        goal_distance = np.max(dGoal) / self.fN
+        # The more cohesive it is, the less we care about the gcm.
+        gcm_weight = lerp_clamped(0.8, 0.6, 0.3, 1.5, cohesiveness)
+        # The closer we are to the goal, the less it matters how far from the GCM the sheep is.
+        gcm_weight *= lerp_clamped(0.5, 1, 1, 3, goal_distance)
+        # The more cohesive it is, the more we care about how far it is from the goal.
+        goal_weight = lerp_clamped(0.2, 0.4, 0.3, 1.5, cohesiveness)
+        # The more cohesive the herd is, the less it matters how far the drone is from the sheep.
+        closeness_weight = lerp_clamped(1, 0.2, 0.3, 1.5, cohesiveness)
+        # The closer the sheep are to the goal, the less it matters how far the drone is from the sheep.
+        closeness_weight *= lerp_clamped(0.2, 1, 2, 4, goal_distance)
+        print(f"{goal_distance:.2f}; {gcm_weight:.2f}, {goal_weight:.2f}, {closeness_weight:.2f}")
+
         
         # Final Score: Far from G, Far from Target, 
         intrinsic_score = gcm_weight * dG + goal_weight * dGoal
@@ -92,9 +115,9 @@ class ShepherdPolicy:
         target_sheep_indices = []
         for i in range(N_drones):
             # If there are more drones, the closeness will get accounted for by the min_distance_other stuff.
-            closeness_importance = closeness_importance * (1 / N_drones)
+            closeness_weight = closeness_weight * (1 / N_drones)
             # Make the score worse the farther away that sheep is.
-            score = intrinsic_score - closeness_importance * dD_all[:, i]
+            score = intrinsic_score - closeness_weight * dD_all[:, i]
             # Compute how close the other drones are to this sheep.
             d_other_drones = np.hstack((dD_all[:, :i], dD_all[:, i+1:]))
             
@@ -196,7 +219,7 @@ class ShepherdPolicy:
             for i in range(N_drones):
                 # If the drone has reached it's target position, then it should always apply repulsion, otherwise it will just get stuck.
                 if np.linalg.norm(target_positions[i] - world.drones[i]) < 1:
-                    print("Overriding")
+                    # print("Overriding")
                     apply_repulsion[i] = True
                     continue
                 
@@ -224,5 +247,7 @@ class ShepherdPolicy:
         return DronePositions(
             positions=new_positions,
             apply_repulsion=apply_repulsion,
-            target_sheep_indices=target_indices
+            target_sheep_indices=target_indices,
+            gcm=G,
+            radius=self.fN,
         )

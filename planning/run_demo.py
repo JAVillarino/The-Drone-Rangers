@@ -7,6 +7,7 @@ from simulation import world
 from planning.herding import policy
 from planning.state import Job
 from simulation.scenarios import *
+from planning import plan_type
 
 class Renderer:
     def __init__(self, world, target, bounds=(0.0, 500.0, 0.0, 500.0)):
@@ -32,8 +33,13 @@ class Renderer:
         self.sheep_sc = self.ax.scatter(state.flock[:, 0], state.flock[:, 1], s=20)
         self.dog_sc   = self.ax.scatter([state.drones[:, 0]], [state.drones[:, 1]], marker='x')
         self.targ_sc  = self.ax.scatter([target[0]], [target[1]], marker='*')
+        
+        # TODO: Make this move around every iteration.
+        self.circle = plt.Circle((0, 0), 0, color='b', fill=False)
+        self.ax.add_patch(self.circle)
 
-    def render_world(self, world, plan, step_number, target, debug=False):
+
+    def render_world(self, world, plan: plan_type.Plan, step_number, target, debug=False):
         """Update the scatter plots for the current state of the world."""
         state = world.get_state()
 
@@ -41,11 +47,20 @@ class Renderer:
         self.sheep_sc.set_offsets(state.flock)
 
         if debug:
-            # Highlight target sheep if specified
-            colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue
-            for i in plan.target_sheep_indices:
-                colors[i] = (1.0, 0.0, 0.0, 1.0)  # target sheep red
-            self.sheep_sc.set_facecolor(colors)
+            match plan:
+                case plan_type.DoNothing():
+                    pass
+                case plan_type.DronePositions(positions=pos, apply_repulsion=apply, target_sheep_indices=_, gcm=gcm, radius=r):
+                    # Highlight target sheep if specified
+                    colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue
+                    for i in plan.target_sheep_indices:
+                        colors[i] = (1.0, 0.0, 0.0, 1.0)  # target sheep red
+                    self.sheep_sc.set_facecolor(colors)
+                    
+                    self.circle.center = gcm
+                    self.circle.radius = r
+                case _ as unexpected_plan:
+                    raise Exception("Unexpected plan type", unexpected_plan)
 
         # Update dog and target markers
         self.dog_sc.set_offsets(state.drones)
@@ -53,16 +68,16 @@ class Renderer:
 
         # Title
         self.ax.set_title(f"Step {step_number}")
-
+        
         # Redraw
         self.fig.canvas.draw_idle()
 
 # ---------- main ----------
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--N", type=int, default=10)
+    p.add_argument("--N", type=int, default=100)
     p.add_argument("--spawn", choices=["circle","uniform","clusters","corners","line"],
-                   default="corners", help="initial sheep distribution")
+                   default="uniform", help="initial sheep distribution")
     p.add_argument("--clusters", type=int, default=3, help="#clusters for spawn=clusters")
     p.add_argument("--seed", type=int, default=3)
     p.add_argument("--steps", type=int, default=10000)
