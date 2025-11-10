@@ -139,9 +139,12 @@ class ShepherdPolicy:
         return collect_points, target_sheep_indices
 
     # ------------------ Flyover Logic (Per-Drone) ------------------
-    def _should_apply_repulsion(self, world: state.State, drone_idx: int, gcm: np.ndarray, target: np.ndarray) -> bool:
-        """Check if a specific drone should apply repulsion. Returns true if the drone's repulsive force points either towards the GCM or towards the overall target. """
-        # TODO: Bring this back. Not sure if it'll be easier to tune with or without this.
+    def _should_apply_repulsion(self, world: state.State, drone_idx: int, gcm: np.ndarray, target: np.ndarray, target_positions: np.ndarray) -> bool:
+        """Check if a specific drone should apply repulsion. Returns true if the drone is close to its collect point."""
+        # If the drone is close to its collect point, then it should always apply repulsion
+        if np.linalg.norm(target_positions[drone_idx] - world.drones[drone_idx]) < 2:
+            return True
+
         return False
         # Compute squared distances from this drone to all sheep
         dist_sq = np.sum((world.flock - world.drones[drone_idx])**2, axis=1)
@@ -213,15 +216,9 @@ class ShepherdPolicy:
         
         # Check flyover status for each drone individually
         if self.conditionally_apply_repulsion:
-            for i in range(N_drones):
-                # If the drone has reached it's target position, then it should always apply repulsion, otherwise it will just get stuck.
-                if np.linalg.norm(target_positions[i] - world.drones[i]) < 1:
-                    # print("Overriding")
-                    apply_repulsion[i] = True
-                    continue
-                
+            for i in range(N_drones):                
                 # Check if the path from current drone position to its assigned collect point needs a flyover
-                apply_repulsion[i] = self._should_apply_repulsion(world, i, G, target)
+                apply_repulsion[i] = self._should_apply_repulsion(world, i, G, target, target_positions)
         
         # Vector from drone to target position
         dir_to_target = target_positions - world.drones 

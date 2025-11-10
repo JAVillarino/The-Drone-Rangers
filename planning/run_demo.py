@@ -1,4 +1,5 @@
 import argparse
+import time
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -75,7 +76,7 @@ class Renderer:
 # ---------- main ----------
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--N", type=int, default=100)
+    p.add_argument("--N", type=int, default=200)
     p.add_argument("--spawn", choices=["circle","uniform","clusters","corners","line"],
                    default="uniform", help="initial sheep distribution")
     p.add_argument("--clusters", type=int, default=3, help="#clusters for spawn=clusters")
@@ -170,12 +171,19 @@ if __name__ == "__main__":
     s0 = W.get_state()
     num_drones = s0.drones.shape[0]
 
+    current_time = time.time()
     jobs = [Job(
         target=target_xy.copy(),
         target_radius=10.0,
         remaining_time=None,
         is_active=True,
         drones=num_drones,
+        status="running",
+        start_at=None,
+        completed_at=None,
+        scenario_id=None,
+        created_at=current_time,
+        updated_at=current_time,
     )]
     
     renderer = Renderer(W, jobs[0].target)
