@@ -43,15 +43,17 @@ interface CustomScenario {
 }
 
 export async function fetchState() {
-    return fetch(`${backendURL}/state`)
-    .then((response) => {
-        const obj =  response.json();
+    try {
+        const response = await fetch(`${backendURL}/state`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const obj = await response.json();
         return obj;
-
-    })    
-    .catch((err) => 
-        console.error("Error fetching state:", err)
-    );
+    } catch (err) {
+        console.error("Error fetching state:", err);
+        throw err; // Re-throw so React Query can handle the error
+    }
 }
 
 export async function setTarget(coords: {x: number, y: number}) {

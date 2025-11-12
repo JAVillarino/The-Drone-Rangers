@@ -1,10 +1,26 @@
 import SimulationStatus from "./SimulationStatus.tsx";
 import { useState } from "react";
-import { State } from "../types.ts"
+import { Job, State } from "../types.ts"
 import { Map, usePan } from "./UsePan.tsx";
+import JobStatus from './JobStatus.tsx';
+import { setJobActiveState, setJobDroneCount } from '../api/state.ts';
+
+const jobStatus = (j: Job) => {
+    if (j.remaining_time == 0) {
+        return "Completed";
+    }
+    if (!j.target) {
+        return "No target set";
+    }
+    if (!j.is_active) {
+        return "Stopped";
+    }
+    return "Running";
+}
 
 interface MapPlotProps {
     data: State,
+    onSetTarget?: (coords: {x: number, y: number}) => void,
     onPlayPause: () => void,
     onRestart: () => void,
     onBack?: () => void,
@@ -17,7 +33,7 @@ const zoomMin = 0;
 const zoomMax = 250;
 
 
-export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, selectedImage }: MapPlotProps) {
+export function SimulationMapPlot({ data, onSetTarget, onPlayPause, onRestart, onBack, selectedImage }: MapPlotProps) {
     if (!data) return <p>No data yet</p>;
     const paused = data.paused ?? false;
 
@@ -71,6 +87,11 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
         setIsDrawingObstacle(false);
         setObstaclePoints([]);
     };
+    const handleCancelJob = () => {
+        // TODO: Send cancel request to backend
+        console.log('Job canceled.');
+        alert('Job 123 has been canceled.');
+      };
 
     const handleCancelObstacle = () => {
         setIsDrawingObstacle(false);
@@ -92,7 +113,22 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
     }
 
     return (
-        <div className="map-container">           
+        <div className="map-container">  
+            {data.jobs.map((job, index) => 
+                <JobStatus 
+                    key={`job-${job.id || index}`}
+                    jobName="123"
+                    status={jobStatus(job)}
+                    target={job.target}
+                    initialRadius={job.target_radius}
+                    initialDrones={1}
+                    isActive={job.is_active}
+                    onSelectOnMap={() => setChoosingTarget(true)}
+                    onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
+                    onCancel={handleCancelJob}
+                    onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
+                />
+            )}         
             {isDrawingObstacle && (
                 <div style={{
                     position: 'absolute',

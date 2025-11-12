@@ -36,15 +36,15 @@ function App() {
   // Determine if we should actually use SSE data (only if connected and have data)
   const actuallyUsingSSE = shouldUseSSE && isConnected;
 
-  // Check if we need state data (simulation or live-system views)
-  const needsStateData = currentView === 'simulation' || currentView === 'live-system';
+  // Check if we need state data (only for simulation view, live-system handles its own)
+  const needsStateData = currentView === 'simulation';
 
-  // Traditional polling (use when SSE is not actually working, or for live-system view)
+  // Traditional polling (use when SSE is not actually working, only for simulation view)
   const { data: pollingData, isLoading, error } = useQuery<State>({
     queryKey: ["objects"],
     queryFn: fetchState,
-    refetchInterval: needsStateData && !actuallyUsingSSE ? 25 : false, // Poll for both simulation and live-system if SSE not active
-    enabled: needsStateData && !actuallyUsingSSE // Query for both simulation and live-system views when SSE is not active
+    refetchInterval: needsStateData && !actuallyUsingSSE ? 25 : false, // Poll only for simulation if SSE not active
+    enabled: needsStateData && !actuallyUsingSSE // Query only for simulation view when SSE is not active
   });
 
   // Use SSE data when actually connected, otherwise use polling data
@@ -128,11 +128,11 @@ function App() {
       return { success: true, scenario };
     };
   
-    // Show loading/error states when on simulation or live-system views that need data
+    // Show loading/error states when on simulation view that needs data
     if (needsStateData) {
       if (isLoading) return <p>Loading...</p>;
       if (error instanceof Error) return <p>Error: {error.message}</p>;
-      if (!data && currentView === 'simulation') return <p>No data</p>;
+      if (!data) return <p>No data</p>;
     }
 
   return (
@@ -157,18 +157,13 @@ function App() {
           onBack={handleBackToWelcome}
         />
       ) : currentView === 'live-system' ? (
-        data ? (
-          <RealFarmView 
-            onBack={handleBackFromLiveSystem}
-            data={data}
-            onSetTarget={handleSetTarget}
-            onPlayPause={handlePlayPause}
-            onRestart={requestRestart}
-            selectedImage={selectedImage}
-          />
-        ) : (
-          <p>Loading farm data...</p>
-        )
+        <RealFarmView 
+          onBack={handleBackFromLiveSystem}
+          onSetTarget={handleSetTarget}
+          onPlayPause={handlePlayPause}
+          onRestart={requestRestart}
+          selectedImage={selectedImage}
+        />
       ) : (
         data && <SimulationMapPlot 
           data={data} 
