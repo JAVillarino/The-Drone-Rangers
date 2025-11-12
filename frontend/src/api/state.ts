@@ -104,7 +104,7 @@ export async function requestRestart() {
 
 export async function setJobActiveState(jobId: number, isActive: boolean) {
     try {
-        const response = await fetch(`${backendURL}/jobs/${jobId}`, {
+        const response = await fetch(`${backendURL}/api/jobs/${jobId}`, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json",
@@ -127,7 +127,7 @@ export async function setJobActiveState(jobId: number, isActive: boolean) {
 export async function setJobDroneCount(jobId: number, droneCount: number) {
     try {
         console.log(`Setting drone count for job ${jobId} to ${droneCount}`);
-        const response = await fetch(`${backendURL}/jobs/${jobId}`, {
+        const response = await fetch(`${backendURL}/api/jobs/${jobId}`, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json",

@@ -44,7 +44,6 @@ export function useSSE({ url, enabled, onError, retryInterval = 60000 }: UseSSEO
         return;
       }
 
-      console.log('Attempting SSE connection...');
       hasAttemptedRef.current = true;
 
       // Create EventSource connection
@@ -53,7 +52,6 @@ export function useSSE({ url, enabled, onError, retryInterval = 60000 }: UseSSEO
 
       // Handle connection opened
       eventSource.onopen = () => {
-        console.log('SSE connection established');
         setIsConnected(true);
         // Clear retry timeout on successful connection
         if (retryTimeoutRef.current) {
@@ -72,6 +70,16 @@ export function useSSE({ url, enabled, onError, retryInterval = 60000 }: UseSSEO
         }
       });
 
+      // Also listen for generic 'message' events as fallback
+      eventSource.onmessage = (event: MessageEvent) => {
+        try {
+          const parsedData: State = JSON.parse(event.data);
+          setData(parsedData);
+        } catch (error) {
+          console.error('Failed to parse SSE message data:', error);
+        }
+      };
+
       // Handle errors
       eventSource.onerror = (error) => {
         console.error('SSE connection error:', error);
@@ -85,7 +93,6 @@ export function useSSE({ url, enabled, onError, retryInterval = 60000 }: UseSSEO
         
         // Schedule retry after retryInterval if still enabled and no timeout already scheduled
         if (enabledRef.current && !retryTimeoutRef.current) {
-          console.log(`SSE connection failed. Retrying in ${retryInterval / 1000} seconds...`);
           retryTimeoutRef.current = window.setTimeout(() => {
             retryTimeoutRef.current = null;
             // Check if still enabled and not connected before retrying
@@ -123,7 +130,6 @@ export function useSSE({ url, enabled, onError, retryInterval = 60000 }: UseSSEO
     // Cleanup on unmount or when disabled
     return () => {
       if (eventSourceRef.current) {
-        console.log('Closing SSE connection');
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
