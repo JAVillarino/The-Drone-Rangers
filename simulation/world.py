@@ -46,9 +46,6 @@ class World:
         # far-field grazing
         graze_alpha: float = 0.0,   # paper doesn't add separate wander
 
-        # global tug
-        g_tug: float = 0.0,       # off in base paper
-
         # noise (use vector noise as your stand-in for angular e≈0.3)
         sigma: float = 0.3,
 
@@ -73,6 +70,10 @@ class World:
         # rng
         seed: int = 0,
         flock_init: float = 0.0,     # initial flocking level (0=grazing, 1=flocking)
+
+        # knn calculation radius
+        r_attr: float = 30.0,
+
         **_kw_ignore,
     ):
         self.N = sheep_xy.shape[0]
@@ -98,7 +99,7 @@ class World:
         self.dt, self.vmax, self.umax = dt, vmax, umax
         self.wr, self.wa, self.ws, self.wm, self.w_align = wr, wa, ws, wm, w_align
         self.graze_alpha = graze_alpha
-        self.g_tug, self.sigma = g_tug, sigma
+        self.sigma = sigma
 
         # Cache squared distances for performance
         self.ra_sq = ra * ra
@@ -137,7 +138,11 @@ class World:
         self.eps_move = max(1e-6, 0.4*self.ra)
         # Auto-toggle: enable cache for large flocks only
         self.use_neighbor_cache = (self.N >= 512)
+        # Controls what fraction of the self.V velocity calculation for each sheep should be attributed to flocking behavior, and what fraction to grazing behavior.
         self.flock = np.full(self.N, float(np.clip(flock_init, 0.0, 1.0)), dtype=np.float64)
+
+        self.r_attr = float(r_attr)
+        self.r_attr_sq = self.r_attr * self.r_attr
 
     # ---------- polygon management ----------
     def add_polygon(self, polygon: np.ndarray) -> None:
@@ -401,46 +406,75 @@ class World:
             inv_d = 1.0 / d
             vecs = -(d_vec * inv_d[:, None])
             return vecs.sum(axis=0)
+        
+    def _neighbors_within(self, i: int, r_sq: float, max_k: int | None = None) -> np.ndarray:
+        """
+        Return indices of neighbors within distance^2 <= r_sq (excluding i).
+        If max_k is set, cap to that many nearest by distance.
+        """
+        if self.use_neighbor_cache:
+            idx = self.nb_idx[i]
+            k = np.count_nonzero(idx >= 0)
+            if k == 0:
+                # fall back to full scan
+                P_i = self.P[i]
+                d2 = np.sum((self.P - P_i) ** 2, axis=1)
+                mask = (d2 > 0) & (d2 <= r_sq)
+                cand = np.where(mask)[0]
+                if cand.size == 0: 
+                    return cand
+                if max_k is not None and cand.size > max_k:
+                    # take max_k nearest
+                    order = np.argpartition(d2[cand], max_k - 1)[:max_k]
+                    return cand[order]
+                return cand
+            else:
+                cand = idx[:k]
+                # compute distances only to cached neighbors
+                d2 = np.sum((self.P[cand] - self.P[i]) ** 2, axis=1)
+                keep = d2 <= r_sq
+                cand = cand[keep]
+                if cand.size == 0:
+                    return cand
+                if max_k is not None and cand.size > max_k:
+                    order = np.argpartition(d2[keep], max_k - 1)[:max_k]
+                    cand = cand[order]
+                return cand
+        else:
+            P_i = self.P[i]
+            d2 = np.sum((self.P - P_i) ** 2, axis=1)
+            mask = (d2 > 0) & (d2 <= r_sq)
+            cand = np.where(mask)[0]
+            if cand.size == 0:
+                return cand
+            if max_k is not None and cand.size > max_k:
+                order = np.argpartition(d2[cand], max_k - 1)[:max_k]
+                return cand[order]
+            return cand
 
     def _lcm_vec(self, i: int) -> np.ndarray:
-        """Vectorized local center of mass calculation using contiguous arrays."""
-        if self.use_neighbor_cache:
-            idx = self.nb_idx[i]; k = np.count_nonzero(idx >= 0)
-            if k == 0:
-                # Fallback to base path if cache empty
-                idx2 = self._kNN_vec(i, self.k_nn)
-                if idx2.size == 0:
-                    return self.P[i].copy()
-                return np.mean(self.P[idx2], axis=0)
-            return np.mean(self.P[idx[:k]], axis=0)
-        else:
-            idx = self._kNN_vec(i, self.k_nn)
-            if idx.size == 0:
-                return self.P[i].copy()
-            return np.mean(self.P[idx], axis=0)
+        """
+        Local center of mass using only neighbors within r_attr.
+        If none, return self.P[i] so (LCM - P[i]) becomes zero attraction.
+        """
+        idx = self._neighbors_within(i, self.r_attr_sq, self.k_nn)
+        if idx.size == 0:
+            return self.P[i].copy()
+        return np.mean(self.P[idx], axis=0)
 
     def _align_vec(self, i: int) -> np.ndarray:
-        """Vectorized velocity alignment calculation using contiguous arrays."""
-        if self.use_neighbor_cache:
-            idx = self.nb_idx[i]; k = np.count_nonzero(idx >= 0)
-            if k == 0:
-                # Fallback to base path if cache empty
-                idx2 = self._kNN_vec(i, self.k_nn)
-                if idx2.size == 0:
-                    return np.zeros(2)
-                vbar = np.mean(self.V[idx2], axis=0)
-            else:
-                vbar = np.mean(self.V[idx[:k]], axis=0)
-        else:
-            idx = self._kNN_vec(i, self.k_nn)
-            if idx.size == 0:
-                return np.zeros(2)
-            vbar = np.mean(self.V[idx], axis=0)
-        vbar_norm = np.sqrt(np.sum(vbar**2))
-        
-        if vbar_norm == 0:
+        """
+        Alignment using neighbors within r_attr. If none, zero vector.
+        """
+        idx = self._neighbors_within(i, self.r_attr_sq, self.k_nn)
+        if idx.size == 0:
             return np.zeros(2)
-        return vbar / (vbar_norm + 1e-9)
+        vbar = np.mean(self.V[idx], axis=0)
+        n = np.sqrt(np.sum(vbar * vbar))
+        if n == 0.0:
+            return np.zeros(2)
+        return vbar / (n + 1e-9)
+
 
     # ---------- boundaries ----------
     def _apply_bounds_sheep_inplace(self):
@@ -522,37 +556,34 @@ class World:
             dog_distances_sq[:, i] = np.sum((self.P - self.dogs[i])**2, axis=1)
 
         # If a given drone isn't applying repulsion, just make it seem like that drone is a bajillion miles away.
-        # dog_distances_sq[:, self.apply_repulsion] = 1_000_000
         dog_distances_sq[:, self.apply_repulsion == 0] = 1_000_000
 
         # --- NEW: continuous flock factor update ---
         d_all = np.sqrt(np.maximum(dog_distances_sq, 0.0))
         # push_j ∈ [0,1], already distance-ramped by your smooth_push
-        push_all = np.clip(smooth_push(d_all, self.rs), 0.0, 1.0)
+        push_all = smooth_push(d_all, self.rs)
 
         # Combine multiple drones as union probability of "being pushed"
         repel_level = 1.0 - np.prod(1.0 - push_all, axis=1)   # ∈ [0,1]
 
         # EMA smooth with previous value
-        self.flock = 0.5*self.flock + (1 - 0.5)*repel_level
+        delta = repel_level - self.flock
+        # We have a much faster rate of change when we are getting into flocking than when we are getting out of it.
+        # Chose 1/2 because I'm guessing it takes a sheep two seconds to get into herding behavior when there's a dog nearby.
+        # Chose 1/60 because I'm guessing a sheep will stick to herding behavior for a full minute after the dog has left.
+        rate = np.where(delta > 0, 1 / 2, 1 / 60)
+        change_in_flocking = rate * delta * self.dt
+        self.flock += change_in_flocking
         self.flock = np.clip(self.flock, 0.0, 1.0)
+                
         
-        # Get the distance to the *closest* drone
-        min_dog_distances_sq = np.min(dog_distances_sq, axis=1)
-        
-        # Use the closest distance to determine near/far
-        far_mask = min_dog_distances_sq > self.rs_sq
-        near_mask = ~far_mask
-        
-        # Handle far sheep (grazing behavior)
-        if np.any(far_mask):
-            self._handle_far_sheep(far_mask, G)
-        
-        # Handle near sheep (flocking behavior) 
-        if np.any(near_mask):
-            # Only compute actual distances for near sheep when needed            
-            min_near_distances = np.sqrt(min_dog_distances_sq[near_mask])
-            self._handle_near_sheep(near_mask, dog_distances_sq[near_mask], G, min_near_distances)
+        v_far = self._handle_far_sheep(G)
+        v_near = self._handle_near_sheep(G, dog_distances_sq)
+
+        # The more flocking it is, the more near behavior it should have.
+        v_new = v_near * self.flock[:, np.newaxis] + (1.0 - self.flock[:, np.newaxis]) * v_far
+        self.P += v_new * self.dt
+        self.V = v_new
 
         # TODO: Add this back.
         # Soft keep-out (see change below) then bounds
@@ -566,13 +597,12 @@ class World:
             self.P[bad] = np.array([cx, cy])
             self.V[bad] = 0.0
     
-    def _handle_far_sheep(self, far_mask: np.ndarray, G: np.ndarray):
-        """Handle sheep that are far from the dog (grazing behavior)."""
-        far_indices = np.where(far_mask)[0]
-
+    def _handle_far_sheep(self, G: np.ndarray) -> np.ndarray:
+        """Handle sheep that are far from the dog (grazing behavior). Returns the new velocities for the far sheep."""
         decay = 0.80
 
-        for i in far_indices:
+        V_new = np.zeros((self.N, 2))
+        for i in range(self.N):
             # Bernoulli: move with probability p while grazing
             if self.graze_p < 1.0 and self.rng.random() > self.graze_p:
                 self.V[i] *= decay  # smooth decay
@@ -618,34 +648,7 @@ class World:
             Hn = np.linalg.norm(H)
             if Hn > 0:
                 h = H / Hn
-
-            A = self._lcm_vec(i) - self.P[i]
-            AL = self._align_vec(i)
-
-            # Previous velocity unit
-            vel_sq = np.sum(self.V[i]**2)
-            if vel_sq > 0.0:
-                prev = self.V[i] / (np.sqrt(vel_sq) + 1e-9)
-            else:
-                prev = np.zeros(2)
-
-            H_flockish = self.wr*R + self.wa*A + self.wm*prev + self.w_align*AL
-            # small nudge toward COM (g_tug) like your near handler
-            gcm_vec = G - self.P[i]
-            gcm_n = np.linalg.norm(gcm_vec)
-            if gcm_n > 1e-9:
-                H_flockish += self.g_tug * (gcm_vec / (gcm_n + 1e-9))
-
-            # Blend: alpha = self.flock[i]  (0=grazing-only, 1=flock-only)
-            H_mixed = self._blend(H_flockish, H, alpha=float(self.flock[i]))
-
-            # Renormalize mixed heading for stepping
-            Hn = np.linalg.norm(H_mixed)
-            if Hn > 0:
-                h = H_mixed / Hn
-            else:
-                h = np.zeros(2)
-
+            
             # Momentum update
             v_des = self.vmax * h
             v_new = decay * self.V[i] + (1.0 - decay) * v_des
@@ -653,45 +656,45 @@ class World:
             if sp > self.vmax:
                 v_new *= (self.vmax / sp)
 
-            self.P[i] += v_new * self.dt
-            self.V[i]  = v_new
+            V_new[i] = v_new
+
+        return V_new
     
-    def _handle_near_sheep(self, near_mask: np.ndarray, near_dog_distances_sq: np.ndarray, G: np.ndarray, min_near_distances: np.ndarray):
-        """Handle sheep that are near a drone (flocking behavior)."""
-        near_indices = np.where(near_mask)[0]
-        ws_global = self.ws
-        
-        # Compute obstacle forces for all near sheep at once (unchanged)
-        if self.polys and len(near_indices) > 0:
-            avoid, tan, s = self._obstacle_avoid(self.P[near_indices])
+    def _handle_near_sheep(self, G: np.ndarray, dog_distances_sq: np.ndarray) -> np.ndarray:
+        """Handle sheep that are near a drone (flocking behavior). Returns the new velocities for the near sheep."""
+
+        # Compute obstacle forces for all near sheep at once
+        if self.polys:
+            avoid, tan, s = self._obstacle_avoid(self.P)
         else:
-            avoid = np.zeros((len(near_indices), 2))
-            tan = np.zeros((len(near_indices), 2))
-            s = np.full(len(near_indices), np.inf)
+            avoid = np.zeros((self.N, 2))
+            tan = np.zeros((self.N, 2))
+            s = np.full(self.N, np.inf)
         
         nrm = avoid; tng = tan
         
         # --- Drone Repulsion: SUM over all drones ---
-        # near_dog_distances_sq is (N_near, num_drones)
         # Dog positions are self.dogs (num_drones, 2)
         
         # Initialize total dog repulsion force (S) to zero
-        S_total = np.zeros((len(near_indices), 2))
-
-        # Sheep positions for near indices
-        P_near = self.P[near_indices]
+        S_total = np.zeros((self.N, 2))
 
         # Iterate over drones to compute combined repulsion
-        for j in range(self.dogs.shape[0]):            
+        for j in range(self.dogs.shape[0]):
+            # TODO: Add this back.
+            # Skip if repulsion is ignored for this drone
+            # if not self.apply_repulsion[j]:
+            #     continue
+            
             D = self.dogs[j] # Drone position
-            d_sq = near_dog_distances_sq[:, j] # Distances to this drone
+            d_sq = dog_distances_sq[:, j] # Distances to this drone
             d = np.sqrt(d_sq) # Distance to this drone
             
             push = smooth_push(d, self.rs)
             inv_d = 1.0 / d
             
             # Vector from drone D to sheep P
-            vec_DP = P_near - D 
+            vec_DP = self.P - D 
             
             # Repulsion force S for drone j
             S_j = push[:, None] * vec_DP * inv_d[:, None]
@@ -699,14 +702,15 @@ class World:
             S_total += S_j
         
         # S_total is now the combined dog repulsion for all near sheep
-        
-        for idx, i in enumerate(near_indices):
+        V_new = np.zeros((self.N, 2))
+        for i in range(self.N):
+            
             # Flocking forces
             R = self._repel_close_vec(i)
             A = self._lcm_vec(i) - self.P[i]
             
-            # S is pre-calculated as S_total[idx]
-            S = S_total[idx]
+            # S is pre-calculated as S_total[i]
+            S = S_total[i]
 
             AL = self._align_vec(i)
             
@@ -723,56 +727,26 @@ class World:
             # Combine forces (0.0 for flyover)
             # ws_eff = 0.0 if self.ignore_dog_repulsion else self.ws
             # H = self.wr*R + self.wa*A + ws_eff*S + self.wm*prev + self.w_align*AL
-            H = self.wr*R + self.wa*A + ws_global*S + self.wm*prev + self.w_align*AL
+            H = self.wr*R + self.wa*A + self.ws*S + self.wm*prev + self.w_align*AL
             
             # Normal push (already weighted by distance ramp)
-            H += self.w_obs * nrm[idx]
-            if np.dot(tng[idx], tng[idx]) > 0.0 and np.dot(H, nrm[idx]) < 0.0:
-                H += self.w_tan * tng[idx]
+            H += self.w_obs * nrm[i]
+            if np.dot(tng[i], tng[i]) > 0.0 and np.dot(H, nrm[i]) < 0.0:
+                H += self.w_tan * tng[i]
 
-            if s[idx] <= self.keep_out:
-                n_unit = nrm[idx]
+            if s[i] <= self.keep_out:
+                n_unit = nrm[i]
                 L = np.sqrt(np.dot(n_unit, n_unit)) + 1e-12
                 n_unit = n_unit / L
                 into = np.dot(H, n_unit)
                 if into < 0.0:
                     H = H - into * n_unit
-            
-            # Global tug toward center
-            gcm_vec = G - self.P[i]
-            gcm_sq = np.sum(gcm_vec**2)
-            if gcm_sq > 0:
-                gcm_norm = np.sqrt(gcm_sq)
-                inv_gcm_norm = 1.0 / (gcm_norm + 1e-9)
-                H += self.g_tug * gcm_vec * inv_gcm_norm
-            
+                        
             # Tempered noise
             noise = self.sigma * np.sqrt(self.dt) * self.rng.normal(size=2)
             if vel_norm > 0.3 * self.vmax:
                 noise *= 0.5
             H = H + noise
-
-            rnd = self.rng.normal(size=2) * 0.2
-            R_farish = self._repel_close_vec(i)
-            H_grazeish = self.wr*R_farish + rnd
-
-            # Preserve your obstacle nudges on the graze-ish side too
-            H_grazeish += self.w_obs * nrm[idx]
-            if np.dot(tng[idx], tng[idx]) > 0.0 and np.dot(H_grazeish, nrm[idx]) < 0.0:
-                H_grazeish += self.w_tan * tng[idx]
-
-            # If inside keep-out, project graze-ish out of wall
-            if s[idx] <= self.keep_out:
-                n_unit = nrm[idx]
-                L = np.sqrt(np.dot(n_unit, n_unit)) + 1e-12
-                n_unit = n_unit / L
-                into = np.dot(H_grazeish, n_unit)
-                if into < 0.0:
-                    H_grazeish = H_grazeish - into * n_unit
-
-            # --- Blend using per-sheep alpha ---
-            alpha = float(self.flock[i])      # 0→grazeish, 1→flock H
-            H = self._blend(H, H_grazeish, alpha)
             
             # Normalize and step - cache inverse norm
             h_sq = np.sum(H**2)
@@ -782,18 +756,10 @@ class World:
                 h = H * inv_h_norm
             else:
                 h = np.zeros(2)
-            step = self.vmax * self.dt
             
-            new_pos = self.P[i] + step * h
-            self.V[i] = (new_pos - self.P[i]) / self.dt
-            self.P[i] = new_pos
+            V_new[i] = h * self.vmax
 
-    def _blend(self, H_flock: np.ndarray, H_graze: np.ndarray, alpha: float) -> np.ndarray:
-        """
-        Blend two 'force-like' headings H = alpha*H_flock + (1-alpha)*H_graze.
-        alpha∈[0,1]. Works with 1D (len=2) vectors.
-        """
-        return alpha * H_flock + (1.0 - alpha) * H_graze
+        return V_new
 
     # ---------- public API ----------
     def step(self, plan: Plan):

@@ -313,7 +313,7 @@ export async function fetchFarmJobs(params?: {
         if (params?.limit) queryParams.append('limit', params.limit.toString());
         if (params?.offset) queryParams.append('offset', params.offset.toString());
 
-        const response = await fetch(`${backendURL}/api/farm-jobs?${queryParams}`);
+        const response = await fetch(`${backendURL}/api/jobs?${queryParams}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -330,7 +330,7 @@ export async function fetchFarmJobs(params?: {
  */
 export async function createFarmJob(jobData: CreateFarmJobRequest): Promise<FarmJob> {
     try {
-        const response = await fetch(`${backendURL}/api/farm-jobs`, {
+        const response = await fetch(`${backendURL}/api/jobs`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(jobData),
@@ -342,6 +342,64 @@ export async function createFarmJob(jobData: CreateFarmJobRequest): Promise<Farm
         return await response.json();
     } catch (err) {
         console.error("Error creating farm job:", err);
+        throw err;
+    }
+}
+
+/**
+ * Update a farm job
+ */
+export async function updateFarmJob(jobId: string | number, updates: Partial<CreateFarmJobRequest>): Promise<FarmJob> {
+    try {
+        const response = await fetch(`${backendURL}/api/jobs/${jobId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates),
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.error?.message || `HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (err) {
+        console.error("Error updating farm job:", err);
+        throw err;
+    }
+}
+
+/**
+ * Get a specific farm job
+ */
+export async function getFarmJob(jobId: string | number): Promise<FarmJob> {
+    try {
+        const response = await fetch(`${backendURL}/api/jobs/${jobId}`, {
+            method: 'GET',
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (err) {
+        console.error("Error fetching farm job:", err);
+        throw err;
+    }
+}
+
+/**
+ * Delete/cancel a farm job
+ */
+export async function deleteFarmJob(jobId: string | number): Promise<FarmJob> {
+    try {
+        const response = await fetch(`${backendURL}/api/jobs/${jobId}`, {
+            method: 'DELETE',
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.error?.message || `HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (err) {
+        console.error("Error deleting farm job:", err);
         throw err;
     }
 }

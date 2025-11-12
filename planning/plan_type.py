@@ -11,8 +11,11 @@ class DronePositions:
     # n-by-1 arrary of zeros if the drone is too high to be applying repulsion and ones if it is applying repulsion.
     apply_repulsion: np.ndarray
 
+    # --- DEBUGGING INFO ---
     # Extra info for debugging. Later we should refactor this if not every drone position plan has the same debugging info.
     target_sheep_indices: list[int]
+    gcm: np.ndarray
+    radius: float
 
 @dataclass
 class DoNothing:

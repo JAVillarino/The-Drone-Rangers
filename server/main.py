@@ -1,15 +1,47 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import random
-from planning import herding, state, plan_type
+from planning import herding, state
 from simulation import world
 import time
 import threading
 import numpy as np
+from typing import Optional
+from datetime import datetime, timezone
 
 # Thread-safe lock for world reinitialization
 world_lock = threading.RLock()
 current_scenario_id = None  # Track what scenario is currently loaded
+
+
+class JobCache:
+    """Cache for jobs that maintains both list and O(1) dict lookup."""
+    def __init__(self, initial=None):
+        self.list = []
+        self.map = {}
+        if initial:
+            for j in initial:
+                self.add(j)
+
+    def add(self, job):
+        """Add a job, ensuring no duplicates by ID."""
+        if job.id in self.map:
+            return self.map[job.id]
+        self.list.append(job)
+        self.map[job.id] = job
+        return job
+
+    def get(self, job_id):
+        """Get job by ID in O(1) time."""
+        return self.map.get(job_id)
+
+    def remove(self, job_id):
+        """Remove job by ID."""
+        j = self.map.pop(job_id, None)
+        if j is not None:
+            # Remove by identity
+            self.list = [x for x in self.list if x is not j]
+        return j
 
 def _create_policy_for_world(w: world.World) -> herding.ShepherdPolicy:
     """Create a herding policy matched to the given world's flock size."""
@@ -20,11 +52,13 @@ def _create_policy_for_world(w: world.World) -> herding.ShepherdPolicy:
         umax=w.umax,
         too_close=1.5 * w.ra,
         collect_standoff=1.0 * w.ra,
-        drive_standoff=1.0 * w.ra + collected_herd_radius,
     )
 
 def initialize_sim():
     """Initialize a new simulation with default parameters."""
+    from datetime import datetime
+    from server import jobs_api
+    
     flock_size = 50
     # Calculate appropriate k_nn based on flock size (must be <= N-1)
     k_nn = min(21, max(1, flock_size - 1))
@@ -37,19 +71,35 @@ def initialize_sim():
         k_nn=k_nn,
         dt=0.1,
     )
+    backend_adapter.paused = True  # Start paused since there's no target yet
     policy = _create_policy_for_world(backend_adapter)
 
-    return backend_adapter, policy, [
-        state.Job(
+    # Load existing jobs from database (for recovery after restart)
+    repo = jobs_api.get_repo()
+    db_jobs = repo.list()
+    
+    # Filter: keep running and scheduled jobs for recovery
+    # Completed/cancelled jobs are kept in DB but don't need to be in-memory
+    active_jobs = [j for j in db_jobs if j.status in ("running", "scheduled", "pending")]
+    
+    # If no jobs exist, create a default pending job
+    if not db_jobs:
+        now = datetime.now(timezone.utc).timestamp()
+        default_job = repo.create(
             target=None,
             target_radius=policy.fN * 1.5,
-            remaining_time=None,
             is_active=False,
             drones=1,
+            status="pending",
+            start_at=None,
+            scenario_id=None,  # Default job is not scenario-specific
         )
-    ]
+        active_jobs = [default_job]
+    
+    return backend_adapter, policy, JobCache(active_jobs)
 
-backend_adapter, policy, jobs = initialize_sim()
+backend_adapter, policy, jobs_cache = initialize_sim()
+jobs = jobs_cache.list  # Convenience alias for iteration
 
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:5173"])
@@ -57,8 +107,13 @@ CORS(app, origins=["http://localhost:5173"])
 # Register scenarios API blueprint
 from server.scenarios_api import scenarios_bp, REPO
 from server.drone_management import create_drones_blueprint
+from server import jobs_api
 app.register_blueprint(scenarios_bp)
 app.register_blueprint(create_drones_blueprint(backend_adapter))
+
+# Register jobs API blueprint
+api_jobs_bp = jobs_api.create_jobs_blueprint(world_lock, jobs_cache)
+app.register_blueprint(api_jobs_bp)
 
 @app.route("/state", methods=["GET"])
 def get_state():
@@ -96,10 +151,11 @@ def set_target():
 @app.route("/restart", methods=["POST"])
 def restart_sim():
     """Restart simulation with default parameters."""
-    global backend_adapter, policy, jobs, current_scenario_id
+    global backend_adapter, policy, jobs_cache, jobs, current_scenario_id
     
     with world_lock:
-        backend_adapter, policy, jobs = initialize_sim()
+        backend_adapter, policy, jobs_cache = initialize_sim()
+        jobs = jobs_cache.list  # Update the alias
         current_scenario_id = None  # Clear any loaded scenario
         # Ensure it starts paused since there's no target
         backend_adapter.paused = True
@@ -186,7 +242,7 @@ def play_pause():
 @app.route("/load-scenario/<uuid:scenario_id>", methods=["POST"])
 def load_scenario(scenario_id):
     """Load a scenario from the repository into the running simulation."""
-    global backend_adapter, policy, current_scenario_id, jobs
+    global backend_adapter, policy, current_scenario_id, jobs_cache, jobs
     
     scenario = REPO.get(scenario_id)
     if not scenario:
@@ -200,6 +256,8 @@ def load_scenario(scenario_id):
     
     try:
         with world_lock:
+            from datetime import datetime
+            
             # Calculate appropriate k_nn based on flock size
             # k_nn must be <= N-1, where N is number of sheep
             num_sheep = len(scenario.sheep)
@@ -220,15 +278,20 @@ def load_scenario(scenario_id):
             
             # Initialize jobs for the scenario
             target_pos = np.array(scenario.targets[0], dtype=float) if scenario.targets else None
-            jobs = [
-                state.Job(
-                    target=target_pos,
-                    target_radius=policy.fN * 1.5,
-                    remaining_time=None,
-                    is_active=True if target_pos is not None else False,
-                    drones=len(scenario.drones),
-                )
-            ]
+            from server import jobs_api
+            repo = jobs_api.get_repo()
+            scenario_job = repo.create(
+                target=target_pos,
+                target_radius=policy.fN * 1.5,
+                is_active=True if target_pos is not None else False,
+                drones=len(scenario.drones),
+                status="running" if target_pos is not None else "pending",
+                start_at=None,
+                scenario_id=str(scenario_id),  # Link job to the loaded scenario
+            )
+            # Replace jobs cache with only the scenario job (fresh start)
+            jobs_cache = JobCache([scenario_job])
+            jobs = jobs_cache.list  # Update the alias
             
             # Track what's loaded
             current_scenario_id = str(scenario_id)
@@ -300,61 +363,6 @@ def get_current_scenario():
     }), 200
 
 
-@app.route("/jobs/<int:job_id>", methods=["PATCH"])
-def patch_job(job_id):
-    """Update a specific job by its ID."""
-    data = request.get_json()
-    print(f"Patching job {job_id} with data: {data}")
-    if not data:
-        return jsonify({"error": "Request body must be JSON"}), 400
-
-    with world_lock:
-        job_to_update = None
-        for j in jobs:
-            if j.id == job_id:
-                job_to_update = j
-                break
-
-        if not job_to_update:
-            return jsonify({"error": f"Job with ID {job_id} not found"}), 404
-
-        try:
-            if "target" in data:
-                if data["target"] is None:
-                    job_to_update.target = None
-                else:
-                    pos = np.asarray(data["target"], dtype=float).reshape(2)
-                    if not np.all(np.isfinite(pos)):
-                        raise ValueError("Target values must be finite numbers")
-                    job_to_update.target = pos
-
-            if "target_radius" in data:
-                radius = float(data["target_radius"])
-                if not np.isfinite(radius) or radius < 0:
-                    raise ValueError("Target radius must be a non-negative number")
-                job_to_update.target_radius = radius
-
-            if "remaining_time" in data:
-                if data["remaining_time"] is None:
-                    job_to_update.remaining_time = None
-                else:
-                    time_val = float(data["remaining_time"])
-                    if not np.isfinite(time_val):
-                        raise ValueError("Remaining time must be a finite number")
-                    job_to_update.remaining_time = time_val
-
-            if "is_active" in data:
-                job_to_update.is_active = bool(data["is_active"])
-
-            if "drone_count" in data:
-                job_to_update.drones = int(data["drone_count"])
-
-        except (ValueError, TypeError) as e:
-            return jsonify({"error": f"Invalid data format: {e}"}), 400
-
-        return jsonify(job_to_update.to_dict())
-
-
 def run_flask():
     app.run(debug=True, use_reloader=False)  # disable reloader for threads
 
@@ -363,19 +371,68 @@ if __name__ == "__main__":
     # Start Flask in a background thread.
     threading.Thread(target=run_flask, daemon=True).start()
     
+    # Throttle remaining_time DB writes (once per second)
+    last_rem_sync_ts = 0.0
+    
     while True:
         time.sleep(0.05)
         
-        for job in jobs:
-            if job.target is None:
-                job.remaining_time = None
-            elif herding.policy.is_goal_satisfied(backend_adapter.get_state(), job.target, job.target_radius):
-                job.remaining_time = 0
-            else:
-                job.remaining_time = None
-                
-        with world_lock:            
-            # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
+        # Update job statuses and remaining times
+        jobs_to_sync = set()  # Use set to avoid duplicate syncs
+        with world_lock:
+            # Promote any scheduled jobs that should now start
+            now = datetime.now(timezone.utc).timestamp()
+            for j in jobs:
+                if j.status == "scheduled" and j.start_at is not None and j.start_at <= now:
+                    j.status = "running"
+                    jobs_to_sync.add(j.id)
+            
+            # Check goal satisfaction and update remaining_time
+            for job in jobs:
+                if job.target is None:
+                    job.remaining_time = None
+                elif job.status == "completed" or job.status == "cancelled":
+                    # Don't update completed/cancelled jobs
+                    pass
+                elif job.status == "running" and job.is_active:
+                    # Only check goal for running+active jobs
+                    if herding.policy.is_goal_satisfied(backend_adapter.get_state(), job.target, job.target_radius):
+                        job.remaining_time = 0
+                        # Double-check status before marking completed (race protection)
+                        if job.status == "running" and job.is_active:
+                            job.status = "completed"
+                            job.is_active = False
+                            job.completed_at = datetime.now(timezone.utc).timestamp()
+                            jobs_to_sync.add(job.id)
+                    else:
+                        job.remaining_time = None
+                else:
+                    job.remaining_time = None
+        
+        # Persist status changes to database (outside lock to avoid blocking)
+        if jobs_to_sync:
+            for job_id in jobs_to_sync:
+                job_obj = jobs_cache.get(job_id)  # O(1) lookup instead of linear search
+                if job_obj:
+                    try:
+                        jobs_api.sync_job_status_to_db(job_obj)
+                    except Exception as e:
+                        # Don't crash - DB sync failure shouldn't stop simulation
+                        print(f"Warning: Failed to sync job {job_id} to DB: {e}")
+        
+        # Throttled remaining_time sync (once per second for running jobs)
+        current_time = time.time()
+        if current_time - last_rem_sync_ts >= 1.0:
+            for job in jobs:
+                if job.status == "running" and job.remaining_time is not None:
+                    try:
+                        jobs_api.sync_job_status_to_db(job)
+                    except Exception as e:
+                        print(f"Warning: Failed to sync remaining_time for job {job.id}: {e}")
+            last_rem_sync_ts = current_time
+        
+        # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
+        with world_lock:
             for _ in range(15):
                 plan = policy.plan(backend_adapter.get_state(), jobs, backend_adapter.dt)
                 backend_adapter.step(plan)

@@ -1,4 +1,5 @@
 import argparse
+import time
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -7,6 +8,7 @@ from simulation import world
 from planning.herding import policy
 from planning.state import Job
 from simulation.scenarios import *
+from planning import plan_type
 
 class Renderer:
     def __init__(self, world, target, bounds=(0.0, 500.0, 0.0, 500.0)):
@@ -32,8 +34,13 @@ class Renderer:
         self.sheep_sc = self.ax.scatter(state.flock[:, 0], state.flock[:, 1], s=20)
         self.dog_sc   = self.ax.scatter([state.drones[:, 0]], [state.drones[:, 1]], marker='x')
         self.targ_sc  = self.ax.scatter([target[0]], [target[1]], marker='*')
+        
+        # TODO: Make this move around every iteration.
+        self.circle = plt.Circle((0, 0), 0, color='b', fill=False)
+        self.ax.add_patch(self.circle)
 
-    def render_world(self, world, plan, step_number, target, debug=False):
+
+    def render_world(self, world, plan: plan_type.Plan, step_number, target, debug=False):
         """Update the scatter plots for the current state of the world."""
         state = world.get_state()
 
@@ -41,11 +48,20 @@ class Renderer:
         self.sheep_sc.set_offsets(state.flock)
 
         if debug:
-            # Highlight target sheep if specified
-            colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue
-            for i in plan.target_sheep_indices:
-                colors[i] = (1.0, 0.0, 0.0, 1.0)  # target sheep red
-            self.sheep_sc.set_facecolor(colors)
+            match plan:
+                case plan_type.DoNothing():
+                    pass
+                case plan_type.DronePositions(positions=pos, apply_repulsion=apply, target_sheep_indices=_, gcm=gcm, radius=r):
+                    # Highlight target sheep if specified
+                    colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue
+                    for i in plan.target_sheep_indices:
+                        colors[i] = (1.0, 0.0, 0.0, 1.0)  # target sheep red
+                    self.sheep_sc.set_facecolor(colors)
+                    
+                    self.circle.center = gcm
+                    self.circle.radius = r
+                case _ as unexpected_plan:
+                    raise Exception("Unexpected plan type", unexpected_plan)
 
         # Update dog and target markers
         self.dog_sc.set_offsets(state.drones)
@@ -53,16 +69,16 @@ class Renderer:
 
         # Title
         self.ax.set_title(f"Step {step_number}")
-
+        
         # Redraw
         self.fig.canvas.draw_idle()
 
 # ---------- main ----------
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--N", type=int, default=10)
+    p.add_argument("--N", type=int, default=200)
     p.add_argument("--spawn", choices=["circle","uniform","clusters","corners","line"],
-                   default="corners", help="initial sheep distribution")
+                   default="uniform", help="initial sheep distribution")
     p.add_argument("--clusters", type=int, default=3, help="#clusters for spawn=clusters")
     p.add_argument("--seed", type=int, default=3)
     p.add_argument("--steps", type=int, default=10000)
@@ -128,6 +144,7 @@ if __name__ == "__main__":
         stuck_speed_ratio=0.08,
         near_wall_ratio=0.8,
         k_nn=8,
+        dt=1,
     )
 
     total_area = 0.5 * W.N * (W.ra ** 2)
@@ -138,7 +155,6 @@ if __name__ == "__main__":
         umax = W.umax,                    # keep in sync with world
         too_close = 1.5 * W.ra,             # safety stop
         collect_standoff = 1.0 * W.ra,    # paper: r_a behind the stray
-        drive_standoff   = 1.0 * W.ra + collected_herd_radius,  # paper: r_a * sqrt(N) behind COM
         conditionally_apply_repulsion=True,
     )
 
@@ -155,12 +171,19 @@ if __name__ == "__main__":
     s0 = W.get_state()
     num_drones = s0.drones.shape[0]
 
+    current_time = time.time()
     jobs = [Job(
         target=target_xy.copy(),
         target_radius=10.0,
         remaining_time=None,
         is_active=True,
         drones=num_drones,
+        status="running",
+        start_at=None,
+        completed_at=None,
+        scenario_id=None,
+        created_at=current_time,
+        updated_at=current_time,
     )]
     
     renderer = Renderer(W, jobs[0].target)
