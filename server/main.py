@@ -103,13 +103,25 @@ jobs = jobs_cache.list  # Convenience alias for iteration
 
 app = Flask(__name__)
 
+# Allowed origins for CORS (development)
+ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
+
+def get_allowed_origin():
+    """Get the allowed origin from the request, or return the first allowed origin."""
+    origin = request.headers.get('Origin')
+    if origin in ALLOWED_ORIGINS:
+        return origin
+    # Default to first allowed origin if no match or no origin header
+    return ALLOWED_ORIGINS[0]
+
 # Manual CORS handling - handle ALL requests including OPTIONS preflight
 @app.before_request
 def handle_preflight():
     """Handle CORS preflight OPTIONS requests."""
     if request.method == "OPTIONS":
         response = Response()
-        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
+        allowed_origin = get_allowed_origin()
+        response.headers['Access-Control-Allow-Origin'] = allowed_origin
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PATCH, DELETE, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Cache-Control'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
@@ -120,10 +132,17 @@ def handle_preflight():
 @app.after_request
 def after_request(response):
     """Add CORS headers to all responses."""
+    # For streaming responses, headers are set directly in the Response object
+    # This handler applies to non-streaming responses
+    if response.mimetype == 'text/event-stream':
+        # Streaming responses already have CORS headers set directly
+        return response
+    
     origin = request.headers.get('Origin')
     # Always add CORS headers if there's an Origin header (browser request)
     if origin:
-        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
+        allowed_origin = get_allowed_origin()
+        response.headers['Access-Control-Allow-Origin'] = allowed_origin
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PATCH, DELETE, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Cache-Control'
@@ -159,7 +178,8 @@ def stream_state():
     # Handle preflight OPTIONS request for CORS
     if request.method == 'OPTIONS':
         response = Response()
-        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
+        allowed_origin = get_allowed_origin()
+        response.headers['Access-Control-Allow-Origin'] = allowed_origin
         response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Cache-Control'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
@@ -202,6 +222,9 @@ def stream_state():
             pass
     
     # Set proper headers for SSE with explicit CORS
+    # Note: Flask's after_request may not work with streaming responses,
+    # so we must set all CORS headers directly here
+    allowed_origin = get_allowed_origin()
     response = Response(
         stream_with_context(generate()),
         mimetype='text/event-stream',
@@ -209,8 +232,11 @@ def stream_state():
             'Cache-Control': 'no-cache',
             'Connection': 'keep-alive',
             'X-Accel-Buffering': 'no',  # Disable proxy buffering
-            'Access-Control-Allow-Origin': 'http://localhost:5173',
+            'Access-Control-Allow-Origin': allowed_origin,
             'Access-Control-Allow-Credentials': 'true',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Cache-Control',
+            'Access-Control-Expose-Headers': 'Content-Type, Cache-Control',
         }
     )
     return response
