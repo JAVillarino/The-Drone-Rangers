@@ -11,7 +11,7 @@ from simulation.scenarios import *
 from planning import plan_type
 
 class Renderer:
-    def __init__(self, world, target, bounds=(0.0, 500.0, 0.0, 500.0)):
+    def __init__(self, world, target, bounds=(0.0, 500.0, 0.0, 500.0), obstacles_polygons=None):
         """Initialize figure, axes, and scatter plots."""
         xmin, xmax, ymin, ymax = bounds
 
@@ -28,6 +28,16 @@ class Renderer:
             [ymin, ymin, ymax, ymax, ymin],
             linestyle="--"
         )
+
+        # Draw polygon obstacles
+        self.polygon_patches = []
+        if obstacles_polygons:
+            for poly in obstacles_polygons:
+                # Close the polygon by adding the first vertex at the end
+                closed_poly = np.vstack([poly, poly[0]])
+                patch = Polygon(closed_poly[:-1], facecolor='red', alpha=0.3, edgecolor='red')
+                self.ax.add_patch(patch)
+                self.polygon_patches.append(patch)
 
         # Initial state
         state = world.get_state()
@@ -82,6 +92,8 @@ if __name__ == "__main__":
     p.add_argument("--clusters", type=int, default=3, help="#clusters for spawn=clusters")
     p.add_argument("--seed", type=int, default=3)
     p.add_argument("--steps", type=int, default=10000)
+    p.add_argument("--obstacles", action="store_true", default=True, help="enable obstacles (default: True)")
+    p.add_argument("--no-obstacles", dest="obstacles", action="store_false", help="disable obstacles")
     args = p.parse_args()
 
     # Bounds (match World defaults so plotting aligns)
@@ -104,38 +116,40 @@ if __name__ == "__main__":
     target_xy = np.array([240.0, 240.0])
 
     # Create example polygon obstacles
-    # Rectangle
-    # rect = np.array([
-    #     [80.0, 80.0],
-    #     [120.0, 80.0],
-    #     [120.0, 120.0],
-    #     [80.0, 120.0]
-    # ])
-    
-    # # Triangle
-    # triangle = np.array([
-    #     [150.0, 50.0],
-    #     [180.0, 50.0],
-    #     [165.0, 80.0]
-    # ])
-    
-    # # L-shape
-    # l_shape = np.array([
-    #     [50.0, 150.0],
-    #     [90.0, 150.0],
-    #     [90.0, 170.0],
-    #     [70.0, 170.0],
-    #     [70.0, 200.0],
-    #     [50.0, 200.0]
-    # ])
-    
-    # obstacles_polygons = [rect, triangle, l_shape]
+    obstacles_polygons = None
+    if args.obstacles:
+        # Rectangle
+        rect = np.array([
+            [200.0, 10.0],
+            [200.0, 200.0],
+            [10.0, 200.0],
+            [10.0, 10.0],
+        ])
+        
+        # Triangle
+        triangle = np.array([
+            [150.0, 50.0],
+            [180.0, 50.0],
+            [165.0, 80.0]
+        ])
+        
+        # L-shape
+        l_shape = np.array([
+            [50.0, 150.0],
+            [90.0, 150.0],
+            [90.0, 170.0],
+            [70.0, 170.0],
+            [70.0, 200.0],
+            [50.0, 200.0]
+        ])
+        
+        obstacles_polygons = [rect]
 
     W = world.World(
         sheep_xy, dog_xy, target_xy, 
         seed=args.seed,
-        # # obstacles_polygons=obstacles_polygons,
-        # obstacle_influence=30.0,
+        obstacles_polygons=obstacles_polygons,
+        obstacle_influence=30.0,
         w_obs=5.0,
         w_tan=12.0,
         keep_out=5.0,
@@ -158,16 +172,6 @@ if __name__ == "__main__":
         conditionally_apply_repulsion=True,
     )
 
-    # --- live plot ---
-    # # Draw polygon obstacles
-    # polygon_patches = []
-    # for poly in obstacles_polygons:
-    #     # Close the polygon by adding the first vertex at the end
-    #     closed_poly = np.vstack([poly, poly[0]])
-    #     patch = Polygon(closed_poly[:-1], facecolor='red', alpha=0.3, edgecolor='red')
-    #     ax.add_patch(patch)
-        # polygon_patches.append(patch)
-
     s0 = W.get_state()
     num_drones = s0.drones.shape[0]
 
@@ -186,7 +190,7 @@ if __name__ == "__main__":
         updated_at=current_time,
     )]
     
-    renderer = Renderer(W, jobs[0].target)
+    renderer = Renderer(W, jobs[0].target, bounds=(0.0, 500.0, 0.0, 500.0), obstacles_polygons=obstacles_polygons)
 
     for t in range(args.steps):
         plan = shepherd_policy.plan(W.get_state(), jobs, W.dt)
