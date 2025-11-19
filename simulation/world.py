@@ -698,10 +698,10 @@ class World:
         """Optimized sheep step using vectorized operations where possible."""
         G = self._gcm_vec()
         
-        # TODO: Make this vectorized again.
-        dog_distances_sq = np.zeros((self.P.shape[0], self.dogs.shape[0]))
-        for i in range(self.dogs.shape[0]):
-            dog_distances_sq[:, i] = np.sum((self.P - self.dogs[i])**2, axis=1)
+        # Vectorized: compute all sheep-to-dog squared distances at once using broadcasting
+        # Shape: (N_sheep, 1, 2) - (1, N_dogs, 2) = (N_sheep, N_dogs, 2)
+        diff = self.P[:, None, :] - self.dogs[None, :, :]
+        dog_distances_sq = np.sum(diff**2, axis=2)  # Shape: (N_sheep, N_dogs)
 
         # If a given drone isn't applying repulsion, just make it seem like that drone is a bajillion miles away.
         dog_distances_sq[:, self.apply_repulsion == 0] = 1_000_000
