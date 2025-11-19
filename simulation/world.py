@@ -86,6 +86,8 @@ class World:
         self.V = np.zeros((self.N, 2), dtype=np.float64, order='C')  # shape (N, 2)
         
         self.dogs = shepherd_xy
+        # Initialize apply_repulsion array (all drones apply repulsion by default)
+        self.apply_repulsion = np.ones(self.dogs.shape[0], dtype=bool)
         # TODO: We should be able to move this out of here now, and have a separate jobs list which is managed elsewhere.
         self.target = np.asarray(target_xy, float) if target_xy is not None else None
         self.paused = False
@@ -503,7 +505,6 @@ class World:
             idx = np.argpartition(d2, K+1)[:K+1]
             idx = idx[d2[idx] > 0]
             return idx[:K]
-        return idx[:K]
 
     def _repel_close_vec(self, i: int) -> np.ndarray:
         """Vectorized repulsion from close neighbors using contiguous arrays."""
@@ -924,7 +925,7 @@ class World:
             case DronePositions(positions=pos, apply_repulsion=apply, target_sheep_indices=_):
                 dog_count = self.dogs.shape[0]
                 if pos.shape[0] != dog_count or apply.size != dog_count:
-                    raise ValueError(f"DronePositions plan must have {self.num_drones} positions and repulsion flags.")
+                    raise ValueError(f"DronePositions plan must have {dog_count} positions and repulsion flags.")
                 
                 # Apply bounds to all drone positions
                 new_dogs_pos = self._apply_bounds_point(pos)
@@ -1049,7 +1050,10 @@ def _closest_point_on_polygon_numba(P: np.ndarray, V: np.ndarray, E: np.ndarray,
 # Numba-optimized functions (defined outside class)
 @njit
 def _kNN_numba(P: np.ndarray, i: int, K: int) -> np.ndarray:
-    """Numba-optimized k-nearest neighbors."""
+    """Numba-optimized k-nearest neighbors using argsort.
+    
+    Optimized to O(N log N) by using sorting instead of repeated linear scans.
+    """
     N = P.shape[0]
     distances = np.empty(N, dtype=np.float64)
     
@@ -1059,24 +1063,15 @@ def _kNN_numba(P: np.ndarray, i: int, K: int) -> np.ndarray:
         dy = P[j, 1] - P[i, 1]
         distances[j] = dx*dx + dy*dy
     
-    # Find K+1 smallest (includes self)
-    indices = np.empty(K, dtype=np.int32)
-    count = 0
+    # Set self-distance to infinity to exclude it from results
+    distances[i] = np.inf
     
-    for _ in range(K+1):
-        min_idx = -1
-        min_dist = np.inf
-        for j in range(N):
-            if distances[j] < min_dist:
-                min_dist = distances[j]
-                min_idx = j
-        
-        if min_idx != i and count < K:  # skip self
-            indices[count] = min_idx
-            count += 1
-        distances[min_idx] = np.inf  # mark as used
-        
-    return indices[:count]
+    # Use argsort to get indices sorted by distance: O(N log N)
+    # This is much better than O(N*K) for typical K values (K=19)
+    sorted_indices = np.argsort(distances)
+    
+    # Return K nearest (excluding self which is at infinity)
+    return sorted_indices[:K]
 
 @njit
 def _repel_close_numba(P: np.ndarray, i: int, ra: float) -> np.ndarray:
