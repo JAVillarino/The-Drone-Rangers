@@ -8,11 +8,12 @@ interface Drone {
   model: string;
 }
 
-interface DroneManagementPageProps {
+export interface DroneManagementPageProps {
   data: State;
+  onBack?: () => void;
 }
 
-export default function DroneManagementPage({ data }: DroneManagementPageProps) {
+export default function DroneManagementPage({ data, onBack }: DroneManagementPageProps) {
   const [drones, setDrones] = useState<Drone[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);

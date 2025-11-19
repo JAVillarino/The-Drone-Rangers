@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Job, State } from '../types';
 import JobStatus from './JobStatus.tsx';
 import { Map, usePan } from './UsePan.tsx';
-import { setJobActiveState, setJobDroneCount } from '../api/state.ts';
+import { setJobActiveState, setJobDroneCount, deleteFarmJob } from '../api/state.ts';
 
 interface LiveFarmTabProps {
   data: State;
@@ -37,9 +37,18 @@ export default function LiveFarmTab({
   onSetTarget,
   selectedImage
 }: LiveFarmTabProps) {
-  const handleCancel = () => {
-    console.log('Job canceled.');
-    alert('Job 123 has been canceled.');
+  const handleCancel = async (jobId: number) => {
+    if (!confirm('Are you sure you want to delete this job?')) {
+      return;
+    }
+    
+    try {
+      await deleteFarmJob(jobId);
+      // Job will be removed from the list automatically via SSE stream update
+    } catch (error) {
+      console.error('Failed to delete job:', error);
+      alert('Failed to delete job. Please try again.');
+    }
   };
 
   
@@ -88,7 +97,7 @@ export default function LiveFarmTab({
                     isActive={job.is_active}
                     onSelectOnMap={() => setChoosingTarget(true)}
                     onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
-                    onCancel={handleCancel}
+                    onCancel={() => handleCancel(job.id)}
                     onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
                 />
             )}

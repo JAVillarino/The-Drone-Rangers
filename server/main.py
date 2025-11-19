@@ -1,5 +1,4 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+from flask import Flask, jsonify, request, Response, stream_with_context
 import random
 from planning import herding, state
 from simulation import world
@@ -8,6 +7,7 @@ import threading
 import numpy as np
 from typing import Optional
 from datetime import datetime, timezone
+import json
 
 # Thread-safe lock for world reinitialization
 world_lock = threading.RLock()
@@ -102,7 +102,52 @@ backend_adapter, policy, jobs_cache = initialize_sim()
 jobs = jobs_cache.list  # Convenience alias for iteration
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:5173"])
+
+# Allowed origins for CORS (development)
+ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
+
+def get_allowed_origin():
+    """Get the allowed origin from the request, or return the first allowed origin."""
+    origin = request.headers.get('Origin')
+    if origin in ALLOWED_ORIGINS:
+        return origin
+    # Default to first allowed origin if no match or no origin header
+    return ALLOWED_ORIGINS[0]
+
+# Manual CORS handling - handle ALL requests including OPTIONS preflight
+@app.before_request
+def handle_preflight():
+    """Handle CORS preflight OPTIONS requests."""
+    if request.method == "OPTIONS":
+        response = Response()
+        allowed_origin = get_allowed_origin()
+        response.headers['Access-Control-Allow-Origin'] = allowed_origin
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PATCH, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Cache-Control'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Max-Age'] = '3600'
+        return response
+
+# Add CORS headers to ALL responses
+@app.after_request
+def after_request(response):
+    """Add CORS headers to all responses."""
+    # For streaming responses, headers are set directly in the Response object
+    # This handler applies to non-streaming responses
+    if response.mimetype == 'text/event-stream':
+        # Streaming responses already have CORS headers set directly
+        return response
+    
+    origin = request.headers.get('Origin')
+    # Always add CORS headers if there's an Origin header (browser request)
+    if origin:
+        allowed_origin = get_allowed_origin()
+        response.headers['Access-Control-Allow-Origin'] = allowed_origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PATCH, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Cache-Control'
+        response.headers['Access-Control-Expose-Headers'] = 'Content-Type, Cache-Control'
+    return response
 
 # Register scenarios API blueprint
 from server.scenarios_api import scenarios_bp, REPO
@@ -115,15 +160,86 @@ app.register_blueprint(create_drones_blueprint(backend_adapter))
 api_jobs_bp = jobs_api.create_jobs_blueprint(world_lock, jobs_cache)
 app.register_blueprint(api_jobs_bp)
 
-@app.route("/state", methods=["GET"])
+@app.route("/state", methods=["GET", "OPTIONS"])
 def get_state():
     """Get current simulation state with pause status."""
+    if request.method == 'OPTIONS':
+        return Response(status=200)
     with world_lock:
         state = backend_adapter.get_state()
         state.jobs = jobs
         state_dict = state.to_dict()
         state_dict["paused"] = backend_adapter.paused
         return jsonify(state_dict)
+
+@app.route("/stream/state", methods=["GET", "OPTIONS"])
+def stream_state():
+    """Stream simulation state via Server-Sent Events (SSE)."""
+    # Handle preflight OPTIONS request for CORS
+    if request.method == 'OPTIONS':
+        response = Response()
+        allowed_origin = get_allowed_origin()
+        response.headers['Access-Control-Allow-Origin'] = allowed_origin
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Cache-Control'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Max-Age'] = '3600'
+        return response
+    
+    def generate():
+        try:
+            while True:
+                try:
+                    # Acquire lock for thread-safe state access
+                    with world_lock:
+                        state = backend_adapter.get_state()
+                        state.jobs = jobs
+                        state_dict = state.to_dict()
+                        state_dict["paused"] = backend_adapter.paused
+                        
+                        # Transform job status from "running" to "active" for frontend compatibility
+                        if "jobs" in state_dict:
+                            for job in state_dict["jobs"]:
+                                if job.get("status") == "running":
+                                    job["status"] = "active"
+                    
+                    # Format as SSE event
+                    event_data = f"event: stateUpdate\ndata: {json.dumps(state_dict)}\n\n"
+                    yield event_data
+                    
+                    # Sleep for ~16.67ms to achieve ~60 FPS
+                    time.sleep(0.01667)
+                    
+                except GeneratorExit:
+                    # Client disconnected
+                    break
+                except Exception as e:
+                    # Log error but continue streaming
+                    # Send comment keepalive to maintain connection
+                    yield ": keepalive\n\n"
+                    time.sleep(0.01667)
+        finally:
+            pass
+    
+    # Set proper headers for SSE with explicit CORS
+    # Note: Flask's after_request may not work with streaming responses,
+    # so we must set all CORS headers directly here
+    allowed_origin = get_allowed_origin()
+    response = Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',  # Disable proxy buffering
+            'Access-Control-Allow-Origin': allowed_origin,
+            'Access-Control-Allow-Credentials': 'true',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Cache-Control',
+            'Access-Control-Expose-Headers': 'Content-Type, Cache-Control',
+        }
+    )
+    return response
 
 @app.route("/target", methods=["POST"])
 def set_target():
@@ -145,6 +261,10 @@ def set_target():
     
     with world_lock:
         jobs[0].target = pos
+        # Also set the world's target and unpause if there's a target
+        backend_adapter.target = pos
+        if backend_adapter.paused and pos is not None:
+            backend_adapter.paused = False
         
     return jsonify(backend_adapter.get_state().to_dict())
 
@@ -364,7 +484,7 @@ def get_current_scenario():
 
 
 def run_flask():
-    app.run(debug=True, use_reloader=False)  # disable reloader for threads
+    app.run(debug=True, use_reloader=False, port=5000, host='127.0.0.1')
 
 
 if __name__ == "__main__":
@@ -375,7 +495,7 @@ if __name__ == "__main__":
     last_rem_sync_ts = 0.0
     
     while True:
-        time.sleep(0.05)
+        time.sleep(0.05)  # 20 FPS update rate for simulation loop (original speed)
         
         # Update job statuses and remaining times
         jobs_to_sync = set()  # Use set to avoid duplicate syncs
@@ -433,6 +553,31 @@ if __name__ == "__main__":
         
         # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
         with world_lock:
+            # Sync target from active job to world, and auto-unpause if there's an active job with a target
+            active_job = None
+            for job in jobs:
+                if job.is_active and job.status in ("running", "active"):
+                    active_job = job
+                    break
+            
+            if active_job and active_job.target is not None:
+                # Sync job target to world target
+                backend_adapter.target = active_job.target
+                # Auto-unpause if paused
+                if backend_adapter.paused:
+                    backend_adapter.paused = False
+            elif active_job and active_job.target is None:
+                # Active job but no target yet - keep running for visualization (sheep will graze)
+                if backend_adapter.paused:
+                    backend_adapter.paused = False
+                backend_adapter.target = None
+            else:
+                # No active job - allow simulation to run for live monitoring (grazing behavior)
+                # This allows users to see the simulation even without jobs
+                if backend_adapter.paused:
+                    backend_adapter.paused = False
+                backend_adapter.target = None
+            
             for _ in range(15):
                 plan = policy.plan(backend_adapter.get_state(), jobs, backend_adapter.dt)
                 backend_adapter.step(plan)

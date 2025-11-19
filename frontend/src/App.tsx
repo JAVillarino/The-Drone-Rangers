@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {useState, useCallback} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchState, setTarget, setPlayPause, requestRestart, createCustomScenario } from './api/state'
 import { SimulationMapPlot } from './components/SimulationMapPlot.tsx'
@@ -16,35 +16,33 @@ function App() {
   const [currentView, setCurrentView] = useState<'welcome' | 'simulator' | 'simulation' | 'live-system' | 'drone-management'>('welcome');
   const [selectedImage, setSelectedImage] = useState<string>("");
 
-  // Determine if we should use SSE (when simulation view is active)
-  const shouldUseSSE = currentView === 'simulation';
+  // Determine if we should use SSE (when simulation or live-system view is active)
+  const shouldUseSSE = currentView === 'simulation' || currentView === 'live-system';
   
+  // Memoize the error handler to prevent SSE connection from being recreated on every render
+  const handleSSEError = useCallback((error: Event) => {
+    console.error('SSE error, falling back to polling:', error);
+  }, []);
+
   // SSE connection for real-time updates
   const { data: sseData, isConnected, hasError } = useSSE({
-    url: 'http://127.0.0.1:5000/stream/state', // PLACEHOLDER URL - update with actual SSE endpoint
+    url: 'http://127.0.0.1:5000/stream/state',
     enabled: shouldUseSSE,
-    onError: (error) => {
-      console.error('SSE error, falling back to polling:', error);
-    }
+    onError: handleSSEError
   });
-
-  // Log connection status for debugging
-  if (shouldUseSSE) {
-    console.log('SSE connection status:', isConnected, 'hasError:', hasError);
-  }
 
   // Determine if we should actually use SSE data (only if connected and have data)
   const actuallyUsingSSE = shouldUseSSE && isConnected;
 
-  // Check if we need state data (simulation or live-system views)
-  const needsStateData = currentView === 'simulation' || currentView === 'live-system';
+  // Check if we need state data (only for simulation view, live-system handles its own)
+  const needsStateData = currentView === 'simulation';
 
-  // Traditional polling (use when SSE is not actually working, or for live-system view)
+  // Traditional polling (use when SSE is not actually working, only for simulation view)
   const { data: pollingData, isLoading, error } = useQuery<State>({
     queryKey: ["objects"],
     queryFn: fetchState,
-    refetchInterval: needsStateData && !actuallyUsingSSE ? 25 : false, // Poll for both simulation and live-system if SSE not active
-    enabled: needsStateData && !actuallyUsingSSE // Query for both simulation and live-system views when SSE is not active
+    refetchInterval: needsStateData && !actuallyUsingSSE ? 1000 : false, // Poll every 1 second only as fallback if SSE fails
+    enabled: needsStateData && !actuallyUsingSSE // Query only for simulation view when SSE is not active
   });
 
   // Use SSE data when actually connected, otherwise use polling data
@@ -71,48 +69,37 @@ function App() {
 
     // Navigation handlers
     const handleNavigateToSimulator = () => {
-      console.log('Navigating to simulator');
       setCurrentView('simulator');
     };
 
     const handleNavigateToRealSystem = () => {
-      console.log('Navigating to live system');
       setCurrentView('live-system');
     };
 
     const handleBackToWelcome = () => {
-      console.log('Going back to welcome page');
       setCurrentView('welcome');
       setSelectedImage("");
     };
 
     const handleBackFromLiveSystem = () => {
-      console.log('Going back to welcome page from live system');
       setCurrentView('welcome');
     };
 
     const handleNavigateToDroneManagement = () => {
-      console.log('Navigating to drone management');
       setCurrentView('drone-management');
     };
 
     const handleBackFromDroneManagement = () => {
-      console.log('Going back to live system from drone management');
       setCurrentView('live-system');
     };
 
     const handleBackToSimulator = () => {
-      console.log('Going back to simulator');
       setCurrentView('simulator');
       setSelectedImage("");
     };
 
     // This function will be passed to the LandingPage to start the simulation
     const handleSimulationStart = (scenario: string, selectedImage?: string) => {
-      // Here you would also likely trigger your `useQuery` to fetch initial data for the chosen scenario
-      // For now.. just set sim to pause maybe? can connect once endpoint.
-      console.log(`App is now starting the simulation for: ${scenario}`);
-      console.log(`Selected image: ${selectedImage}`);
       if (selectedImage) {
         setSelectedImage(selectedImage);
       }
@@ -121,18 +108,17 @@ function App() {
 
     // Dummy function for starting preset simulations
     const startPresetSim = async (scenario: string): Promise<unknown> => {
-      console.log(`Starting preset simulation: ${scenario}`);
       // TODO: Replace with actual API call to start preset scenario
       // For now, just simulate a delay
       await new Promise(resolve => setTimeout(resolve, 500));
       return { success: true, scenario };
     };
   
-    // Show loading/error states when on simulation or live-system views that need data
+    // Show loading/error states when on simulation view that needs data
     if (needsStateData) {
       if (isLoading) return <p>Loading...</p>;
       if (error instanceof Error) return <p>Error: {error.message}</p>;
-      if (!data && currentView === 'simulation') return <p>No data</p>;
+      if (!data) return <p>No data</p>;
     }
 
   return (
@@ -157,18 +143,13 @@ function App() {
           onBack={handleBackToWelcome}
         />
       ) : currentView === 'live-system' ? (
-        data ? (
-          <RealFarmView 
-            onBack={handleBackFromLiveSystem}
-            data={data}
-            onSetTarget={handleSetTarget}
-            onPlayPause={handlePlayPause}
-            onRestart={requestRestart}
-            selectedImage={selectedImage}
-          />
-        ) : (
-          <p>Loading farm data...</p>
-        )
+        <RealFarmView 
+          onBack={handleBackFromLiveSystem}
+          onSetTarget={handleSetTarget}
+          onPlayPause={handlePlayPause}
+          onRestart={requestRestart}
+          selectedImage={selectedImage}
+        />
       ) : (
         data && <SimulationMapPlot 
           data={data} 
