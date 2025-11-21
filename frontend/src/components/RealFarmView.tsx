@@ -63,7 +63,7 @@ export default function RealFarmView({
   const data = actuallyUsingSSE && sseData ? sseData : pollingData;
 
   useEffect(() => {
-    console.log(actuallyUsingSSE)
+    console.log({actuallyUsingSSE, shouldUseSSE, isConnected})
     console.log("data from real farm view:", data);
     console.log("sseData from real farm view:", sseData);
   }, [data, sseData]);

@@ -17,8 +17,8 @@ export function usePan({ data, zoomMin, zoomMax, scale, canvasSize }: UsePanArgs
   const bounds = useMemo(() => {
     const xs = [...data.flock.map(f => f[0]), ...data.drones.map(f => f[0])];
     const ys = [...data.flock.map(f => f[1]), ...data.drones.map(f => f[1])];
-    xs.push(...data.jobs.flatMap(j => j.target ? [j.target[0]] : []));
-    ys.push(...data.jobs.flatMap(j => j.target ? [j.target[1]] : []));
+    xs.push(...data.jobs.flatMap(j => j.target && j.target.type === "circle" ? [j.target.center[0]] : []));
+    ys.push(...data.jobs.flatMap(j => j.target && j.target.type === "circle" ? [j.target.center [1]] : []));
 
     return {
       minX: xs.length ? Math.min(...xs) : zoomMin,
@@ -79,7 +79,6 @@ export function usePan({ data, zoomMin, zoomMax, scale, canvasSize }: UsePanArgs
   return { pan, svgRef, scaleCoord, inverseScaleCoord };
 }
 
-
 interface RenderArgs {
   data: State;
   obstacles: number[][][];
@@ -109,12 +108,19 @@ export function Map({ data, obstacles, backgroundImage, scaleCoord }: RenderArgs
         <ObjectMarker key={`drone-${i}`} type="drone" x={scaleCoord(d[0], "x")} y={scaleCoord(d[1], "y")} />
       ))}
       {data.jobs.map((job, i) =>
-        job.target ? (
+        job.target && job.target.type === "circle" ? (
           <ObjectMarker
             key={`target-${i}`}
             type="target"
-            x={scaleCoord(job.target[0], "x")}
-            y={scaleCoord(job.target[1], "y")}
+            x={scaleCoord(job.target.center[0], "x")}
+            y={scaleCoord(job.target.center[1], "y")}
+          />
+        ) : job.target && job.target.type === "polygon" ? (
+          <ObjectMarker
+            key={`target-${i}`}
+            type="target"
+            x={scaleCoord(job.target.points[0][0], "x")}
+            y={scaleCoord(job.target.points[0][1], "y")}
           />
         ) : null
       )}

@@ -69,8 +69,7 @@ export interface FarmJob {
   job_type: 'immediate' | 'scheduled';
   scheduled_time?: string; // ISO 8601 datetime, only for scheduled jobs
   is_recurring: boolean;
-  target: [number, number]; // World coordinates [x, y]
-  target_radius: number;
+  target: Target;
   drone_count: number;
   status: 'pending' | 'active' | 'completed' | 'cancelled';
   created_at: string;
@@ -82,8 +81,7 @@ export interface CreateFarmJobRequest {
   job_type: 'immediate' | 'scheduled';
   scheduled_time?: string; // ISO 8601, required if job_type === 'scheduled'
   is_recurring: boolean;
-  target: [number, number];
-  target_radius: number;
+  target: Target;
   drone_count: number;
 }
 

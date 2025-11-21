@@ -11,37 +11,6 @@ export const SSE_ENDPOINTS = {
   state: `${backendURL}/stream/state`, // PLACEHOLDER URL - update with actual SSE endpoint
 } as const;
 
-type LocData = [number, number];
-
-interface ObjectData {
-    flock: LocData[],
-    drones: LocData[],
-    jobs: Array<{
-        target: LocData | null,
-        target_radius: number,
-        remaining_time: number | null,
-        is_active: boolean
-    }>,
-    polygons: LocData[][]
-}
-
-interface CustomScenario {
-    name: string,
-    seed: number,
-    flockSize: number,
-    sheep: [number, number][],
-    shepherd: [number, number],
-    target: [number, number],
-    bounds: {
-        xmin: number,
-        xmax: number,
-        ymin: number,
-        ymax: number
-    },
-    start: boolean
-    // missing: polygons (i.e. obstacles), params, 
-}
-
 export async function fetchState() {
     try {
         const response = await fetch(`${backendURL}/state`);

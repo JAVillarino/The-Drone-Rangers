@@ -202,6 +202,7 @@ def stream_state():
                                 if job.get("status") == "running":
                                     job["status"] = "active"
                     
+                    # print(state.jobs)
                     # Format as SSE event
                     event_data = f"event: stateUpdate\ndata: {json.dumps(state_dict)}\n\n"
                     yield event_data

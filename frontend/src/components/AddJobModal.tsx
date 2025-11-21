@@ -56,8 +56,11 @@ export default function AddJobModal({
         job_type: jobType,
         scheduled_time: jobType === 'scheduled' ? scheduledDateTime : undefined,
         is_recurring: isRecurring,
-        target: targetPosition,
-        target_radius: 10.0, // Default radius, could be made configurable
+        target: {
+          type: "circle",
+          center: targetPosition,
+          radius: 10.0,
+        },
         drone_count: droneCount
       };
 
