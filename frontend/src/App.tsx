@@ -49,10 +49,6 @@ function App() {
   // Use SSE data when actually connected, otherwise use polling data
   const data = actuallyUsingSSE && sseData ? sseData : pollingData;
 
-  useEffect(() => {
-    console.log("data:", data);
-  }, [data]);
-
   const mutation = useMutation({
     mutationFn: ({ jobId, coords, radius }: SetTargetVars) => setTarget(jobId, coords, radius),
     onSuccess: () => {

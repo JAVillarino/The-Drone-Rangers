@@ -66,10 +66,11 @@ export default function RealFarmView({
   const data = actuallyUsingSSE && sseData ? sseData : pollingData;
 
   useEffect(() => {
+    console.log("sse has error:", hasError);
     console.log({actuallyUsingSSE, shouldUseSSE, isConnected})
     console.log("data from real farm view:", data);
     console.log("sseData from real farm view:", sseData);
-  }, [data, sseData]);
+  }, [data, sseData, hasError, actuallyUsingSSE, shouldUseSSE, isConnected]);
 
   // Fetch farm jobs (only when schedule tab is active)
   const { data: jobs = [], isLoading: jobsLoading } = useQuery({
