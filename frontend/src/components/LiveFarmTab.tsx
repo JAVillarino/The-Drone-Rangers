@@ -32,14 +32,14 @@ const jobStatus = (j: Job) => {
   return "In progress"
 }
 
-export type SetTargetVars = { jobId: number, coords: { x: number; y: number }, radius?: number };
+export type SetTargetVars = { jobId: string, coords: { x: number; y: number }, radius?: number };
 
 export function LiveFarmTab({
   data,
   onSetTarget,
   selectedImage
 }: LiveFarmTabProps) {
-  const handleCancel = async (jobId: number) => {
+  const handleCancel = async (jobId: string) => {
     if (!confirm('Are you sure you want to delete this job?')) {
       return;
     }
@@ -66,7 +66,7 @@ export function LiveFarmTab({
   const { svgRef, scaleCoord, inverseScaleCoord } = usePan({ data, zoomMin, zoomMax, scale: 0.7, canvasSize: CANVAS_SIZE });
 
   // Stores the job ID that the user is currently choosing a target for.
-  const [choosingTarget, setChoosingTarget] = useState<number | null>(null);
+  const [choosingTarget, setChoosingTarget] = useState<string | null>(null);
 
 
   function handleClick(e: React.MouseEvent<SVGSVGElement, MouseEvent>) {
@@ -95,7 +95,6 @@ export function LiveFarmTab({
                     jobName="123"
                     status={jobStatus(job)}
                     target={job.target}
-                    initialRadius={job.target_radius}
                     initialDrones={1}
                     isActive={job.is_active}
                     onSelectOnMap={() => setChoosingTarget(job.id)}

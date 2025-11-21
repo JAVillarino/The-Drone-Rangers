@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LocData } from '../types.ts';
+import { LocData, Target } from '../types.ts';
 
 interface JobStatusProps {
   jobName: string;
   status: string;
-  target: LocData | null;
-  initialRadius: number;
+  target: Target | null;
   initialDrones: number;
   isActive: boolean;
-  onSelectOnMap: (target: LocData | null) => void;
+  onSelectOnMap: () => void;
   onPauseToggle: () => void;
   onCancel: () => void;
   onDronesChange: (newCount: number) => void;
@@ -18,7 +17,6 @@ const JobStatus: React.FC<JobStatusProps> = ({
   jobName,
   status,
   target,
-  initialRadius,
   initialDrones,
   isActive,
   onSelectOnMap,
@@ -122,7 +120,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
             </span>
             <button
               className="map-button"
-              onClick={() => onSelectOnMap(target)}
+              onClick={() => onSelectOnMap()}
             >
               Select on map
             </button>

@@ -18,6 +18,7 @@ class Circle:
         return {
             "center": self.center.tolist(),
             "radius": self.radius,
+            "type": "circle",
         }
 
 @dataclass
@@ -27,6 +28,7 @@ class Polygon:
     def to_dict(self) -> dict:
         return {
             "points": self.points.tolist(),
+            "type": "polygon",
         }
 
 Target = Union[Circle, Polygon]

@@ -120,7 +120,6 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
                     jobName="123"
                     status={jobStatus(job)}
                     target={job.target}
-                    initialRadius={job.target_radius}
                     initialDrones={1}
                     isActive={job.is_active}
                     onSelectOnMap={() => setChoosingTarget(true)}

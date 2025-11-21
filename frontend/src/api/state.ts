@@ -56,7 +56,7 @@ export async function fetchState() {
     }
 }
 
-export async function setTarget(jobId: number, coords: {x: number, y: number}, radius: number = 10.0) {
+export async function setTarget(jobId: string, coords: {x: number, y: number}, radius: number = 10.0) {
     try {
         const response = await fetch(`${backendURL}/api/jobs/${jobId}`,
             {
@@ -112,7 +112,7 @@ export async function requestRestart() {
     }
 }
 
-export async function setJobActiveState(jobId: number, isActive: boolean) {
+export async function setJobActiveState(jobId: string, isActive: boolean) {
     try {
         const response = await fetch(`${backendURL}/api/jobs/${jobId}`, {
             method: "PATCH",
@@ -134,7 +134,7 @@ export async function setJobActiveState(jobId: number, isActive: boolean) {
     }
 }
 
-export async function setJobDroneCount(jobId: number, droneCount: number) {
+export async function setJobDroneCount(jobId: string, droneCount: number) {
     try {
         console.log(`Setting drone count for job ${jobId} to ${droneCount}`);
         const response = await fetch(`${backendURL}/api/jobs/${jobId}`, {

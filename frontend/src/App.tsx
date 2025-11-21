@@ -1,4 +1,4 @@
-import {useState, useCallback} from "react";
+import {useState, useCallback, useEffect} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchState, setTarget, setPlayPause, requestRestart, createCustomScenario } from './api/state'
 import { SimulationMapPlot } from './components/SimulationMapPlot.tsx'
@@ -48,6 +48,10 @@ function App() {
 
   // Use SSE data when actually connected, otherwise use polling data
   const data = actuallyUsingSSE && sseData ? sseData : pollingData;
+
+  useEffect(() => {
+    console.log("data:", data);
+  }, [data]);
 
   const mutation = useMutation({
     mutationFn: ({ jobId, coords, radius }: SetTargetVars) => setTarget(jobId, coords, radius),
@@ -145,7 +149,8 @@ function App() {
           onBack={handleBackToWelcome}
         />
       ) : currentView === 'live-system' ? (
-        <RealFarmView 
+        <RealFarmView
+          // TODO: Pass in the data from SSE. We have a lot of duplicated code because we have setup for SSE at the top level and here.
           onBack={handleBackFromLiveSystem}
           onSetTarget={handleSetTarget}
           onPlayPause={handlePlayPause}

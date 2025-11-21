@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { State } from '../types';
 import { fetchFarmJobs, createFarmJob, fetchState } from '../api/state';
@@ -61,6 +61,12 @@ export default function RealFarmView({
 
   // Use SSE data when actually connected, otherwise use polling data
   const data = actuallyUsingSSE && sseData ? sseData : pollingData;
+
+  useEffect(() => {
+    console.log(actuallyUsingSSE)
+    console.log("data from real farm view:", data);
+    console.log("sseData from real farm view:", sseData);
+  }, [data, sseData]);
 
   // Fetch farm jobs (only when schedule tab is active)
   const { data: jobs = [], isLoading: jobsLoading } = useQuery({

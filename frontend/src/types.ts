@@ -1,12 +1,32 @@
 
 export type LocData = [number, number]; // [latitude, longitude]
 
+export type CircleTarget = {
+  type: "circle";
+  center: LocData;
+  radius: number | null;
+};
+
+export type PolygonTarget = {
+  type: "polygon";
+  points: LocData[];
+};
+
+export type Target = CircleTarget | PolygonTarget | null;
+
 export interface Job {
-  id: number;
-  target: LocData | null;
-  target_radius: number;
-  remaining_time: number | null; // In seconds
+  id: string;
+  target: Target;
+  remaining_time: number | null;
   is_active: boolean;
+  drones: number;
+  status: "pending" | "scheduled" | "running" | "completed" | "cancelled";
+  start_at: string | null;
+  completed_at: string | null;
+  scenario_id: string | null;
+  maintain_until: string; // ISO string or "target_is_reached"
+  created_at: string;
+  updated_at: string;
 }
 
 export interface State {
