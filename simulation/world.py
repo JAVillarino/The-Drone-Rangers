@@ -74,6 +74,9 @@ class World:
         # knn calculation radius
         r_attr: float = 30.0,
 
+        # hard enforcement
+        enforce_keepout: bool = True,  # If True, enforce keep-out zones and boundaries after each step
+
         **_kw_ignore,
     ):
         self.N = sheep_xy.shape[0]
@@ -83,6 +86,8 @@ class World:
         self.V = np.zeros((self.N, 2), dtype=np.float64, order='C')  # shape (N, 2)
         
         self.dogs = shepherd_xy
+        # Initialize apply_repulsion array (all drones apply repulsion by default)
+        self.apply_repulsion = np.ones(self.dogs.shape[0], dtype=bool)
         # TODO: We should be able to move this out of here now, and have a separate jobs list which is managed elsewhere.
         self.target = np.asarray(target_xy, float) if target_xy is not None else None
         self.paused = False
@@ -121,6 +126,9 @@ class World:
         self.near_wall_ratio = near_wall_ratio
 
         self.graze_p = graze_p
+
+        # hard enforcement flag
+        self.enforce_keepout = enforce_keepout
 
         self.rng = np.random.default_rng(seed)
         
@@ -328,57 +336,164 @@ class World:
             self.P[inside_mask] = Q[inside_mask] + (self.keep_out + 1e-3) * n[inside_mask]
 
     def _resolve_polygon_penetration(self):
-        """Project agents outward from polygon keep-out zones with capped correction."""
+        """Project agents outward from polygon keep-out zones with capped correction.
+        Returns: (correction_applied, correction_direction) for velocity update.
+        """
         if not self.polys:
-            return
+            return np.zeros((self.N, 2)), np.zeros(self.N, dtype=bool)
+        
         Q, n, s = self._nearest_polygon(self.P)
         penetration = (self.keep_out - s)  # positive when inside band
         mask = penetration > 0.0
         if not np.any(mask):
-            return
+            return np.zeros((self.N, 2)), np.zeros(self.N, dtype=bool)
 
-        # Cap correction to a fraction of a normal step to avoid jumps
-        max_corr = 0.25 * (self.vmax * self.dt)  # 25% of a frame's move
+        # For deep penetrations, use a larger correction cap but still limit it
+        # Increase cap for deeper penetrations to resolve faster
+        max_corr_base = 0.25 * (self.vmax * self.dt)  # 25% of a frame's move
+        # Allow up to 2x base correction for deep penetrations
+        max_corr = np.where(
+            penetration[mask] > 2 * max_corr_base,
+            2 * max_corr_base,
+            max_corr_base
+        )
         corr = np.minimum(penetration[mask], max_corr)
+        
         # Normalize normals
         n_unit = n[mask]
         Ln = np.sqrt(np.sum(n_unit*n_unit, axis=1)) + 1e-12
         n_unit = n_unit / Ln[:, None]
 
-        self.P[mask] += (corr[:, None] * n_unit)
+        # Apply position correction
+        correction_vec = corr[:, None] * n_unit
+        self.P[mask] += correction_vec
 
-        # Reflect only if velocity is heading into the wall
-        v_into = np.sum(self.V[mask]*n_unit, axis=1)
+        # Update velocity to reflect the correction
+        # Velocity should point in the direction of actual movement
+        correction_velocity = correction_vec / (self.dt + 1e-12)
+        
+        # Reflect velocity if heading into the wall, otherwise blend with correction
+        v_into = np.sum(self.V[mask] * n_unit, axis=1)
         neg = v_into < 0.0
+        
+        # For sheep heading into wall, reflect and add correction component
         if np.any(neg):
+            # Reflect the component heading into the wall
             self.V[mask][neg] -= (1.0 + self.restitution) * v_into[neg, None] * n_unit[neg]
+            # Add correction velocity component
+            self.V[mask][neg] += 0.5 * correction_velocity[neg]
+        
+        # For sheep not heading into wall, just add correction component
+        pos_mask = ~neg
+        if np.any(pos_mask):
+            self.V[mask][pos_mask] += 0.3 * correction_velocity[pos_mask]
+
+        # Return correction info for potential conflict checking
+        correction_info = np.zeros((self.N, 2))
+        correction_info[mask] = correction_vec
+        return correction_info, mask
 
     def _resolve_world_keepout(self):
-        """Push agents away from world walls with capped correction."""
+        """Push agents away from world walls with capped correction.
+        Returns: (correction_applied, correction_direction) for conflict checking.
+        """
         d_wall, n_wall = self._rect_signed_distance(self.P)
         penetration = self.world_keep_out - d_wall  # positive when inside band
         mask = penetration > 0.0
         if not np.any(mask):
-            return
+            return np.zeros((self.N, 2)), np.zeros(self.N, dtype=bool)
         
-        # Cap correction to a fraction of a normal step to avoid jumps
-        max_corr = 0.25 * (self.vmax * self.dt)  # 25% of a frame's move
+        # For deep penetrations, use a larger correction cap
+        max_corr_base = 0.25 * (self.vmax * self.dt)  # 25% of a frame's move
+        max_corr = np.where(
+            penetration[mask] > 2 * max_corr_base,
+            2 * max_corr_base,
+            max_corr_base
+        )
         corr = np.minimum(penetration[mask], max_corr)
         
-        self.P[mask] += corr[:, None] * n_wall[mask]
+        # Apply position correction
+        correction_vec = corr[:, None] * n_wall[mask]
+        self.P[mask] += correction_vec
         
-        # Reflect only if velocity is heading into the wall
+        # Update velocity to reflect the correction
+        correction_velocity = correction_vec / (self.dt + 1e-12)
+        
+        # Reflect velocity if heading into the wall, otherwise blend with correction
         v_into = np.sum(self.V[mask] * n_wall[mask], axis=1)
         neg = v_into < 0.0
+        
+        # For sheep heading into wall, reflect and add correction component
         if np.any(neg):
+            # Reflect the component heading into the wall
             self.V[mask][neg] -= (1.0 + self.restitution) * v_into[neg, None] * n_wall[mask][neg]
+            # Add correction velocity component
+            self.V[mask][neg] += 0.5 * correction_velocity[neg]
+        
+        # For sheep not heading into wall, just add correction component
+        pos_mask = ~neg
+        if np.any(pos_mask):
+            self.V[mask][pos_mask] += 0.3 * correction_velocity[pos_mask]
+
+        # Return correction info for potential conflict checking
+        correction_info = np.zeros((self.N, 2))
+        correction_info[mask] = correction_vec
+        return correction_info, mask
 
 
 
     def enforce_keepout_all(self):
-        """Enforce all keep-out constraints."""
-        self._resolve_polygon_penetration()
-        self._resolve_world_keepout()
+        """Enforce all keep-out constraints with conflict resolution."""
+        # Resolve polygon penetrations first
+        poly_corr, poly_mask = self._resolve_polygon_penetration()
+        
+        # Resolve world boundary keep-out
+        wall_corr, wall_mask = self._resolve_world_keepout()
+        
+        # Check for conflicts: if a sheep was corrected by both polygon and wall
+        # and corrections point in opposite directions, prioritize the larger one
+        conflict_mask = poly_mask & wall_mask
+        if np.any(conflict_mask):
+            # Compute dot product to check if corrections conflict
+            poly_dir = poly_corr[conflict_mask]
+            wall_dir = wall_corr[conflict_mask]
+            
+            # Normalize directions
+            poly_norm = np.linalg.norm(poly_dir, axis=1, keepdims=True) + 1e-12
+            wall_norm = np.linalg.norm(wall_dir, axis=1, keepdims=True) + 1e-12
+            
+            poly_dir_norm = poly_dir / poly_norm
+            wall_dir_norm = wall_dir / wall_norm
+            
+            # Check if directions are opposite (dot product < -0.5)
+            dot_products = np.sum(poly_dir_norm * wall_dir_norm, axis=1)
+            opposite = dot_products < -0.5
+            
+            if np.any(opposite):
+                # For conflicting corrections, prioritize the larger one
+                # and reduce the smaller one
+                conflict_indices = np.where(conflict_mask)[0]
+                opposite_indices = conflict_indices[opposite]
+                
+                poly_mag = np.linalg.norm(poly_corr[opposite_indices], axis=1)
+                wall_mag = np.linalg.norm(wall_corr[opposite_indices], axis=1)
+                
+                # Determine which correction is larger for each conflicting sheep
+                larger_is_poly = poly_mag > wall_mag
+                
+                # Adjust positions: if polygon correction was larger, reduce wall correction
+                # and vice versa
+                for i, idx in enumerate(opposite_indices):
+                    if larger_is_poly[i]:
+                        # Reduce wall correction
+                        reduction = 0.5 * wall_corr[idx]
+                        self.P[idx] -= reduction
+                        self.V[idx] -= 0.3 * reduction / (self.dt + 1e-12)
+                    else:
+                        # Reduce polygon correction
+                        reduction = 0.5 * poly_corr[idx]
+                        self.P[idx] -= reduction
+                        self.V[idx] -= 0.3 * reduction / (self.dt + 1e-12)
 
     # ---------- neighbor ops ----------
     def _kNN_vec(self, i: int, K: int) -> np.ndarray:
@@ -390,7 +505,6 @@ class World:
             idx = np.argpartition(d2, K+1)[:K+1]
             idx = idx[d2[idx] > 0]
             return idx[:K]
-        return idx[:K]
 
     def _repel_close_vec(self, i: int) -> np.ndarray:
         """Vectorized repulsion from close neighbors using contiguous arrays."""
@@ -478,23 +592,58 @@ class World:
 
     # ---------- boundaries ----------
     def _apply_bounds_sheep_inplace(self):
-        """In-place boundary application for all sheep positions and velocities."""
+        """In-place boundary application for all sheep positions and velocities.
+        Updates velocities to reflect position corrections.
+        """
         if self.boundary == "none":
             return
         
         P, V = self.P, self.V
         
         if self.boundary == "wrap":
+            # For wrapping, store positions before wrapping
+            P_before = P.copy()
             Lx, Ly = self.xmax - self.xmin, self.ymax - self.ymin
             P[:, 0] = self.xmin + ((P[:, 0] - self.xmin) % Lx)
             P[:, 1] = self.ymin + ((P[:, 1] - self.ymin) % Ly)
+            # Update velocity to reflect wrapping (displacement / dt)
+            displacement = P - P_before
+            V += displacement / (self.dt + 1e-12)
             return
         
         # Reflection boundaries - in-place
-        m = P[:, 0] < self.xmin;  P[m, 0] = self.xmin + (self.xmin - P[m, 0]); V[m, 0] = np.abs(V[m, 0]) * self.restitution
-        m = P[:, 0] > self.xmax;  P[m, 0] = self.xmax - (P[m, 0] - self.xmax);  V[m, 0] = -np.abs(V[m, 0]) * self.restitution
-        m = P[:, 1] < self.ymin;  P[m, 1] = self.ymin + (self.ymin - P[m, 1]); V[m, 1] = np.abs(V[m, 1]) * self.restitution
-        m = P[:, 1] > self.ymax;  P[m, 1] = self.ymax - (P[m, 1] - self.ymax); V[m, 1] = -np.abs(V[m, 1]) * self.restitution
+        # Store positions before reflection for velocity update
+        P_before = P.copy()
+        
+        # Reflect positions and velocities
+        m = P[:, 0] < self.xmin
+        if np.any(m):
+            P[m, 0] = self.xmin + (self.xmin - P[m, 0])
+            V[m, 0] = np.abs(V[m, 0]) * self.restitution
+        
+        m = P[:, 0] > self.xmax
+        if np.any(m):
+            P[m, 0] = self.xmax - (P[m, 0] - self.xmax)
+            V[m, 0] = -np.abs(V[m, 0]) * self.restitution
+        
+        m = P[:, 1] < self.ymin
+        if np.any(m):
+            P[m, 1] = self.ymin + (self.ymin - P[m, 1])
+            V[m, 1] = np.abs(V[m, 1]) * self.restitution
+        
+        m = P[:, 1] > self.ymax
+        if np.any(m):
+            P[m, 1] = self.ymax - (P[m, 1] - self.ymax)
+            V[m, 1] = -np.abs(V[m, 1]) * self.restitution
+        
+        # Update velocity to reflect position correction
+        # Blend the correction velocity with existing velocity
+        displacement = P - P_before
+        correction_velocity = displacement / (self.dt + 1e-12)
+        # Only update velocity where there was actual displacement
+        moved = np.any(np.abs(displacement) > 1e-9, axis=1)
+        if np.any(moved):
+            V[moved] = 0.7 * V[moved] + 0.3 * correction_velocity[moved]
 
     def _apply_bounds_point(self, pos: np.ndarray) -> np.ndarray:
         """Apply boundaries to a a list of positions (used for drone positions).
@@ -550,10 +699,10 @@ class World:
         """Optimized sheep step using vectorized operations where possible."""
         G = self._gcm_vec()
         
-        # TODO: Make this vectorized again.
-        dog_distances_sq = np.zeros((self.P.shape[0], self.dogs.shape[0]))
-        for i in range(self.dogs.shape[0]):
-            dog_distances_sq[:, i] = np.sum((self.P - self.dogs[i])**2, axis=1)
+        # Vectorized: compute all sheep-to-dog squared distances at once using broadcasting
+        # Shape: (N_sheep, 1, 2) - (1, N_dogs, 2) = (N_sheep, N_dogs, 2)
+        diff = self.P[:, None, :] - self.dogs[None, :, :]
+        dog_distances_sq = np.sum(diff**2, axis=2)  # Shape: (N_sheep, N_dogs)
 
         # If a given drone isn't applying repulsion, just make it seem like that drone is a bajillion miles away.
         dog_distances_sq[:, self.apply_repulsion == 0] = 1_000_000
@@ -585,10 +734,10 @@ class World:
         self.P += v_new * self.dt
         self.V = v_new
 
-        # TODO: Add this back.
-        # Soft keep-out (see change below) then bounds
-        # self.enforce_keepout_all()
-        # self._apply_bounds_sheep_inplace()
+        # Hard enforcement: keep-out zones and boundaries
+        if self.enforce_keepout:
+            self.enforce_keepout_all()
+            self._apply_bounds_sheep_inplace()
 
         # Safety
         bad = ~np.isfinite(self.P).all(axis=1)
@@ -776,7 +925,7 @@ class World:
             case DronePositions(positions=pos, apply_repulsion=apply, target_sheep_indices=_):
                 dog_count = self.dogs.shape[0]
                 if pos.shape[0] != dog_count or apply.size != dog_count:
-                    raise ValueError(f"DronePositions plan must have {self.num_drones} positions and repulsion flags.")
+                    raise ValueError(f"DronePositions plan must have {dog_count} positions and repulsion flags.")
                 
                 # Apply bounds to all drone positions
                 new_dogs_pos = self._apply_bounds_point(pos)
@@ -901,7 +1050,10 @@ def _closest_point_on_polygon_numba(P: np.ndarray, V: np.ndarray, E: np.ndarray,
 # Numba-optimized functions (defined outside class)
 @njit
 def _kNN_numba(P: np.ndarray, i: int, K: int) -> np.ndarray:
-    """Numba-optimized k-nearest neighbors."""
+    """Numba-optimized k-nearest neighbors using argsort.
+    
+    Optimized to O(N log N) by using sorting instead of repeated linear scans.
+    """
     N = P.shape[0]
     distances = np.empty(N, dtype=np.float64)
     
@@ -911,24 +1063,15 @@ def _kNN_numba(P: np.ndarray, i: int, K: int) -> np.ndarray:
         dy = P[j, 1] - P[i, 1]
         distances[j] = dx*dx + dy*dy
     
-    # Find K+1 smallest (includes self)
-    indices = np.empty(K, dtype=np.int32)
-    count = 0
+    # Set self-distance to infinity to exclude it from results
+    distances[i] = np.inf
     
-    for _ in range(K+1):
-        min_idx = -1
-        min_dist = np.inf
-        for j in range(N):
-            if distances[j] < min_dist:
-                min_dist = distances[j]
-                min_idx = j
-        
-        if min_idx != i and count < K:  # skip self
-            indices[count] = min_idx
-            count += 1
-        distances[min_idx] = np.inf  # mark as used
-        
-    return indices[:count]
+    # Use argsort to get indices sorted by distance: O(N log N)
+    # This is much better than O(N*K) for typical K values (K=19)
+    sorted_indices = np.argsort(distances)
+    
+    # Return K nearest (excluding self which is at infinity)
+    return sorted_indices[:K]
 
 @njit
 def _repel_close_numba(P: np.ndarray, i: int, ra: float) -> np.ndarray:
