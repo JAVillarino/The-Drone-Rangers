@@ -404,7 +404,7 @@ def load_scenario(scenario_id):
             repo = jobs_api.get_repo()
             scenario_job = repo.create(
                 target=target_pos,
-                target_radius=policy.fN * 1.5,
+                #target_radius=policy.fN * 1.5,
                 is_active=True if target_pos is not None else False,
                 drones=len(scenario.drones),
                 status="running" if target_pos is not None else "pending",

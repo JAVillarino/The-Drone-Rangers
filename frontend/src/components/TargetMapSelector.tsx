@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ObjectMarker from './ObjectMarker';
 
 interface TargetMapSelectorProps {
@@ -16,8 +16,35 @@ export default function TargetMapSelector({
   onTargetSelect,
   initialTarget
 }: TargetMapSelectorProps) {
-  const [targetPos, setTargetPos] = useState<[number, number] | null>(initialTarget || null);
+  const [targetPos, setTargetPos] = useState<[number, number] | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  // Convert world coordinates to SVG coordinates when initialTarget is provided
+  useEffect(() => {
+    if (initialTarget && svgRef.current) {
+      const svg = svgRef.current;
+      const svgRect = svg.getBoundingClientRect();
+      const svgWidth = svgRect.width;
+      const svgHeight = svgRect.height;
+
+      // Check if initialTarget is in world coordinates (within worldMin/worldMax range)
+      // or SVG coordinates (likely much larger values)
+      const isWorldCoords = initialTarget[0] >= worldMin && initialTarget[0] <= worldMax &&
+                            initialTarget[1] >= worldMin && initialTarget[1] <= worldMax;
+
+      if (isWorldCoords) {
+        // Convert world coordinates to SVG coordinates
+        const svgX = ((initialTarget[0] - worldMin) / (worldMax - worldMin)) * svgWidth;
+        const svgY = svgHeight - ((initialTarget[1] - worldMin) / (worldMax - worldMin)) * svgHeight;
+        setTargetPos([svgX, svgY]);
+      } else {
+        // Assume it's already in SVG coordinates
+        setTargetPos(initialTarget);
+      }
+    } else if (!initialTarget) {
+      setTargetPos(null);
+    }
+  }, [initialTarget, worldMin, worldMax]);
 
   const handleMapClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current) return;

@@ -71,6 +71,7 @@ export interface FarmJob {
   is_recurring: boolean;
   target: Target;
   drone_count: number;
+  drones?: number; // Number of drones currently being used (from backend)
   status: 'pending' | 'active' | 'completed' | 'cancelled';
   created_at: string;
   updated_at: string;

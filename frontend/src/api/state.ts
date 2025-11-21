@@ -298,7 +298,27 @@ export async function fetchFarmJobs(params?: {
         }
         const data: FarmJobsResponse = await response.json();
         console.log("data from fetch farm jobs:", data);
-        return data.jobs;
+        // Convert backend job format to frontend FarmJob format
+        return data.jobs.map(job => {
+            const backendJob = job as any;
+            // Backend may return 'drones' field, map it to both 'drone_count' and 'drones'
+            const backendStatus = backendJob.status as string;
+            // Map backend status 'running' to frontend 'active'
+            let frontendStatus: 'pending' | 'active' | 'completed' | 'cancelled' = job.status;
+            if (backendStatus === 'running') {
+                frontendStatus = 'active';
+            }
+            
+            const converted: FarmJob = {
+                ...job,
+                drone_count: job.drone_count ?? backendJob.drones ?? 1,
+                drones: backendJob.drones ?? job.drone_count,
+                status: frontendStatus,
+                // Map backend 'start_at' to 'scheduled_time' if job_type is scheduled
+                scheduled_time: job.scheduled_time ?? (backendJob.start_at && job.job_type === 'scheduled' ? backendJob.start_at : undefined),
+            };
+            return converted;
+        });
     } catch (err) {
         console.error("Error fetching farm jobs:", err);
         throw err;
@@ -329,7 +349,15 @@ export async function createFarmJob(jobData: CreateFarmJobRequest): Promise<Farm
 /**
  * Update a farm job
  */
-export async function updateFarmJob(jobId: string | number, updates: Partial<CreateFarmJobRequest>): Promise<FarmJob> {
+export async function updateFarmJob(
+    jobId: string | number, 
+    updates: {
+        scheduled_time?: string;
+        target?: [number, number] | { type: "circle"; center: [number, number]; radius: number | null } | { type: "polygon"; points: [number, number][] } | null;
+        drone_count?: number;
+        status?: 'cancelled';
+    }
+): Promise<FarmJob> {
     try {
         const response = await fetch(`${backendURL}/api/jobs/${jobId}`, {
             method: 'PATCH',

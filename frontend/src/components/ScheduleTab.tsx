@@ -8,6 +8,7 @@ interface ScheduleTabProps {
   onAddJob: () => void;
   jobs: FarmJob[];
   isLoading?: boolean;
+  onJobClick?: (job: FarmJob) => void;
 }
 
 export default function ScheduleTab({
@@ -15,7 +16,8 @@ export default function ScheduleTab({
   onViewChange,
   onAddJob,
   jobs,
-  isLoading
+  isLoading,
+  onJobClick
 }: ScheduleTabProps) {
   if (isLoading) {
     return (
@@ -32,7 +34,7 @@ export default function ScheduleTab({
         onViewChange={onViewChange}
         onAddJob={onAddJob}
       />
-      <JobCalendar view={scheduleView} jobs={jobs} />
+      <JobCalendar view={scheduleView} jobs={jobs} onJobClick={onJobClick} />
     </div>
   );
 }

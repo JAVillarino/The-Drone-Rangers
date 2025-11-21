@@ -3,9 +3,10 @@ import { FarmJob } from '../types';
 
 interface MonthlyScheduleViewProps {
   jobs: FarmJob[];
+  onJobClick?: (job: FarmJob) => void;
 }
 
-export default function MonthlyScheduleView({ jobs }: MonthlyScheduleViewProps) {
+export default function MonthlyScheduleView({ jobs, onJobClick }: MonthlyScheduleViewProps) {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
@@ -20,6 +21,11 @@ export default function MonthlyScheduleView({ jobs }: MonthlyScheduleViewProps) 
     const dateJobs: { [dateKey: string]: FarmJob[] } = {};
 
     jobs.forEach(job => {
+      // Filter out cancelled jobs
+      if (job.status === 'cancelled') {
+        return;
+      }
+
       const jobDate = job.job_type === 'scheduled' && job.scheduled_time
         ? new Date(job.scheduled_time)
         : new Date(job.created_at);
@@ -88,7 +94,12 @@ export default function MonthlyScheduleView({ jobs }: MonthlyScheduleViewProps) 
                 <div className="calendar-day-number">{dayData.date.getDate()}</div>
                 <div className="calendar-day-jobs">
                   {dayJobs.slice(0, 3).map(job => (
-                    <div key={job.id} className={`calendar-job-item job-status-${job.status}`}>
+                    <div
+                      key={job.id}
+                      className={`calendar-job-item job-status-${job.status}`}
+                      onClick={() => onJobClick?.(job)}
+                      style={{ cursor: onJobClick ? 'pointer' : 'default' }}
+                    >
                       {job.drone_count} drone{job.drone_count !== 1 ? 's' : ''}
                     </div>
                   ))}

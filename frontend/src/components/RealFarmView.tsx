@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { State } from '../types';
+import { State, FarmJob } from '../types';
 import { fetchFarmJobs, createFarmJob, fetchState } from '../api/state';
 import { useSSE } from '../hooks/useSSE';
 import TabNavigation from './TabNavigation';
 import ScheduleTab from './ScheduleTab';
 import { LiveFarmTab, SetTargetVars } from './LiveFarmTab';
 import AddJobModal from './AddJobModal';
+import EditJobModal from './EditJobModal';
 import DroneManagementPage from './DroneManagementPage.tsx';
 
 interface RealFarmViewProps {
@@ -30,6 +31,8 @@ export default function RealFarmView({
   const [activeTab, setActiveTab] = useState<'schedule' | 'live-farm' | 'drone-management'>('live-farm');
   const [scheduleView, setScheduleView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false);
+  const [isEditJobModalOpen, setIsEditJobModalOpen] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<FarmJob | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -92,6 +95,15 @@ export default function RealFarmView({
     await createJobMutation.mutateAsync(jobData);
   };
 
+  const handleJobClick = (job: FarmJob) => {
+    setSelectedJob(job);
+    setIsEditJobModalOpen(true);
+  };
+
+  const handleJobUpdated = () => {
+    queryClient.invalidateQueries({ queryKey: ['farm-jobs'] });
+  };
+
   // Map selected image IDs to actual image paths (same as MapPlot)
   const imageMap: { [key: string]: string } = {
     "option1": "../../img/King_Ranch_better.jpg",
@@ -122,6 +134,7 @@ export default function RealFarmView({
             onAddJob={() => setIsAddJobModalOpen(true)}
             jobs={jobs}
             isLoading={jobsLoading}
+            onJobClick={handleJobClick}
           />
         ) : activeTab == 'live-farm' ? (
           stateLoading || !data ? (
@@ -158,6 +171,19 @@ export default function RealFarmView({
         worldMin={zoomMin}
         worldMax={zoomMax}
         backgroundImage={backgroundImage}
+      />
+
+      <EditJobModal
+        isOpen={isEditJobModalOpen}
+        onClose={() => {
+          setIsEditJobModalOpen(false);
+          setSelectedJob(null);
+        }}
+        job={selectedJob}
+        worldMin={zoomMin}
+        worldMax={zoomMax}
+        backgroundImage={backgroundImage}
+        onJobUpdated={handleJobUpdated}
       />
     </div>
   );

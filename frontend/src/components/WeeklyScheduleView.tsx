@@ -3,9 +3,10 @@ import { FarmJob } from '../types';
 
 interface WeeklyScheduleViewProps {
   jobs: FarmJob[];
+  onJobClick?: (job: FarmJob) => void;
 }
 
-export default function WeeklyScheduleView({ jobs }: WeeklyScheduleViewProps) {
+export default function WeeklyScheduleView({ jobs, onJobClick }: WeeklyScheduleViewProps) {
   const now = new Date();
   const startOfWeek = new Date(now);
   startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
@@ -25,6 +26,11 @@ export default function WeeklyScheduleView({ jobs }: WeeklyScheduleViewProps) {
     }
 
     jobs.forEach(job => {
+      // Filter out cancelled jobs
+      if (job.status === 'cancelled') {
+        return;
+      }
+
       const jobDate = job.job_type === 'scheduled' && job.scheduled_time
         ? new Date(job.scheduled_time)
         : new Date(job.created_at);
@@ -68,7 +74,12 @@ export default function WeeklyScheduleView({ jobs }: WeeklyScheduleViewProps) {
             </div>
             <div className="day-jobs">
               {jobsByDay[index].map(job => (
-                <div key={job.id} className="job-item">
+                <div
+                  key={job.id}
+                  className="job-item"
+                  onClick={() => onJobClick?.(job)}
+                  style={{ cursor: onJobClick ? 'pointer' : 'default' }}
+                >
                   <span className={`job-status job-status-${job.status}`}>{job.status}</span>
                   <span className="job-time">
                     {job.scheduled_time

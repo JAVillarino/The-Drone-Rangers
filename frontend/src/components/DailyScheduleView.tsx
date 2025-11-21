@@ -3,9 +3,10 @@ import { FarmJob } from '../types';
 
 interface DailyScheduleViewProps {
   jobs: FarmJob[];
+  onJobClick?: (job: FarmJob) => void;
 }
 
-export default function DailyScheduleView({ jobs }: DailyScheduleViewProps) {
+export default function DailyScheduleView({ jobs, onJobClick }: DailyScheduleViewProps) {
   // Filter jobs for today and group by hour
   const jobsByHour = useMemo(() => {
     const today = new Date();
@@ -19,6 +20,11 @@ export default function DailyScheduleView({ jobs }: DailyScheduleViewProps) {
     }
 
     jobs.forEach(job => {
+      // Filter out cancelled jobs
+      if (job.status === 'cancelled') {
+        return;
+      }
+
       const jobDate = job.job_type === 'scheduled' && job.scheduled_time
         ? new Date(job.scheduled_time)
         : new Date(job.created_at);
@@ -59,7 +65,12 @@ export default function DailyScheduleView({ jobs }: DailyScheduleViewProps) {
             </div>
             <div className="hour-jobs">
               {jobsByHour[i].map(job => (
-                <div key={job.id} className="job-item">
+                <div
+                  key={job.id}
+                  className="job-item"
+                  onClick={() => onJobClick?.(job)}
+                  style={{ cursor: onJobClick ? 'pointer' : 'default' }}
+                >
                   <span className={`job-status job-status-${job.status}`}>{job.status}</span>
                   <span className="job-details">
                     {job.drone_count} drone{job.drone_count !== 1 ? 's' : ''}
