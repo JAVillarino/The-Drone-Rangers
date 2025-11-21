@@ -78,7 +78,7 @@ class Job:
                 return result if result is not None else ""
         
         return {
-            "id": self.id,
+            "id": str(self.id),
             "target": self.target.to_dict() if self.target is not None else None,
             "remaining_time": self.remaining_time,
             "is_active": self.is_active,

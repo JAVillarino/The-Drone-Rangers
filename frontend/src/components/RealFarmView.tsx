@@ -35,7 +35,7 @@ export default function RealFarmView({
 
   // Determine if we need state data (for live-farm or drone-management tabs)
   const needsStateData = activeTab === 'live-farm' || activeTab === 'drone-management';
-  const shouldUseSSE = false; //activeTab === 'live-farm';
+  const shouldUseSSE = activeTab === 'live-farm';
 
   // SSE connection for real-time updates (only for live-farm tab)
   // Retries every 60 seconds if connection fails

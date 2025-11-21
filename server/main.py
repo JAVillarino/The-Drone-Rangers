@@ -202,9 +202,8 @@ def stream_state():
                                 if job.get("status") == "running":
                                     job["status"] = "active"
                     
-                    # print(state.jobs)
                     # Format as SSE event
-                    event_data = f"event: stateUpdate\ndata: {json.dumps(state_dict)}\n\n"
+                    event_data = f"data: {json.dumps(state_dict)}\n\n"
                     yield event_data
                     
                     # Sleep for ~16.67ms to achieve ~60 FPS
@@ -214,6 +213,7 @@ def stream_state():
                     # Client disconnected
                     break
                 except Exception as e:
+                    print("Error in stream_state:", e)
                     # Log error but continue streaming
                     # Send comment keepalive to maintain connection
                     yield ": keepalive\n\n"
