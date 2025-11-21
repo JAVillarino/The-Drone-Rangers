@@ -286,17 +286,18 @@ export async function fetchFarmJobs(params?: {
 }): Promise<FarmJob[]> {
     try {
         const queryParams = new URLSearchParams();
-        if (params?.startDate) queryParams.append('start_date', params.startDate);
-        if (params?.endDate) queryParams.append('end_date', params.endDate);
-        if (params?.status) queryParams.append('status', params.status);
-        if (params?.limit) queryParams.append('limit', params.limit.toString());
-        if (params?.offset) queryParams.append('offset', params.offset.toString());
+        // if (params?.startDate) queryParams.append('start_date', params.startDate);
+        // if (params?.endDate) queryParams.append('end_date', params.endDate);
+        // if (params?.status) queryParams.append('status', params.status);
+        // if (params?.limit) queryParams.append('limit', params.limit.toString());
+        // if (params?.offset) queryParams.append('offset', params.offset.toString());
 
         const response = await fetch(`${backendURL}/api/jobs?${queryParams}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data: FarmJobsResponse = await response.json();
+        console.log("data from fetch farm jobs:", data);
         return data.jobs;
     } catch (err) {
         console.error("Error fetching farm jobs:", err);

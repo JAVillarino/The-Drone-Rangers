@@ -176,7 +176,10 @@ class JobRepo:
     def list(self, status: Optional[JobStatus] = None) -> List[Job]:
         """List all jobs, optionally filtered by status."""
         jobs = self._load_jobs()
-        return [j for j in jobs if j.status == status]
+        if status:
+            return [j for j in jobs if j.status == status]
+        else:
+            return jobs
 
     def update_fields(self, job_id: uuid.UUID, **fields) -> Optional[Job]:
         """Update specific fields of a job."""
@@ -297,6 +300,7 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
                 return jsonify({"error": status_error}), 400
 
         db_jobs = repo.list(status=normalized_status)
+        print("db_jobs in list_jobs:", db_jobs);
 
         # Filter by date range if provided
         # For calendar views, filter by scheduled time (start_at), fallback to created_at for immediate jobs
@@ -319,6 +323,7 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
         with world_lock:
             for db_job in db_jobs:
                 _sync_remaining_time_from_memory(db_job, jobs_cache)
+
 
         return jsonify({
             "jobs": [j.to_dict() for j in db_jobs],
