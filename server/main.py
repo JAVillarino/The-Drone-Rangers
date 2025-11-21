@@ -87,7 +87,6 @@ def initialize_sim():
         now = datetime.now(timezone.utc).timestamp()
         default_job = repo.create(
             target=None,
-            target_radius=policy.fN * 1.5,
             is_active=False,
             drones=1,
             status="pending",
@@ -215,10 +214,12 @@ def stream_state():
     )
     return response
 
+# TODO: Lowkey this should just be a job update or a patch to the state I guess.
 @app.route("/target", methods=["POST"])
 def set_target():
     """Set the target position for the herding simulation."""
     data = request.get_json()
+    print("Setting target:", data)
     if not data or "position" not in data:
         return jsonify({"error": "Missing 'position' field"}), 400
 
@@ -490,7 +491,7 @@ if __name__ == "__main__":
                     pass
                 elif job.status == "running" and job.is_active:
                     # Only check goal for running+active jobs
-                    if herding.policy.is_goal_satisfied(backend_adapter.get_state(), job.target, job.target_radius):
+                    if herding.policy.is_goal_satisfied(backend_adapter.get_state(), job.target):
                         job.remaining_time = 0
                         # Double-check status before marking completed (race protection)
                         if job.status == "running" and job.is_active:

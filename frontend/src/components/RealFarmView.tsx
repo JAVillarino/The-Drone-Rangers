@@ -5,13 +5,13 @@ import { fetchFarmJobs, createFarmJob, fetchState } from '../api/state';
 import { useSSE } from '../hooks/useSSE';
 import TabNavigation from './TabNavigation';
 import ScheduleTab from './ScheduleTab';
-import LiveFarmTab from './LiveFarmTab';
+import { LiveFarmTab, SetTargetVars } from './LiveFarmTab';
 import AddJobModal from './AddJobModal';
 import DroneManagementPage from './DroneManagementPage.tsx';
 
 interface RealFarmViewProps {
   onBack: () => void;
-  onSetTarget: (coords: {x: number, y: number}) => void;
+  onSetTarget: (targetVars: SetTargetVars) => void;
   onPlayPause: () => void;
   onRestart: () => void;
   selectedImage?: string;

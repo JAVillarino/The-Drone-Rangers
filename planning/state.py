@@ -1,20 +1,40 @@
 from dataclasses import dataclass, field
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Union
 from itertools import count
 from datetime import datetime, timezone
+import uuid
 
 import numpy as np
 
 JobStatus = Literal["pending", "scheduled", "running", "completed", "cancelled"]
+MaintainUntil = Union[Literal["target_is_reached"], float]  # "target_is_reached" or UNIX timestamp
+
+@dataclass
+class Circle:
+    center: np.ndarray
+    radius: Optional[float]
+
+    def to_dict(self) -> dict:
+        return {
+            "center": self.center.tolist(),
+            "radius": self.radius,
+        }
+
+@dataclass
+class Polygon:
+    points: np.ndarray
+
+    def to_dict(self) -> dict:
+        return {
+            "points": self.points.tolist(),
+        }
+
+Target = Union[Circle, Polygon]
 
 @dataclass
 class Job:
     """State of a given herding job."""
-
-    # 1-by-2 of the position of the drone.
-    target: Optional[np.ndarray]
-    target_radius: float
-
+    target: Optional[Target]
     # Estimate of the remaining time in seconds required before the job will finish.
     remaining_time: Optional[float]
     
@@ -29,22 +49,35 @@ class Job:
     completed_at: Optional[float]  # UNIX timestamp when completed; None = not completed
     scenario_id: Optional[str]  # UUID pointing to a scenario
     
+    # When to stop maintaining the target:
+    # - "target_is_reached": maintain until target condition is satisfied
+    # - float: maintain until this UNIX timestamp
+    maintain_until: MaintainUntil
+    
     created_at: float  # UNIX timestamp
     updated_at: float  # UNIX timestamp
 
     # UUID.
-    id: int = field(default_factory=count().__next__)
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
     
     def to_dict(self) -> dict:
         def ts_to_iso(ts: Optional[float]) -> Optional[str]:
             if ts is None:
                 return None
             return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat().replace("+00:00", "Z")
-
+        
+        def maintain_until_to_dict(mu: MaintainUntil) -> str:
+            """Convert maintain_until to dict representation."""
+            if mu == "target_is_reached":
+                return "target_is_reached"
+            else:
+                # mu is a float timestamp here, so ts_to_iso will return a string (not None)
+                result = ts_to_iso(mu)
+                return result if result is not None else ""
+        
         return {
             "id": self.id,
-            "target": None if self.target is None else self.target.tolist(),
-            "target_radius": self.target_radius,
+            "target": self.target.to_dict() if self.target is not None else None,
             "remaining_time": self.remaining_time,
             "is_active": self.is_active,
             "drones": self.drones,
@@ -52,6 +85,7 @@ class Job:
             "start_at": ts_to_iso(self.start_at),
             "completed_at": ts_to_iso(self.completed_at),
             "scenario_id": self.scenario_id,
+            "maintain_until": maintain_until_to_dict(self.maintain_until),
             "created_at": ts_to_iso(self.created_at),
             "updated_at": ts_to_iso(self.updated_at),
         }

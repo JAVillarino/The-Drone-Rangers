@@ -56,21 +56,31 @@ export async function fetchState() {
     }
 }
 
-export async function setTarget(coords: {x: number, y: number}) {
+export async function setTarget(jobId: number, coords: {x: number, y: number}, radius: number = 10.0) {
     try {
-        const response = await fetch(`${backendURL}/target`,
+        const response = await fetch(`${backendURL}/api/jobs/${jobId}`,
             {
-                method: "POST",
+                method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    "position": [coords.x, coords.y]
+                    "target": {
+                        "type": "circle",
+                        "center": [coords.x, coords.y],
+                        "radius": radius
+                    }
                 })
             }
         );
         
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Request failed with status ${response.status}`);
+        }
+        
         return await response.json();
     } catch (err) {
-        return console.error("Error sending target coords:", err);
+        console.error("Error sending target coords:", err);
+        throw err;
     }
 }
 

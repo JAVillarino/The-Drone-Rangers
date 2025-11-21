@@ -10,23 +10,142 @@ def lerp_clamped(a: float, b: float, t1: float, t2: float, t: float) -> float:
             t = max(0.0, min(1.0, t))
             return a + (b - a) * t
 
-def is_goal_satisfied(w: state.State, target: np.ndarray, goal_tolerance: float) -> bool:
+def points_inside_polygon(points: np.ndarray, polygon: np.ndarray) -> np.ndarray:
+    """
+    Check which points are inside a polygon using the ray casting algorithm (vectorized).
+    
+    Args:
+        points: 2D points as np.ndarray of shape (n, 2)
+        polygon: Polygon vertices as np.ndarray of shape (m, 2)
+    
+    Returns:
+        Boolean array of shape (n,) indicating which points are inside the polygon
+    """
+    if polygon.shape[0] < 3:
+        # Need at least 3 vertices for a valid polygon
+        return np.zeros(points.shape[0], dtype=bool)
+    
+    n_points = points.shape[0]
+    n_vertices = polygon.shape[0]
+    inside = np.zeros(n_points, dtype=bool)
+    
+    # For each point, cast a ray to the right and count intersections
+    for i in range(n_points):
+        px, py = points[i]
+        intersections = 0
+        
+        for j in range(n_vertices):
+            v1 = polygon[j]
+            v2 = polygon[(j + 1) % n_vertices]
+            
+            x1, y1 = v1
+            x2, y2 = v2
+            
+            # Check if ray crosses this edge
+            if ((y1 > py) != (y2 > py)):  # Edge crosses horizontal line through point
+                # Compute x-coordinate of intersection
+                if y2 != y1:  # Avoid division by zero
+                    x_intersect = (py - y1) * (x2 - x1) / (y2 - y1) + x1
+                    if px < x_intersect:
+                        intersections += 1
+        
+        # Odd number of intersections means point is inside
+        inside[i] = (intersections % 2) == 1
+    
+    return inside
+
+def closest_point_on_polygon(points: np.ndarray, polygon: np.ndarray) -> np.ndarray:
+    """
+    Find the closest point on a polygon for each point in the input array (vectorized).
+    
+    Args:
+        points: 2D points as np.ndarray of shape (n, 2)
+        polygon: Polygon vertices as np.ndarray of shape (m, 2)
+    
+    Returns:
+        The closest points on the polygon for each input point as np.ndarray of shape (n, 2)
+    """
+    if polygon.shape[0] < 2:
+        # Degenerate polygon - return first vertex for all points
+        if polygon.shape[0] > 0:
+            return np.tile(polygon[0], (points.shape[0], 1))
+        else:
+            return points.copy()
+    
+    n_points = points.shape[0]
+    n_vertices = polygon.shape[0]
+    
+    # Initialize with large distances
+    min_dist_sq = np.full(n_points, np.inf)
+    closest_points = np.zeros((n_points, 2))
+    
+    # Check each edge of the polygon
+    for i in range(n_vertices):
+        v1 = polygon[i]
+        v2 = polygon[(i + 1) % n_vertices]  # Wrap around to close the polygon
+        
+        # Vector along the edge
+        edge_vec = v2 - v1
+        edge_len_sq = np.dot(edge_vec, edge_vec)
+        
+        if edge_len_sq < 1e-9:
+            # Degenerate edge (zero length) - check distance to vertex for all points
+            to_vertex = points - v1  # (n_points, 2)
+            dist_sq = np.sum(to_vertex ** 2, axis=1)  # (n_points,)
+            
+            # Update where this vertex is closer
+            mask = dist_sq < min_dist_sq
+            closest_points[mask] = v1
+            min_dist_sq = np.minimum(min_dist_sq, dist_sq)
+            continue
+        
+        # Vector from v1 to each point: (n_points, 2)
+        to_points = points - v1
+        
+        # Project each point onto the edge line
+        # t = dot(to_points, edge_vec) / dot(edge_vec, edge_vec)
+        # to_points @ edge_vec gives (n_points,) result
+        t = np.dot(to_points, edge_vec) / edge_len_sq  # (n_points,)
+        
+        # Clamp t to [0, 1] to stay on the segment
+        t = np.clip(t, 0.0, 1.0)
+        
+        # Closest points on the edge segment: (n_points, 2)
+        # v1 is (2,), t is (n_points,), edge_vec is (2,)
+        # We need to broadcast: v1 + t[:, None] * edge_vec
+        closest_on_edge = v1 + t[:, np.newaxis] * edge_vec
+        
+        # Distance squared from each point to closest point on edge: (n_points,)
+        dist_sq = np.sum((points - closest_on_edge) ** 2, axis=1)
+        
+        # Update where this edge gives a closer point
+        mask = dist_sq < min_dist_sq
+        closest_points[mask] = closest_on_edge[mask]
+        min_dist_sq = np.minimum(min_dist_sq, dist_sq)
+    
+    return closest_points
+
+def is_goal_satisfied(w: state.State, target: state.Target) -> bool:
     """
     Return True if every sheep in the world's flock is within the goal tolerance
     of the world's target.
     """
-    
     if w.flock.size == 0:
         return True
 
-    # squared comparison for speed / numerical stability
-    tol_sq = goal_tolerance * goal_tolerance
+    if isinstance(target, state.Circle):
+        # squared comparison for speed / numerical stability
+        tol_sq = target.radius * target.radius
 
-    # distances squared from each sheep to the target
-    diffs = w.flock - target.reshape(1, 2)
-    d2 = np.sum(diffs * diffs, axis=1)
+        # distances squared from each sheep to the target
+        diffs = w.flock - target.center.reshape(1, 2)
+        d2 = np.sum(diffs * diffs, axis=1)
 
-    return np.all(d2 <= tol_sq)
+        return np.all(d2 <= tol_sq)
+    elif isinstance(target, state.Polygon):
+        return np.all(points_inside_polygon(w.flock, target.points))
+
+    return False
 
 class ShepherdPolicy:
     """
@@ -65,7 +184,7 @@ class ShepherdPolicy:
         return self.fN / r
 
     # ------------------ Multi-Drone Collect Logic ------------------
-    def _collect_points(self, world: state.State, G: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _collect_points(self, world: state.State, G: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, list[int]]:
         """
         Assigns each drone to collect an individual outermost sheep.
         Returns target points for all drones and the indices of the assigned sheep.
@@ -77,8 +196,17 @@ class ShepherdPolicy:
         if target is None:
             # If no target is set, use a default position or skip goal-based calculations
             dGoal = np.zeros(P.shape[0])  # No goal distance when no target
-        else:
-            dGoal = np.linalg.norm(P - target, axis=1) # distance to goal
+        elif isinstance(target, state.Circle):
+            dGoal = np.linalg.norm(P - target.center, axis=1) # distance to goal
+            # If the sheep is inside the goal, set the distance to -inf so it won't be targeted.
+            dGoal = np.where(dGoal < target.radius, -np.inf, dGoal)
+        elif isinstance(target, state.Polygon):
+            # Compute the distance to the closest point on the polygon (vectorized)
+            closest_points = closest_point_on_polygon(P, target.points)
+            dGoal = np.linalg.norm(P - closest_points, axis=1)
+            # If the sheep is inside the goal, set the distance to -inf so it won't be targeted.
+            polygon_inside = points_inside_polygon(P, target.points)
+            dGoal = np.where(polygon_inside, -np.inf, dGoal)
         
         dG = np.linalg.norm(P - G, axis=1)    # distance to global COM
         
@@ -127,7 +255,7 @@ class ShepherdPolicy:
             target_sheep_indices.append(int(np.argmax(score)))
         
         # Calculate the standoff point for each assigned sheep
-        collect_points = np.zeros((N_drones, 2))
+        collect_points = np.full((N_drones, 2), np.nan)
         for i, target_index in enumerate(target_sheep_indices):
             Pj = P[target_index]
             
@@ -194,13 +322,14 @@ class ShepherdPolicy:
         all_jobs_satisfied = True
         for job in jobs:
             if job.is_active and job.target is not None:
-                if not is_goal_satisfied(world, job.target, job.target_radius):
+                if not is_goal_satisfied(world, job.target):
                     all_jobs_satisfied = False
                 
                 # TODO: We should be able to do better than this. We should instead assign drones to different jobs here and don't mess with the world.
                 target = job.target
                 break
-            
+                
+        # Why isn't the job satisfied
         if all_jobs_satisfied:
             return DoNothing()
         

@@ -33,7 +33,7 @@ const zoomMin = 0;
 const zoomMax = 250;
 
 
-export function SimulationMapPlot({ data, onSetTarget, onPlayPause, onRestart, onBack, selectedImage }: MapPlotProps) {
+export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, selectedImage }: MapPlotProps) {
     if (!data) return <p>No data yet</p>;
     const paused = data.paused ?? false;
 

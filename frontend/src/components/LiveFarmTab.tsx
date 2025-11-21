@@ -6,7 +6,7 @@ import { setJobActiveState, setJobDroneCount, deleteFarmJob } from '../api/state
 
 interface LiveFarmTabProps {
   data: State;
-  onSetTarget: (coords: {x: number, y: number}) => void;
+  onSetTarget: (newTarget: SetTargetVars) => void;
   onPlayPause: () => void;
   onRestart: () => void;
   onBack?: () => void;
@@ -32,7 +32,9 @@ const jobStatus = (j: Job) => {
   return "In progress"
 }
 
-export default function LiveFarmTab({
+export type SetTargetVars = { jobId: number, coords: { x: number; y: number }, radius?: number };
+
+export function LiveFarmTab({
   data,
   onSetTarget,
   selectedImage
@@ -63,7 +65,8 @@ export default function LiveFarmTab({
 
   const { svgRef, scaleCoord, inverseScaleCoord } = usePan({ data, zoomMin, zoomMax, scale: 0.7, canvasSize: CANVAS_SIZE });
 
-  const [choosingTarget, setChoosingTarget] = useState(false);
+  // Stores the job ID that the user is currently choosing a target for.
+  const [choosingTarget, setChoosingTarget] = useState<number | null>(null);
 
 
   function handleClick(e: React.MouseEvent<SVGSVGElement, MouseEvent>) {
@@ -77,8 +80,8 @@ export default function LiveFarmTab({
         if (!e.target) {
             throw new Error("No target found for click.");
         }
-        onSetTarget({x: inverseScaleCoord(cursorpt.x, "x"), y: inverseScaleCoord(cursorpt.y, "y")});
-        setChoosingTarget(false);
+        onSetTarget({jobId: choosingTarget, coords: {x: inverseScaleCoord(cursorpt.x, "x"), y: inverseScaleCoord(cursorpt.y, "y")}});
+        setChoosingTarget(null);
         return;
     }
   }
@@ -95,7 +98,7 @@ export default function LiveFarmTab({
                     initialRadius={job.target_radius}
                     initialDrones={1}
                     isActive={job.is_active}
-                    onSelectOnMap={() => setChoosingTarget(true)}
+                    onSelectOnMap={() => setChoosingTarget(job.id)}
                     onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
                     onCancel={() => handleCancel(job.id)}
                     onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}

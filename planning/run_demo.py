@@ -6,12 +6,13 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from simulation import world
 from planning.herding import policy
+from planning import state as state_module
 from planning.state import Job
 from simulation.scenarios import *
 from planning import plan_type
 
 class Renderer:
-    def __init__(self, world, target, bounds=(0.0, 500.0, 0.0, 500.0)):
+    def __init__(self, world, bounds=(0.0, 500.0, 0.0, 500.0)):
         """Initialize figure, axes, and scatter plots."""
         xmin, xmax, ymin, ymax = bounds
 
@@ -33,14 +34,14 @@ class Renderer:
         state = world.get_state()
         self.sheep_sc = self.ax.scatter(state.flock[:, 0], state.flock[:, 1], s=20)
         self.dog_sc   = self.ax.scatter([state.drones[:, 0]], [state.drones[:, 1]], marker='x')
-        self.targ_sc  = self.ax.scatter([target[0]], [target[1]], marker='*')
+        self.target = None
+        self.prev_target = None
         
-        # TODO: Make this move around every iteration.
         self.circle = plt.Circle((0, 0), 0, color='b', fill=False)
         self.ax.add_patch(self.circle)
 
 
-    def render_world(self, world, plan: plan_type.Plan, step_number, target, debug=False):
+    def render_world(self, world, plan: plan_type.Plan, step_number, target: state_module.Target, debug=False):
         """Update the scatter plots for the current state of the world."""
         state = world.get_state()
 
@@ -65,7 +66,22 @@ class Renderer:
 
         # Update dog and target markers
         self.dog_sc.set_offsets(state.drones)
-        self.targ_sc.set_offsets([target])
+
+        # Render the target, but only if it's different from the last time.
+        if self.prev_target != target:
+            if self.target is not None:
+                self.target.remove()
+                self.target = None
+
+            if isinstance(target, state_module.Circle):
+                self.target = plt.Circle((0, 0), 0, color='g', fill=False)
+                self.target.center = target.center
+                self.target.radius = target.radius
+                self.ax.add_patch(self.target)
+            elif isinstance(target, state_module.Polygon):
+                self.target = Polygon(target.points, facecolor='g', alpha=0.3, edgecolor='g')
+                self.ax.add_patch(self.target)
+            self.prev_target = target
 
         # Title
         self.ax.set_title(f"Step {step_number}")
@@ -76,7 +92,7 @@ class Renderer:
 # ---------- main ----------
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--N", type=int, default=200)
+    p.add_argument("--N", type=int, default=100)
     p.add_argument("--spawn", choices=["circle","uniform","clusters","corners","line"],
                    default="uniform", help="initial sheep distribution")
     p.add_argument("--clusters", type=int, default=3, help="#clusters for spawn=clusters")
@@ -172,9 +188,14 @@ if __name__ == "__main__":
     num_drones = s0.drones.shape[0]
 
     current_time = time.time()
+    from planning.state import Circle
+    target = Circle(center=target_xy.copy(), radius=10.0)
+    target = state_module.Polygon(points=np.array([[0.0, 180.0],
+                       [0.0, 260.0],
+                       [260.0, 260.0],
+                       [260.0, 180.0]]))
     jobs = [Job(
-        target=target_xy.copy(),
-        target_radius=10.0,
+        target=target,
         remaining_time=None,
         is_active=True,
         drones=num_drones,
@@ -182,11 +203,12 @@ if __name__ == "__main__":
         start_at=None,
         completed_at=None,
         scenario_id=None,
+        maintain_until="target_is_reached",
         created_at=current_time,
         updated_at=current_time,
     )]
     
-    renderer = Renderer(W, jobs[0].target)
+    renderer = Renderer(W)
 
     for t in range(args.steps):
         plan = shepherd_policy.plan(W.get_state(), jobs, W.dt)

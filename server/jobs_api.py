@@ -1,69 +1,21 @@
 from __future__ import annotations
 
-import sqlite3
-from contextlib import contextmanager
+import pickle
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
+from uuid import uuid4
+import uuid
 
 import numpy as np
 from flask import Blueprint, jsonify, request
 
+from planning import state
 from planning.state import Job, JobStatus
 
 
-DB_PATH = Path(__file__).parent / "tmp" / "jobs.sqlite3"
+DB_PATH = Path(__file__).parent / "tmp" / "jobs.pkl"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-
-# -------- Shared Utility Functions --------
-
-def _get_conn() -> sqlite3.Connection:
-    """Get a SQLite connection with Row factory."""
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-@contextmanager
-def db_txn():
-    """Context manager for atomic database transactions."""
-    conn = _get_conn()
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-
-def _init_db() -> None:
-    """Initialize the jobs database table if it doesn't exist."""
-    with _get_conn() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS jobs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                target_x REAL,
-                target_y REAL,
-                target_radius REAL NOT NULL,
-                remaining_time REAL,
-                is_active INTEGER NOT NULL,
-                drones INTEGER NOT NULL,
-                status TEXT NOT NULL,
-                start_at REAL,
-                completed_at REAL,
-                scenario_id TEXT,
-                created_at REAL NOT NULL,
-                updated_at REAL NOT NULL
-            )
-            """
-        )
-        conn.commit()
-
 
 def _parse_iso_timestamp(s: Optional[str]) -> Optional[float]:
     """Parse ISO 8601 timestamp string to UNIX timestamp."""
@@ -82,19 +34,19 @@ def _timestamp_to_iso(ts: Optional[float]) -> Optional[str]:
     return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _normalize_target(data: dict) -> Tuple[Optional[np.ndarray], Optional[str]]:
+def _normalize_target(data: dict) -> Tuple[Optional[state.Target], Optional[str]]:
     """Parse and validate target from request data. Returns (target, error_msg)."""
     if "target" not in data or data["target"] is None:
-        return None, None
-    
-    try:
-        target = np.asarray(data["target"], dtype=float).reshape(2)
-        if not np.all(np.isfinite(target)):
-            return None, "target coordinates must be finite numbers"
-        return target, None
-    except (ValueError, TypeError):
-        return None, "target must be [x, y] array or null"
+        return None, "Target not provided"
 
+    target = data["target"]
+    if target["type"] == "circle":
+        return state.Circle(center=np.asarray(target["center"], dtype=float).reshape(2), radius=float(target["radius"])), None
+    elif target["type"] == "polygon":
+        return state.Polygon(points=np.asarray(target["points"], dtype=float).reshape(2, -1)), None
+    else:
+        return None, "Invalid target type"
+    
 
 def _normalize_drone_count(data: dict) -> Tuple[int, Optional[str]]:
     """
@@ -126,7 +78,7 @@ def _normalize_status(status: str) -> Tuple[JobStatus, Optional[str]]:
         status = "running"
     
     if status not in VALID_STATUSES:
-        return "pending", f"Invalid status: {status}. Must be one of: pending, scheduled, running, completed, cancelled"
+        return "pending", f"Invalid status: {status}. Must be one of: scheduled, pending, running, completed, cancelled"
     
     return status, None
 
@@ -148,30 +100,6 @@ def decide_initial_status(start_at_ts: Optional[float], activate_immediately: bo
     return "pending", False
 
 
-def _frontend_status_from_internal(internal_status: JobStatus) -> str:
-    """Convert internal status to frontend-expected format."""
-    return "active" if internal_status == "running" else internal_status
-
-
-def _job_to_frontend_dict(job: Job) -> dict:
-    """Convert internal Job to frontend-compatible dictionary."""
-    job_type = "scheduled" if (job.status == "scheduled" and job.start_at is not None) else "immediate"
-    
-    return {
-        "id": job.id,
-        "job_type": job_type,
-        "scheduled_time": _timestamp_to_iso(job.start_at) if job_type == "scheduled" else None,
-        "is_recurring": False,  # Not currently supported
-        "target": None if job.target is None else job.target.tolist(),
-        "target_radius": job.target_radius,
-        "drone_count": job.drones,
-        "status": _frontend_status_from_internal(job.status),
-        "created_at": _timestamp_to_iso(job.created_at),
-        "updated_at": _timestamp_to_iso(job.updated_at),
-        "duration": None,  # Not calculated yet
-    }
-
-
 def _sync_remaining_time_from_memory(db_job: Job, jobs_cache) -> None:
     """Update remaining_time from in-memory job if found."""
     mem_job = jobs_cache.get(db_job.id)
@@ -182,16 +110,29 @@ def _sync_remaining_time_from_memory(db_job: Job, jobs_cache) -> None:
 # -------- Job Repository --------
 
 class JobRepo:
-    """Repository for persisting and retrieving jobs from SQLite."""
+    """Repository for persisting and retrieving jobs from PKL.
+    
+    Every method starts by loading the jobs from the database and ends by saving the jobs back to the database if they've been modified.
+    """
 
-    def __init__(self) -> None:
-        _init_db()
+    def _load_jobs(self) -> List[Job]:
+        """Load the jobs from the database."""
+        if not DB_PATH.exists():
+            DB_PATH.touch()
+            self._save_jobs([])
+
+        with open(DB_PATH, "rb") as f:
+            return pickle.load(f)
+
+    def _save_jobs(self, jobs: List[Job]):
+        """Save the jobs to the database."""
+        with open(DB_PATH, "wb") as f:
+            pickle.dump(jobs, f)
 
     def create(
         self,
         *,
-        target: Optional[np.ndarray],
-        target_radius: float,
+        target: Optional[state.Target],
         is_active: bool,
         drones: int,
         status: JobStatus,
@@ -199,41 +140,13 @@ class JobRepo:
         scenario_id: Optional[str],
     ) -> Job:
         """Create a new job in the database."""
+
+        jobs = self._load_jobs()
+
         now = datetime.now(timezone.utc).timestamp()
-        tx = None if target is None else float(target[0])
-        ty = None if target is None else float(target[1])
-
-        with _get_conn() as conn:
-            cur = conn.execute(
-                """
-                INSERT INTO jobs
-                (target_x, target_y, target_radius, remaining_time,
-                 is_active, drones, status, start_at, completed_at,
-                 scenario_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    tx,
-                    ty,
-                    target_radius,
-                    None,
-                    1 if is_active else 0,
-                    drones,
-                    status,
-                    start_at,
-                    None,
-                    scenario_id,
-                    now,
-                    now,
-                ),
-            )
-            job_id = cur.lastrowid
-            conn.commit()
-
-        return Job(
-            id=job_id,
+        new_job = Job(
+            id=uuid4(),
             target=target,
-            target_radius=target_radius,
             remaining_time=None,
             is_active=is_active,
             drones=drones,
@@ -243,112 +156,61 @@ class JobRepo:
             scenario_id=scenario_id,
             created_at=now,
             updated_at=now,
+            maintain_until="target_is_reached",
         )
 
-    def get(self, job_id: int) -> Optional[Job]:
-        """Retrieve a job by ID."""
-        with _get_conn() as conn:
-            cur = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
-            row = cur.fetchone()
+        jobs.append(new_job)
+        self._save_jobs(jobs)
 
-        if row is None:
-            return None
-        return self._row_to_job(row)
+        return new_job
+
+    def get(self, job_id: uuid.UUID) -> Optional[Job]:
+        """Retrieve a job by ID."""
+        jobs = self._load_jobs()
+
+        for job in jobs:
+            if job.id == job_id:
+                return job
+        return None
 
     def list(self, status: Optional[JobStatus] = None) -> List[Job]:
         """List all jobs, optionally filtered by status."""
-        with _get_conn() as conn:
-            if status is None:
-                cur = conn.execute("SELECT * FROM jobs ORDER BY created_at DESC")
-            else:
-                cur = conn.execute(
-                    "SELECT * FROM jobs WHERE status = ? ORDER BY created_at DESC",
-                    (status,),
-                )
-            rows = cur.fetchall()
+        jobs = self._load_jobs()
+        return [j for j in jobs if j.status == status]
 
-        return [self._row_to_job(r) for r in rows]
-
-    def update_fields(self, job_id: int, **fields) -> Optional[Job]:
+    def update_fields(self, job_id: uuid.UUID, **fields) -> Optional[Job]:
         """Update specific fields of a job."""
+
+        print("Updating fields:", fields)
+
         if not fields:
             return self.get(job_id)
 
-        allowed = {
-            "target_x",
-            "target_y",
-            "target_radius",
-            "remaining_time",
-            "is_active",
-            "drones",
-            "status",
-            "start_at",
-            "completed_at",
-            "scenario_id",
-        }
+        jobs = self._load_jobs()
+        job = None
+        for j in jobs:
+            if j.id == job_id:
+                job = j
+                break
+        if job is None:
+            return None
 
-        sets = []
-        params = []
         for k, v in fields.items():
-            if k not in allowed:
-                continue
-            sets.append(f"{k} = ?")
-            params.append(v)
+            setattr(job, k, v)
+        job.updated_at = datetime.now(timezone.utc).timestamp()
+        self._save_jobs(jobs)
 
-        if not sets:
-            return self.get(job_id)
+        return job
 
-        params.append(datetime.now(timezone.utc).timestamp())  # updated_at
-        params.append(job_id)
-
-        with _get_conn() as conn:
-            conn.execute(
-                f"""
-                UPDATE jobs
-                SET {", ".join(sets)}, updated_at = ?
-                WHERE id = ?
-                """,
-                params,
-            )
-            conn.commit()
-
-        return self.get(job_id)
-
-    def delete(self, job_id: int) -> bool:
+    def delete(self, job_id: uuid.UUID):
         """
         Delete a job from the database.
         
         Returns True if job was deleted, False if job was not found.
         """
-        with _get_conn() as conn:
-            cur = conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
-            conn.commit()
-            return cur.rowcount > 0
-
-    @staticmethod
-    def _row_to_job(row: sqlite3.Row) -> Job:
-        """Convert a database row to a Job object."""
-        tx = row["target_x"]
-        ty = row["target_y"]
-        target = None
-        if tx is not None and ty is not None:
-            target = np.array([tx, ty], dtype=float)
-
-        return Job(
-            id=row["id"],
-            target=target,
-            target_radius=row["target_radius"],
-            remaining_time=row["remaining_time"],
-            is_active=bool(row["is_active"]),
-            drones=row["drones"],
-            status=row["status"],
-            start_at=row["start_at"],
-            completed_at=row["completed_at"],
-            scenario_id=row["scenario_id"],
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-        )
-
+        jobs = self._load_jobs()
+        jobs = [j for j in jobs if j.id != job_id]
+        self._save_jobs(jobs)
 
 # -------- API Blueprint Factory --------
 
@@ -374,14 +236,6 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
         target, target_error = _normalize_target(data)
         if target_error:
             return jsonify({"error": target_error}), 400
-
-        # Parse common fields
-        try:
-            target_radius = float(data.get("target_radius", 10.0))
-            if target_radius <= 0:
-                return jsonify({"error": "target_radius must be positive"}), 400
-        except (ValueError, TypeError):
-            return jsonify({"error": "target_radius must be a number"}), 400
 
         drone_count, drone_error = _normalize_drone_count(data)
         if drone_error:
@@ -415,7 +269,6 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
         # Create job
         job = repo.create(
             target=target,
-            target_radius=target_radius,
             is_active=is_active,
             drones=drone_count,
             status=status,
@@ -427,7 +280,7 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
         with world_lock:
             jobs_cache.add(job)
 
-        return jsonify(_job_to_frontend_dict(job)), 201
+        return jsonify(job.to_dict()), 201
 
     @bp.route("/jobs", methods=["GET"])
     def list_jobs():
@@ -468,7 +321,7 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
                 _sync_remaining_time_from_memory(db_job, jobs_cache)
 
         return jsonify({
-            "jobs": [_job_to_frontend_dict(j) for j in db_jobs],
+            "jobs": [j.to_dict() for j in db_jobs],
             "total": len(db_jobs),
         }), 200
 
@@ -476,11 +329,11 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
     def get_job(job_id):
         """Get a specific job by ID."""
         try:
-            job_id_int = int(job_id)
-        except ValueError:
-            return jsonify({"error": "Invalid job ID"}), 400
+            job_id_uuid = uuid.UUID(job_id)
+        except ValueError as e:
+            return jsonify({"error": f"Invalid job ID: {e}"}), 400
 
-        job = repo.get(job_id_int)
+        job = repo.get(job_id_uuid)
         if job is None:
             return jsonify({"error": f"Job {job_id} not found"}), 404
 
@@ -488,15 +341,15 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
         with world_lock:
             _sync_remaining_time_from_memory(job, jobs_cache)
 
-        return jsonify(_job_to_frontend_dict(job)), 200
+        return jsonify(job.to_dict()), 200
 
     @bp.route("/jobs/<job_id>", methods=["PATCH"])
     def update_job(job_id):
         """Update a job. Supports both frontend and internal field names."""
         try:
-            job_id_int = int(job_id)
-        except ValueError:
-            return jsonify({"error": "Invalid job ID"}), 400
+            job_id_uuid = uuid.UUID(job_id)
+        except ValueError as e:
+            return jsonify({"error": f"Invalid job ID: {e}"}), 400
 
         data = request.get_json(silent=True) or {}
         updates_db = {}
@@ -507,25 +360,8 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
             target, target_error = _normalize_target(data)
             if target_error:
                 return jsonify({"error": target_error}), 400
-            if target is None:
-                updates_db["target_x"] = None
-                updates_db["target_y"] = None
-                updates_mem["target"] = None
-            else:
-                updates_db["target_x"] = float(target[0])
-                updates_db["target_y"] = float(target[1])
-                updates_mem["target"] = target
-
-        # Handle target_radius
-        if "target_radius" in data:
-            try:
-                radius = float(data["target_radius"])
-                if radius <= 0:
-                    return jsonify({"error": "target_radius must be positive"}), 400
-                updates_db["target_radius"] = radius
-                updates_mem["target_radius"] = radius
-            except (ValueError, TypeError):
-                return jsonify({"error": "target_radius must be a number"}), 400
+            updates_db["target"] = target
+            updates_mem["target"] = target
 
         # Handle drone count (both field names)
         if "drone_count" in data or "drones" in data:
@@ -552,10 +388,10 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
         # Atomic update: DB and memory together under lock
         with world_lock:
             # Get existing job for validation
-            existing_job = jobs_cache.get(job_id_int)
+            existing_job = jobs_cache.get(job_id_uuid)
             if existing_job is None:
                 # Try to get from DB
-                existing_job = repo.get(job_id_int)
+                existing_job = repo.get(job_id_uuid)
                 if existing_job is None:
                     return jsonify({"error": f"Job {job_id} not found"}), 404
             
@@ -567,44 +403,44 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
                     return jsonify({"error": "Cannot activate job without a target"}), 400
             
             # Update in database
-            updated_job = repo.update_fields(job_id_int, **updates_db)
+            updated_job = repo.update_fields(job_id_uuid, **updates_db)
             if updated_job is None:
                 return jsonify({"error": f"Job {job_id} not found"}), 404
 
             # Update in-memory job (same object)
-            job = jobs_cache.get(job_id_int)
+            job = jobs_cache.get(job_id_uuid)
             if job:
                 for key, value in updates_mem.items():
                     setattr(job, key, value)
                 # Sync updated_at from DB to maintain consistency
                 job.updated_at = updated_job.updated_at
 
-        return jsonify(_job_to_frontend_dict(updated_job)), 200
+        return jsonify(updated_job.to_dict()), 200
 
     @bp.route("/jobs/<job_id>", methods=["DELETE"])
     def delete_job(job_id):
         """Delete a job permanently from database and memory."""
         try:
-            job_id_int = int(job_id)
-        except ValueError:
-            return jsonify({"error": "Invalid job ID"}), 400
+            job_id_uuid = uuid.UUID(job_id)
+        except ValueError as e:
+            return jsonify({"error": f"Invalid job ID: {e}"}), 400
 
         # Atomic delete: DB and memory together under lock
         with world_lock:
             # Get job before deleting (for response)
-            job = repo.get(job_id_int)
+            job = repo.get(job_id_uuid)
             if job is None:
                 return jsonify({"error": f"Job {job_id} not found"}), 404
             
             # Delete from database
-            deleted = repo.delete(job_id_int)
+            deleted = repo.delete(job_id_uuid)
             if not deleted:
                 return jsonify({"error": f"Job {job_id} not found"}), 404
 
             # Remove from in-memory cache
-            jobs_cache.remove(job_id_int)
+            jobs_cache.remove(job_id_uuid)
 
-        return jsonify(_job_to_frontend_dict(job)), 200
+        return jsonify(job.to_dict()), 200
 
     return bp
 

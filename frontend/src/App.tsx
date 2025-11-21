@@ -9,6 +9,7 @@ import LandingPage from "./components/LandingPage";
 import RealFarmView from "./components/RealFarmView";
 import DroneManagementPage from "./components/DroneManagementPage";
 import { useSSE } from './hooks/useSSE';
+import { SetTargetVars } from "./components/LiveFarmTab.tsx";
 
 function App() {
   const queryClient = useQueryClient();
@@ -49,14 +50,15 @@ function App() {
   const data = actuallyUsingSSE && sseData ? sseData : pollingData;
 
   const mutation = useMutation({
-    mutationFn: setTarget,
+    mutationFn: ({ jobId, coords, radius }: SetTargetVars) => setTarget(jobId, coords, radius),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["objects"]});
+      queryClient.invalidateQueries({ queryKey: ["objects"] });
     }
   });
 
-  function handleSetTarget(coords: {x: number; y: number}) {
-    mutation.mutate(coords);
+  // handleSetTarget now needs the jobId as well
+  function handleSetTarget(targetVars: SetTargetVars) {
+    mutation.mutate(targetVars);
   }
 
   async function handlePlayPause() {
@@ -153,7 +155,6 @@ function App() {
       ) : (
         data && <SimulationMapPlot 
           data={data} 
-          onSetTarget={handleSetTarget} 
           onPlayPause={handlePlayPause} 
           onRestart={requestRestart} 
           onBack={handleBackToSimulator} 
