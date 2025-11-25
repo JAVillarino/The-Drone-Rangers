@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { SimulationMapPlot } from './SimulationMapPlot';
 import { State } from '../types';
+import { Map, usePan } from './UsePan';
 
 interface Drone {
   id: string;
@@ -13,10 +13,18 @@ export interface DroneManagementPageProps {
   onBack?: () => void;
 }
 
+const CANVAS_SIZE = 600;
+
+const zoomMin = 0;
+const zoomMax = 250;
+
 export default function DroneManagementPage({ data, onBack }: DroneManagementPageProps) {
   const [drones, setDrones] = useState<Drone[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const backgroundImage = "../../img/HighResRanch.png";
+  const { scaleCoord, setPan } = usePan({ data, zoomMin, zoomMax, scale: 0.7, canvasSize: CANVAS_SIZE });
 
   useEffect(() => {
     void handleReload();
@@ -104,9 +112,21 @@ export default function DroneManagementPage({ data, onBack }: DroneManagementPag
     }
   };
 
+  useEffect(() => {
+    data.drones.forEach(drone => {
+      setPan({ x: drone[0] - window.innerWidth / 8, y: drone[1] - window.innerHeight / 4 });
+    });
+  }, [data.drones]);
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', height: '100vh' }}>
-      <div style={{ height: '100vh', overflowY: 'auto' }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        height: 'calc(100vh - var(--nav-height))',
+      }}
+    >
+      <div style={{ height: '100%', boxShadow: '4px 0 12px -4px rgba(0,0,0,0.4)', zIndex: 2 }}>
         <div className="lp">
           <div className="lp-panel" style={{ padding: 16 }}>
             {isLoading ? (
@@ -215,15 +235,11 @@ export default function DroneManagementPage({ data, onBack }: DroneManagementPag
       </div>
 
       <div>
-        Hello world.
-        {/* <SimulationMapPlot
-            data={data} 
-            onSetTarget={handleSetTarget} 
-            onPlayPause={handlePlayPause} 
-            onRestart={requestRestart} 
-            onBack={handleBackToSimulator} 
-            selectedImage={selectedImage}
-          /> */}
+        <svg className="map">
+
+          {/* TODO: Actually take in the obstacles. */}
+          <Map data={data} obstacles={[]} backgroundImage={backgroundImage} scaleCoord={scaleCoord} />
+        </svg>
       </div>
     </div>
   );

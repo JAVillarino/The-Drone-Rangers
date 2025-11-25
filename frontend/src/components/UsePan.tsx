@@ -76,7 +76,7 @@ export function usePan({ data, zoomMin, zoomMax, scale, canvasSize }: UsePanArgs
     return ((val / (canvasSize * scale)) * windowSize + effectiveMin);
   }
 
-  return { pan, svgRef, scaleCoord, inverseScaleCoord };
+  return { pan, setPan, svgRef, scaleCoord, inverseScaleCoord };
 }
 
 interface RenderArgs {
