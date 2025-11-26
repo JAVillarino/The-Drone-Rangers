@@ -107,23 +107,67 @@ export function Map({ data, obstacles, backgroundImage, scaleCoord }: RenderArgs
       {data.drones.map((d, i) => (
         <ObjectMarker key={`drone-${i}`} type="drone" x={scaleCoord(d[0], "x")} y={scaleCoord(d[1], "y")} />
       ))}
-      {data.jobs.map((job, i) =>
-        job.target && job.target.type === "circle" ? (
-          <ObjectMarker
-            key={`target-${i}`}
-            type="target"
-            x={scaleCoord(job.target.center[0], "x")}
-            y={scaleCoord(job.target.center[1], "y")}
-          />
-        ) : job.target && job.target.type === "polygon" ? (
-          <ObjectMarker
-            key={`target-${i}`}
-            type="target"
-            x={scaleCoord(job.target.points[0][0], "x")}
-            y={scaleCoord(job.target.points[0][1], "y")}
-          />
-        ) : null
-      )}
+      {data.jobs.map((job, i) => {
+        if (!job.target) {
+          return null;
+        }
+
+        if (job.target.type === "circle") {
+          const centerX = scaleCoord(job.target.center[0], "x");
+          const centerY = scaleCoord(job.target.center[1], "y");
+          const hasRadius = typeof job.target.radius === "number" && job.target.radius > 0;
+          const radiusPx = hasRadius
+            ? Math.abs(scaleCoord(job.target.center[0] + (job.target.radius ?? 0), "x") - centerX)
+            : 0;
+
+          return (
+            <g key={`target-${i}`}>
+              {hasRadius && (
+                <circle
+                  cx={centerX}
+                  cy={centerY}
+                  r={radiusPx}
+                  fill="rgba(0, 142, 255, 0.2)"
+                  stroke="rgba(0, 142, 255, 0.8)"
+                  strokeWidth="2"
+                />
+              )}
+              <ObjectMarker type="target" x={centerX} y={centerY} />
+            </g>
+          );
+        }
+
+        if (job.target.type === "polygon") {
+          const points = job.target.points
+            .map(([x, y]) => `${scaleCoord(x, "x")},${scaleCoord(y, "y")}`)
+            .join(" ");
+
+          if (!points) {
+            return null;
+          }
+
+          const [firstX, firstY] = job.target.points[0];
+
+          return (
+            <g key={`target-${i}`}>
+              <polygon
+                points={points}
+                fill="rgba(255, 165, 0, 0.25)"
+                stroke="rgba(255, 165, 0, 0.9)"
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+              <ObjectMarker
+                type="target"
+                x={scaleCoord(firstX, "x")}
+                y={scaleCoord(firstY, "y")}
+              />
+            </g>
+          );
+        }
+
+        return null;
+      })}
     </>
   );
 }
