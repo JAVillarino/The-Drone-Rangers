@@ -222,17 +222,17 @@ class ShepherdPolicy:
                 
         # I'm thinking maybe the problem is that herding towards the GCM doesn't work very well if it's already cohesive, because it should be herding towards the goal.
         cohesiveness = self._mean_cohesiveness(world, G)
-        goal_distance = np.max(dGoal) / self.fN
+        goal_distance_ratio = np.max(dGoal) / self.fN
         # The more cohesive it is, the less we care about the gcm.
         gcm_weight = lerp_clamped(0.8, 0.6, 0.3, 1.5, cohesiveness)
         # The closer we are to the goal, the less it matters how far from the GCM the sheep is.
-        gcm_weight *= lerp_clamped(0.5, 1, 1, 3, goal_distance)
+        gcm_weight *= lerp_clamped(0.5, 1, 1, 3, goal_distance_ratio)
         # The more cohesive it is, the more we care about how far it is from the goal.
         goal_weight = lerp_clamped(0.2, 0.4, 0.3, 1.5, cohesiveness)
-        # The more cohesive the herd is, the less it matters how far the drone is from the sheep.
+        # The more cohesive the herd is, the less it matters how far the drone is from the sheep. 
         closeness_weight = lerp_clamped(1, 0.2, 0.3, 1.5, cohesiveness)
         # The closer the sheep are to the goal, the less it matters how far the drone is from the sheep.
-        closeness_weight *= lerp_clamped(0.2, 1, 2, 4, goal_distance)
+        closeness_weight *= lerp_clamped(0.2, 1, 2, 4, goal_distance_ratio)
         
         intrinsic_score = gcm_weight * dG + goal_weight * dGoal
 

@@ -17,7 +17,7 @@ current_scenario_id = None  # Track what scenario is currently loaded
 class JobCache:
     """Cache for jobs that maintains both list and O(1) dict lookup."""
     def __init__(self, initial=None):
-        self.list = []
+        self.list : list[state.Job] = []
         self.map = {}
         if initial:
             for j in initial:
@@ -240,35 +240,6 @@ def stream_state():
         }
     )
     return response
-
-# TODO: Lowkey this should just be a job update or a patch to the state I guess.
-@app.route("/target", methods=["POST"])
-def set_target():
-    """Set the target position for the herding simulation."""
-    data = request.get_json()
-    print("Setting target:", data)
-    if not data or "position" not in data:
-        return jsonify({"error": "Missing 'position' field"}), 400
-
-    try:
-        pos = np.asarray(data["position"], float).reshape(2)
-    except (ValueError, TypeError):
-        return jsonify({"error": "'position' must be [x, y]"}), 400
-    
-    if not np.all(np.isfinite(pos)):
-        return jsonify({"error": "position values must be finite numbers"}), 400
-
-    if len(jobs) == 0:
-        return
-    
-    with world_lock:
-        jobs[0].target = pos
-        # Also set the world's target and unpause if there's a target
-        backend_adapter.target = pos
-        if backend_adapter.paused and pos is not None:
-            backend_adapter.paused = False
-        
-    return jsonify(backend_adapter.get_state().to_dict())
 
 @app.route("/restart", methods=["POST"])
 def restart_sim():
@@ -497,8 +468,8 @@ if __name__ == "__main__":
     last_rem_sync_ts = 0.0
     
     while True:
+        # TODO: This sleep should be within the loop of frames.
         time.sleep(0.05)  # 20 FPS update rate for simulation loop (original speed)
-        
         # Update job statuses and remaining times
         jobs_to_sync = set()  # Use set to avoid duplicate syncs
         with world_lock:
@@ -555,6 +526,7 @@ if __name__ == "__main__":
         
         # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
         with world_lock:
+            # TODO: This is jank.
             # Sync target from active job to world, and auto-unpause if there's an active job with a target
             active_job = None
             for job in jobs:
@@ -579,6 +551,15 @@ if __name__ == "__main__":
                 if backend_adapter.paused:
                     backend_adapter.paused = False
                 backend_adapter.target = None
+            
+            for job in jobs:
+                if job.is_active and job.target is not None and job.maintain_until == "target_is_reached":
+                    # If the goal is satisfied, then we can remove this job.
+                    if policy.is_goal_satisfied(backend_adapter, job.target):
+                        all_jobs_satisfied = False
+                    
+                    jobs_api.get_repo().delete(job.id)
+            
             
             for _ in range(15):
                 plan = policy.plan(backend_adapter.get_state(), jobs, backend_adapter.dt)

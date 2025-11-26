@@ -136,10 +136,10 @@ if __name__ == "__main__":
     if args.obstacles:
         # Rectangle
         rect = np.array([
-            [200.0, 1.0],
-            [200.0, 200.0],
-            [1.0, 200.0],
-            [1.0, 1.0],
+            [50.0, 100.0],
+            [50.0, 50.0],
+            [100.0, 50.0],
+            [100.0, 100.0],
         ])
         
         # Triangle
@@ -194,10 +194,10 @@ if __name__ == "__main__":
     current_time = time.time()
     from planning.state import Circle
     target = Circle(center=target_xy.copy(), radius=10.0)
-    target = state_module.Polygon(points=np.array([[0.0, 180.0],
-                       [0.0, 260.0],
-                       [260.0, 260.0],
-                       [260.0, 180.0]]))
+    # target = state_module.Polygon(points=np.array([[0.0, 180.0],
+    #                    [0.0, 260.0],
+    #                    [260.0, 260.0],
+    #                    [260.0, 180.0]]))
     jobs = [Job(
         target=target,
         remaining_time=None,
