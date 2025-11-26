@@ -126,6 +126,7 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
                     onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
                     onCancel={handleCancelJob}
                     onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
+                    onTargetChange={() => {}}
                 />
             )}         
             {isDrawingObstacle && (

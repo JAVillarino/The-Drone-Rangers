@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Job, State } from '../types';
+import { Job, State, Target } from '../types';
 import JobStatus from './JobStatus.tsx';
 import { Map, usePan } from './UsePan.tsx';
 import { setJobActiveState, setJobDroneCount, deleteFarmJob } from '../api/state.ts';
@@ -32,7 +32,7 @@ const jobStatus = (j: Job) => {
   return "In progress"
 }
 
-export type SetTargetVars = { jobId: string, coords: { x: number; y: number }, radius?: number };
+export type SetTargetVars = { jobId: string, target: Target };
 
 export function LiveFarmTab({
   data,
@@ -80,7 +80,15 @@ export function LiveFarmTab({
         if (!e.target) {
             throw new Error("No target found for click.");
         }
-        onSetTarget({jobId: choosingTarget, coords: {x: inverseScaleCoord(cursorpt.x, "x"), y: inverseScaleCoord(cursorpt.y, "y")}});
+
+        const job = data.jobs.find((j) => j.id === choosingTarget);
+        const oldRadius = job?.target?.type === "circle" ? job?.target.radius : null;
+      
+        onSetTarget({jobId: choosingTarget, target: {
+          type:"circle",
+          center: [inverseScaleCoord(cursorpt.x, "x"), inverseScaleCoord(cursorpt.y, "y")],
+          radius: oldRadius
+        }});
         setChoosingTarget(null);
         return;
     }
@@ -101,6 +109,7 @@ export function LiveFarmTab({
                     onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
                     onCancel={() => handleCancel(job.id)}
                     onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
+                    onTargetChange={(newTarget: Target) => onSetTarget({jobId: job.id, target: newTarget})}
                 />
             )}
 

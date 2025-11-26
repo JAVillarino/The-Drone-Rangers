@@ -3,6 +3,7 @@
  */
 
 import { Scenario, ScenariosResponse, FarmJob, CreateFarmJobRequest, FarmJobsResponse } from "../types";
+import { Target } from "../types";
 
 const backendURL = "http://127.0.0.1:5000";
 
@@ -25,19 +26,13 @@ export async function fetchState() {
     }
 }
 
-export async function setTarget(jobId: string, coords: {x: number, y: number}, radius: number = 10.0) {
+export async function setTarget(jobId: string, target: Target) {
     try {
         const response = await fetch(`${backendURL}/api/jobs/${jobId}`,
             {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    "target": {
-                        "type": "circle",
-                        "center": [coords.x, coords.y],
-                        "radius": radius
-                    }
-                })
+                body: JSON.stringify({ target })
             }
         );
         
@@ -48,7 +43,7 @@ export async function setTarget(jobId: string, coords: {x: number, y: number}, r
         
         return await response.json();
     } catch (err) {
-        console.error("Error sending target coords:", err);
+        console.error("Error sending target:", err);
         throw err;
     }
 }

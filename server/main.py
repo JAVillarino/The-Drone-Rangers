@@ -555,10 +555,8 @@ if __name__ == "__main__":
             for job in jobs:
                 if job.is_active and job.target is not None and job.maintain_until == "target_is_reached":
                     # If the goal is satisfied, then we can remove this job.
-                    if policy.is_goal_satisfied(backend_adapter, job.target):
-                        all_jobs_satisfied = False
-                    
-                    jobs_api.get_repo().delete(job.id)
+                    if herding.policy.is_goal_satisfied(backend_adapter.get_state(), job.target):                  
+                        jobs_api.get_repo().delete(job.id)
             
             
             for _ in range(15):

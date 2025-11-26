@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LocData, Target } from '../types.ts';
+import { Target } from '../types.ts';
 
 interface JobStatusProps {
   jobName: string;
@@ -11,6 +11,7 @@ interface JobStatusProps {
   onPauseToggle: () => void;
   onCancel: () => void;
   onDronesChange: (newCount: number) => void;
+  onTargetChange: (newTarget: Target) => void;
 }
 
 const JobStatus: React.FC<JobStatusProps> = ({
@@ -23,12 +24,34 @@ const JobStatus: React.FC<JobStatusProps> = ({
   onPauseToggle,
   onCancel,
   onDronesChange,
+  onTargetChange,
 }) => {
   // State for managing the card's UI
   const [isFolded, setIsFolded] = useState<boolean>(false);
   const [isKebabMenuOpen, setIsKebabMenuOpen] = useState<boolean>(false);
   const [droneCount, setDroneCount] = useState<number>(initialDrones);
+  const [radiusInput, setRadiusInput] = useState<string>(() =>
+    target?.type === 'circle' && typeof target.radius === 'number'
+      ? target.radius.toString()
+      : ''
+  );
   const kebabRef = useRef<HTMLDivElement>(null);
+
+  // let prevRadius: number | null = null;
+  // useEffect(() => {
+  //   console.log("target useEffect", target);
+  //   if (target?.type === 'circle') {
+  //     if (target.radius == prevRadius) {
+  //       console.log(target.radius, prevRadius);
+  //       return;
+  //     }
+
+  //     prevRadius = target.radius;
+  //     setRadiusInput(target.radius !== null && target.radius !== undefined ? target.radius.toString() : '');
+  //   } else {
+  //     setRadiusInput('');
+  //   }
+  // }, [target]);
 
   // Effect to close the kebab menu when clicking outside of it
   useEffect(() => {
@@ -125,9 +148,33 @@ const JobStatus: React.FC<JobStatusProps> = ({
               Select on map
             </button>
           </div>
-          <div className="card-field">
-            <strong>Target Radius (m):</strong>
-            <span>0</span>
+      <div className="card-field">
+        <strong>Target Radius (m):</strong>
+        <input
+          type="number"
+          value={radiusInput}
+          onChange={(e) => {
+            console.log("Setting values to", e.target.value)
+            setRadiusInput(e.target.value)}}
+          onBlur={() => {
+            if (!target || target.type !== 'circle') return;
+            const value = parseFloat(radiusInput);
+            if (Number.isFinite(value) && value > 0 && value !== target.radius) {
+              onTargetChange({
+                ...target, radius: value
+              })
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          step="1"
+          min="1"
+          placeholder={target && target.type === 'circle' ? 'Enter radius' : 'Circle target only'}
+          disabled={!target || target.type !== 'circle'}
+        />
           </div>
           <div className="card-field">
             <strong>Drones Assigned:</strong>

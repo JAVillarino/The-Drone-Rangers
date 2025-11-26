@@ -50,7 +50,7 @@ function App() {
   const data = actuallyUsingSSE && sseData ? sseData : pollingData;
 
   const mutation = useMutation({
-    mutationFn: ({ jobId, coords, radius }: SetTargetVars) => setTarget(jobId, coords, radius),
+    mutationFn: ({ jobId, target }: SetTargetVars) => setTarget(jobId, target),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["objects"] });
     }
