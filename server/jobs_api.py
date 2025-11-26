@@ -39,9 +39,10 @@ def _normalize_target(data: dict) -> Tuple[Optional[state.Target], Optional[str]
     if "target" not in data or data["target"] is None:
         return None, "Target not provided"
 
+    print("target", data["target"])
     target = data["target"]
     if target["type"] == "circle":
-        return state.Circle(center=np.asarray(target["center"], dtype=float).reshape(2), radius=float(target["radius"])), None
+        return state.Circle(center=np.asarray(target["center"], dtype=float).reshape(2), radius=float(target["radius"]) if target["radius"] is not None else None), None
     elif target["type"] == "polygon":
         return state.Polygon(points=np.asarray(target["points"], dtype=float).reshape(2, -1)), None
     else:

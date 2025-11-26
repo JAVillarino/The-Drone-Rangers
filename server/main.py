@@ -14,6 +14,7 @@ world_lock = threading.RLock()
 current_scenario_id = None  # Track what scenario is currently loaded
 
 
+# NOTE: It is not clear that we need a cache for the jobs. We should probably just use the list directly. We aren't going to have a bajillion jobs at once.
 class JobCache:
     """Cache for jobs that maintains both list and O(1) dict lookup."""
     def __init__(self, initial=None):
@@ -557,6 +558,8 @@ if __name__ == "__main__":
                     # If the goal is satisfied, then we can remove this job.
                     if herding.policy.is_goal_satisfied(backend_adapter.get_state(), job.target):                  
                         jobs_api.get_repo().delete(job.id)
+                        jobs_cache.remove(job.id)
+                        jobs = jobs_cache.list
             
             
             for _ in range(15):
