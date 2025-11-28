@@ -447,8 +447,12 @@ class World:
         # Resolve polygon penetrations first
         poly_corr, poly_mask = self._resolve_polygon_penetration()
         
-        # Resolve world boundary keep-out
-        wall_corr, wall_mask = self._resolve_world_keepout()
+        # Resolve world boundary keep-out (only if boundaries are enabled)
+        if self.boundary == "none":
+            wall_corr = np.zeros((self.N, 2))
+            wall_mask = np.zeros(self.N, dtype=bool)
+        else:
+            wall_corr, wall_mask = self._resolve_world_keepout()
         
         # Check for conflicts: if a sheep was corrected by both polygon and wall
         # and corrections point in opposite directions, prioritize the larger one
