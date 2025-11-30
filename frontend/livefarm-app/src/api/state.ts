@@ -55,9 +55,6 @@ export async function setTarget(jobId: string, target: Target) {
             };
         }
 
-        // Activate the job when setting a target
-        body.is_active = true;
-
         console.log("Sending PATCH to /api/jobs/" + jobId + " with body:", JSON.stringify(body));
 
         const response = await fetch(`${backendURL}/api/jobs/${jobId}`, {

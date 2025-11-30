@@ -465,11 +465,7 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
                 return jsonify({"error": f"Job {job_id} not found"}), 404
             
             # Delete from database
-            deleted = repo.delete(job_id_uuid)
-            if not deleted:
-                return jsonify({"error": f"Job {job_id} not found"}), 404
-
-            # Remove from in-memory cache
+            repo.delete(job_id_uuid)
             jobs_cache.remove(job_id_uuid)
 
         return jsonify(job.to_dict()), 200

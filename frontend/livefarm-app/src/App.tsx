@@ -64,7 +64,6 @@ function App() {
   });
 
   function handleSetTarget(targetVars: SetTargetVars) {
-    console.log("handleSetTarget called with:", targetVars);
     mutation.mutate(targetVars);
   }
 
