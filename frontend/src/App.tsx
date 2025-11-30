@@ -1,15 +1,15 @@
 import {useState, useCallback, useEffect} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchState, setTarget, setPlayPause, requestRestart, createCustomScenario } from './api/state'
-import { SimulationMapPlot } from './components/SimulationMapPlot.tsx'
+import { SimulationMapPlot } from './components/MapPlot/SimulationMapPlot.tsx'
 import { State } from "./types.ts"
 import './App.css'
 import WelcomePage from "./components/WelcomePage";
 import LandingPage from "./components/LandingPage";
-import RealFarmView from "./components/RealFarmView";
-import DroneManagementPage from "./components/DroneManagementPage";
+import RealFarmView from "./components/RealFarmView/RealFarmView.tsx";
+import DroneManagementPage from "./components/RealFarmView/DroneManagementPage.tsx";
 import { useSSE } from './hooks/useSSE';
-import { SetTargetVars } from "./components/LiveFarmTab.tsx";
+import { SetTargetVars } from "./components/RealFarmView/LiveFarmTab.tsx";
 
 function App() {
   const queryClient = useQueryClient();

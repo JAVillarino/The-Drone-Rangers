@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { State } from "../types";
+import { State } from "../../types";
 import ObjectMarker from "./ObjectMarker.tsx";
 import TargetMarker from "./TargetMarker.tsx";
 
