@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { State } from "../types";
 import ObjectMarker from "./ObjectMarker.tsx";
+import TargetMarker from "./TargetMarker.tsx";
 
 interface UsePanArgs {
   data: State;
@@ -86,7 +87,14 @@ interface RenderArgs {
   scaleCoord: (val: number, axis: "x" | "y") => number;
 }
 
-export function Map({ data, obstacles, backgroundImage, scaleCoord }: RenderArgs) {
+export function Map(props: RenderArgs) {
+  // Safety check: return null if props or data is not available
+  if (!props || !props.data || !props.data.flock || !props.data.drones || !props.data.jobs) {
+    return null;
+  }
+
+  const { data, obstacles, backgroundImage, scaleCoord } = props;
+
   return (
     <>
       <image x={scaleCoord(-500, "x")} y={scaleCoord(-350, "y")} href={backgroundImage} className="background" />
@@ -107,67 +115,110 @@ export function Map({ data, obstacles, backgroundImage, scaleCoord }: RenderArgs
       {data.drones.map((d, i) => (
         <ObjectMarker key={`drone-${i}`} type="drone" x={scaleCoord(d[0], "x")} y={scaleCoord(d[1], "y")} />
       ))}
-      {data.jobs.map((job, i) => {
-        if (!job.target) {
-          return null;
-        }
+      {(() => {
+        // Determine which job is active (only one can be active at a time)
+        const activeJob = data.jobs.find(j => j.is_active && j.target);
+        
+        // Calculate queue order for immediate jobs (sorted by created_at)
+        const immediateJobs = data.jobs
+          .filter(j => !j.start_at && j.target) // Immediate jobs (no start_at)
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        
+        // Use a plain object instead of Map to avoid naming conflict with Map component
+        const immediateJobIndices: Record<string, number> = {};
+        immediateJobs.forEach((job, index) => {
+          immediateJobIndices[job.id] = index;
+        });
 
-        if (job.target.type === "circle") {
-          const centerX = scaleCoord(job.target.center[0], "x");
-          const centerY = scaleCoord(job.target.center[1], "y");
-          const hasRadius = typeof job.target.radius === "number" && job.target.radius > 0;
-          const radiusPx = hasRadius
-            ? Math.abs(scaleCoord(job.target.center[0] + (job.target.radius ?? 0), "x") - centerX)
-            : 0;
-
-          return (
-            <g key={`target-${i}`}>
-              {hasRadius && (
-                <circle
-                  cx={centerX}
-                  cy={centerY}
-                  r={radiusPx}
-                  fill="rgba(0, 142, 255, 0.2)"
-                  stroke="rgba(0, 142, 255, 0.8)"
-                  strokeWidth="2"
-                />
-              )}
-              <ObjectMarker type="target" x={centerX} y={centerY} />
-            </g>
-          );
-        }
-
-        if (job.target.type === "polygon") {
-          const points = job.target.points
-            .map(([x, y]) => `${scaleCoord(x, "x")},${scaleCoord(y, "y")}`)
-            .join(" ");
-
-          if (!points) {
+        return data.jobs.map((job, i) => {
+          if (!job.target) {
             return null;
           }
 
-          const [firstX, firstY] = job.target.points[0];
+          const isActive = activeJob?.id === job.id;
+          const immediateJobIndex = immediateJobIndices[job.id];
 
-          return (
-            <g key={`target-${i}`}>
-              <polygon
-                points={points}
-                fill="rgba(255, 165, 0, 0.25)"
-                stroke="rgba(255, 165, 0, 0.9)"
-                strokeWidth="2"
-                strokeLinejoin="round"
-              />
-              <ObjectMarker
-                type="target"
-                x={scaleCoord(firstX, "x")}
-                y={scaleCoord(firstY, "y")}
-              />
-            </g>
-          );
-        }
+          if (job.target.type === "circle") {
+            const centerX = scaleCoord(job.target.center[0], "x");
+            const centerY = scaleCoord(job.target.center[1], "y");
+            const hasRadius = typeof job.target.radius === "number" && job.target.radius > 0;
+            const radiusPx = hasRadius
+              ? Math.abs(scaleCoord(job.target.center[0] + (job.target.radius ?? 0), "x") - centerX)
+              : 0;
 
-        return null;
-      })}
+            return (
+              <g key={`target-${i}`}>
+                {/* Render circle first so it appears behind the icon */}
+                {hasRadius && isActive && (
+                  <circle
+                    cx={centerX}
+                    cy={centerY}
+                    r={radiusPx}
+                    fill="rgba(0, 142, 255, 0.2)"
+                    stroke="rgba(0, 142, 255, 0.8)"
+                    strokeWidth="2"
+                  />
+                )}
+                {hasRadius && !isActive && (
+                  <circle
+                    cx={centerX}
+                    cy={centerY}
+                    r={radiusPx}
+                    fill="rgba(128, 128, 128, 0.1)"
+                    stroke="rgba(128, 128, 128, 0.4)"
+                    strokeWidth="2"
+                    strokeDasharray="4,4"
+                  />
+                )}
+                {/* Render icon on top, centered at the same coordinates */}
+                <TargetMarker
+                  x={centerX}
+                  y={centerY}
+                  isActive={isActive}
+                  job={job}
+                  immediateJobIndex={immediateJobIndex}
+                />
+              </g>
+            );
+          }
+
+          if (job.target.type === "polygon") {
+            const points = job.target.points
+              .map(([x, y]) => `${scaleCoord(x, "x")},${scaleCoord(y, "y")}`)
+              .join(" ");
+
+            if (!points) {
+              return null;
+            }
+
+            const [firstX, firstY] = job.target.points[0];
+
+            return (
+              <g key={`target-${i}`}>
+                {/* Render polygon first so it appears behind the icon */}
+                <polygon
+                  points={points}
+                  fill={isActive ? "rgba(255, 165, 0, 0.25)" : "rgba(128, 128, 128, 0.1)"}
+                  stroke={isActive ? "rgba(255, 165, 0, 0.9)" : "rgba(128, 128, 128, 0.4)"}
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                  strokeDasharray={isActive ? "none" : "4,4"}
+                />
+                {/* Render icon on top, centered at the first point of the polygon */}
+                <TargetMarker
+                  x={scaleCoord(firstX, "x")}
+                  y={scaleCoord(firstY, "y")}
+                  isActive={isActive}
+                  job={job}
+                  immediateJobIndex={immediateJobIndex}
+                />
+              </g>
+            );
+          }
+
+          return null;
+        });
+      })()}
     </>
   );
 }
