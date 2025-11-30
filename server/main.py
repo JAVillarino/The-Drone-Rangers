@@ -419,9 +419,9 @@ def load_scenario(scenario_id):
                 id=uuid4(),
                 target=target,
                 remaining_time=None,
-                is_active=True,  # Always active so simulation shows immediately
+                is_active=False,  # Inactive until user clicks "Start Job"
                 drones=len(scenario.drones),
-                status="running",  # Always running - will show grazing if no target
+                status="pending",  # Pending until user starts the job
                 start_at=None,
                 completed_at=None,
                 scenario_id=str(scenario_id),  # Link job to the loaded scenario

@@ -276,10 +276,12 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
                 return jsonify({"error": "scheduled_time must be provided for scheduled jobs"}), 400
 
         # Determine status and activation using centralized logic
+        # Jobs are NOT activated immediately by default - user must click "Start Job"
+        # Only activate immediately if explicitly requested via activate_immediately=true
         now = datetime.now(timezone.utc).timestamp()
         status, is_active = decide_initial_status(
             start_at_ts=start_at,
-            activate_immediately=(job_type == "immediate" or activate_immediately),
+            activate_immediately=activate_immediately,
             has_target=(target is not None),
             now_ts=now
         )
