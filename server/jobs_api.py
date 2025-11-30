@@ -117,13 +117,31 @@ class JobRepo:
     """
 
     def _load_jobs(self) -> List[Job]:
-        """Load the jobs from the database."""
+        """Load the jobs from the database, filtering out any with invalid targets."""
         if not DB_PATH.exists():
             DB_PATH.touch()
             self._save_jobs([])
+            return []
 
         with open(DB_PATH, "rb") as f:
-            return pickle.load(f)
+            jobs = pickle.load(f)
+        
+        # Filter out jobs with invalid targets (must be Circle, Polygon, or None)
+        valid_jobs = []
+        invalid_count = 0
+        for job in jobs:
+            if job.target is None or isinstance(job.target, (state.Circle, state.Polygon)):
+                valid_jobs.append(job)
+            else:
+                print(f"Warning: Removing job {job.id} with invalid target type: {type(job.target)}")
+                invalid_count += 1
+        
+        # If we removed any invalid jobs, save the cleaned list back to disk
+        if invalid_count > 0:
+            print(f"Cleaned up {invalid_count} jobs with invalid targets from database")
+            self._save_jobs(valid_jobs)
+        
+        return valid_jobs
 
     def _save_jobs(self, jobs: List[Job]):
         """Save the jobs to the database."""
@@ -407,6 +425,12 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
                 new_target = updates_mem.get("target") if "target" in updates_mem else existing_job.target
                 if new_target is None:
                     return jsonify({"error": "Cannot activate job without a target"}), 400
+                
+                # Enforce one active job at a time: deactivate all other jobs
+                for other_job in jobs_cache.list:
+                    if other_job.id != job_id_uuid and other_job.is_active:
+                        other_job.is_active = False
+                        repo.update_fields(other_job.id, is_active=0)
             
             # Update in database
             updated_job = repo.update_fields(job_id_uuid, **updates_db)

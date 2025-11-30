@@ -4,9 +4,11 @@ from dataclasses import dataclass, asdict, field
 from typing import Optional, Literal, List, Tuple, Dict
 from uuid import uuid4, UUID
 from datetime import datetime, timezone
+from pathlib import Path
 import threading
 import json
 import hashlib
+import pickle
 
 import numpy as np
 from flask import Blueprint, request, jsonify, Response
@@ -19,6 +21,10 @@ from simulation.scenarios import (
     spawn_line,
     spawn_circle,
 )
+
+# Persistent storage path for scenarios
+DB_PATH = Path(__file__).parent / "tmp" / "scenarios.pkl"
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 Vec2 = Tuple[float, float]
 Visibility = Literal["private", "public", "preset"]
@@ -41,37 +47,99 @@ class Scenario:
     # world-ish params to remember
     boundary: Literal["none", "wrap", "reflect"] = "none"
     bounds: Tuple[float, float, float, float] = (0.0, 250.0, 0.0, 250.0)
+    
+    # Configuration fields for world/physics and policy behavior
+    world_config: Optional[dict] = None  # World/physics parameter overrides
+    policy_config: Optional[dict] = None  # Policy configuration (preset key or custom dict)
+    target_sequence: Optional[List[Vec2]] = None  # Multi-waypoint goals
+    
+    # Scenario type (behavior pack) reference
+    scenario_type: Optional[str] = None  # Key from SCENARIO_TYPES registry
+    
+    # Appearance/theme configuration
+    appearance: Optional[dict] = None  # Contains themeKey and other visual settings
+    
+    # Domain tag for future extensibility
+    domain: Optional[str] = None  # "herding", "evacuation", etc.
 
     version: int = 1
     schema_version: int = 1
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
-# ---------------- in-memory, thread-safe repo ----------------
+# ---------------- persistent, thread-safe repo ----------------
 
 class ScenarioRepo:
+    """Repository for persisting and retrieving scenarios from PKL.
+    
+    Every mutating method loads from disk, modifies, and saves back.
+    Preset scenarios are kept in memory and merged with custom scenarios from disk.
+    """
+    
     def __init__(self, cap: int = 500):
         self._lock = threading.RLock()
-        self._items: Dict[UUID, Scenario] = {}
-        self._order: List[UUID] = []
+        self._presets: Dict[UUID, Scenario] = {}  # Preset scenarios (in-memory only)
         self._idem: Dict[str, UUID] = {}
         self._cap = cap
 
-    def _evict(self):
-        while len(self._order) > self._cap:
-            old = self._order.pop(0)
-            self._items.pop(old, None)
+    def _load_custom_scenarios(self) -> List[Scenario]:
+        """Load custom scenarios from the database."""
+        if not DB_PATH.exists():
+            return []
+        try:
+            with open(DB_PATH, "rb") as f:
+                return pickle.load(f)
+        except (pickle.PickleError, EOFError, Exception) as e:
+            print(f"Warning: Failed to load scenarios from {DB_PATH}: {e}")
+            return []
+
+    def _save_custom_scenarios(self, scenarios: List[Scenario]):
+        """Save custom scenarios to the database."""
+        # Only save non-preset scenarios
+        custom_scenarios = [s for s in scenarios if s.visibility != "preset"]
+        # Evict oldest if over capacity
+        while len(custom_scenarios) > self._cap:
+            custom_scenarios.pop(0)
+        try:
+            with open(DB_PATH, "wb") as f:
+                pickle.dump(custom_scenarios, f)
+        except Exception as e:
+            print(f"Warning: Failed to save scenarios to {DB_PATH}: {e}")
+
+    def add_preset(self, s: Scenario) -> Scenario:
+        """Add a preset scenario (in-memory only, not persisted)."""
+        with self._lock:
+            self._presets[s.id] = s
+            return s
 
     def create(self, s: Scenario) -> Scenario:
+        """Create a new scenario in the database."""
         with self._lock:
-            self._items[s.id] = s
-            self._order.append(s.id)
-            self._evict()
+            if s.visibility == "preset":
+                # Presets are stored in memory only
+                self._presets[s.id] = s
+                return s
+            
+            # Load, add, and save custom scenarios
+            scenarios = self._load_custom_scenarios()
+            # Check if already exists (by ID)
+            existing_ids = {sc.id for sc in scenarios}
+            if s.id not in existing_ids:
+                scenarios.append(s)
+            self._save_custom_scenarios(scenarios)
             return s
 
     def get(self, sid: UUID) -> Optional[Scenario]:
+        """Retrieve a scenario by ID."""
         with self._lock:
-            return self._items.get(sid)
+            # Check presets first
+            if sid in self._presets:
+                return self._presets[sid]
+            # Check custom scenarios
+            for s in self._load_custom_scenarios():
+                if s.id == sid:
+                    return s
+            return None
 
     def list(
         self,
@@ -86,7 +154,8 @@ class ScenarioRepo:
         offset: int,
     ) -> tuple[list, int]:
         with self._lock:
-            items = list(self._items.values())
+            # Combine presets and custom scenarios
+            items = list(self._presets.values()) + self._load_custom_scenarios()
 
         def match(s: Scenario) -> bool:
             if q:
@@ -117,6 +186,20 @@ class ScenarioRepo:
         limit = max(1, min(100, int(limit)))
         offset = max(0, int(offset))
         return items[offset: offset + limit], total
+
+    def delete(self, sid: UUID) -> bool:
+        """Delete a custom scenario by ID. Presets cannot be deleted."""
+        with self._lock:
+            if sid in self._presets:
+                return False  # Cannot delete presets
+            
+            scenarios = self._load_custom_scenarios()
+            original_len = len(scenarios)
+            scenarios = [s for s in scenarios if s.id != sid]
+            if len(scenarios) < original_len:
+                self._save_custom_scenarios(scenarios)
+                return True
+            return False
 
     def save_idem(self, key: str, sid: UUID):
         with self._lock:
@@ -185,15 +268,35 @@ def _seed_presets():
             boundary="none",
             bounds=(0.0, 250.0, 0.0, 250.0),
         ),
+        # Evacuation prototype scenario
+        Scenario(
+            id=uuid4(),
+            name="Evacuation - 30 People",
+            description="Human evacuation scenario: guide 30 people to the exit using drone robots",
+            tags=["preset", "evacuation", "prototype", "research"],
+            visibility="preset",
+            seed=42,
+            sheep=[(float(x), float(y)) for x, y in spawn_uniform(30, (50, 200, 50, 200), seed=42).tolist()],
+            drones=[(25.0, 125.0), (225.0, 125.0)],  # Two drones on the sides
+            targets=[(125.0, 225.0)],  # Exit at the top
+            boundary="reflect",
+            bounds=(0.0, 250.0, 0.0, 250.0),
+            scenario_type="evacuation_prototype",
+            policy_config={"key": "evacuation-prototype"},
+            appearance={"themeKey": "evacuation-prototype", "iconSet": "evacuation"},
+        ),
     ]
     
     for preset in presets:
-        REPO.create(preset)
+        REPO.add_preset(preset)
         print(f"✓ Created preset: {preset.name} ({len(preset.sheep)} sheep)")
 
 # Seed presets on module load
 _seed_presets()
-print(f"Scenarios API ready with {len(REPO._items)} preset scenarios")
+
+# Load persisted custom scenarios count
+_custom_count = len(REPO._load_custom_scenarios())
+print(f"Scenarios API ready with {len(REPO._presets)} presets + {_custom_count} custom scenarios")
 
 # ---------------- utilities ----------------
 
@@ -355,6 +458,12 @@ def create_scenario() -> Response:
         goals=body.get("goals") or [],
         boundary=boundary,
         bounds=tuple(map(float, bounds)),
+        # Configuration fields
+        world_config=body.get("world_config"),
+        policy_config=body.get("policy_config"),
+        target_sequence=body.get("target_sequence"),
+        scenario_type=body.get("scenario_type"),
+        appearance=body.get("appearance"),
     )
 
     REPO.create(s)

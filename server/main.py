@@ -40,20 +40,32 @@ class JobCache:
         """Remove job by ID."""
         j = self.map.pop(job_id, None)
         if j is not None:
-            # Remove by identity
-            self.list = [x for x in self.list if x is not j]
+            # Remove in-place to maintain list reference
+            try:
+                self.list.remove(j)
+            except ValueError:
+                pass  # Job not in list (already removed)
         return j
 
+    def clear(self):
+        """Clear all jobs from the cache."""
+        self.list.clear()
+        self.map.clear()
+
+    def reset_with(self, jobs):
+        """Clear and replace with new jobs (maintains same cache object reference)."""
+        self.clear()
+        for j in jobs:
+            self.add(j)
+
 def _create_policy_for_world(w: world.World) -> herding.ShepherdPolicy:
-    """Create a herding policy matched to the given world's flock size."""
-    total_area = 0.5 * w.N * (w.ra ** 2)
-    collected_herd_radius = np.sqrt(total_area)
-    return herding.ShepherdPolicy(
-        fN=collected_herd_radius,
-        umax=w.umax,
-        too_close=1.5 * w.ra,
-        collect_standoff=1.0 * w.ra,
-    )
+    """
+    Create a herding policy matched to the given world's flock size.
+    
+    Uses the new build_policy helper with default config.
+    """
+    from planning.policy_configs import build_policy
+    return build_policy(w, policy_config=None)  # None means use "default" preset
 
 def initialize_sim():
     """Initialize a new simulation with default parameters."""
@@ -78,6 +90,15 @@ def initialize_sim():
     # Load existing jobs from database (for recovery after restart)
     repo = jobs_api.get_repo()
     db_jobs = repo.list()
+    
+    # Filter out jobs with invalid targets (must be Circle or Polygon, or None)
+    valid_jobs = []
+    for job in db_jobs:
+        if job.target is None or isinstance(job.target, (state.Circle, state.Polygon)):
+            valid_jobs.append(job)
+        else:
+            print(f"Warning: Discarding job {job.id} with invalid target type: {type(job.target)}")
+    db_jobs = valid_jobs
     
     # If no jobs exist, create a default pending job
     if not db_jobs:
@@ -114,7 +135,7 @@ def handle_preflight():
         allowed_origin = get_allowed_origin()
         response.headers['Access-Control-Allow-Origin'] = allowed_origin
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PATCH, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Cache-Control'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Cache-Control, Idempotency-Key'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Max-Age'] = '3600'
         return response
@@ -136,7 +157,7 @@ def after_request(response):
         response.headers['Access-Control-Allow-Origin'] = allowed_origin
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PATCH, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Cache-Control'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Cache-Control, Idempotency-Key'
         response.headers['Access-Control-Expose-Headers'] = 'Content-Type, Cache-Control'
     return response
 
@@ -172,7 +193,7 @@ def stream_state():
         allowed_origin = get_allowed_origin()
         response.headers['Access-Control-Allow-Origin'] = allowed_origin
         response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Cache-Control'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Cache-Control, Idempotency-Key'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Max-Age'] = '3600'
         return response
@@ -227,7 +248,7 @@ def stream_state():
             'Access-Control-Allow-Origin': allowed_origin,
             'Access-Control-Allow-Credentials': 'true',
             'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Cache-Control',
+            'Access-Control-Allow-Headers': 'Content-Type, Cache-Control, Idempotency-Key',
             'Access-Control-Expose-Headers': 'Content-Type, Cache-Control',
         }
     )
@@ -236,11 +257,12 @@ def stream_state():
 @app.route("/restart", methods=["POST"])
 def restart_sim():
     """Restart simulation with default parameters."""
-    global backend_adapter, policy, jobs_cache, jobs, current_scenario_id
+    global backend_adapter, policy, current_scenario_id
     
     with world_lock:
-        backend_adapter, policy, jobs_cache = initialize_sim()
-        jobs = jobs_cache.list  # Update the alias
+        backend_adapter, policy, new_cache = initialize_sim()
+        # Reset the existing cache with new jobs (maintains same cache object reference)
+        jobs_cache.reset_with(new_cache.list)
         current_scenario_id = None  # Clear any loaded scenario
         # Ensure it starts paused since there's no target
         backend_adapter.paused = True
@@ -342,47 +364,82 @@ def load_scenario(scenario_id):
     try:
         with world_lock:
             from datetime import datetime
+            from planning.policy_configs import build_policy
             
             # Calculate appropriate k_nn based on flock size
             # k_nn must be <= N-1, where N is number of sheep
             num_sheep = len(scenario.sheep)
             k_nn = min(21, max(1, num_sheep - 1))  # Default is 21, but cap at N-1
             
-            # Reinitialize world with scenario data
+            # Build world_params: start with defaults, overlay scenario.world_config
+            world_params = {
+                "k_nn": k_nn,
+                "dt": 0.1,
+                "boundary": scenario.boundary,
+                "bounds": scenario.bounds,
+            }
+            
+            # Overlay scenario-specific world config if provided
+            if scenario.world_config is not None:
+                world_params.update(scenario.world_config)
+            
+            # Convert obstacles to world format
+            obstacles_polygons = []
+            if scenario.obstacles:
+                for obs in scenario.obstacles:
+                    if "polygon" in obs:
+                        poly = np.array(obs["polygon"], dtype=float)
+                        obstacles_polygons.append(poly)
+            
+            # Initialize world with scenario data and config
             backend_adapter = world.World(
                 sheep_xy=np.array(scenario.sheep, dtype=float),
                 shepherd_xy=np.array(scenario.drones, dtype=float),
                 target_xy=np.array(scenario.targets[0], dtype=float) if scenario.targets else None,
-                boundary=scenario.boundary,
-                k_nn=k_nn,
-                dt=0.1,
+                obstacles_polygons=obstacles_polygons if obstacles_polygons else None,
+                **world_params,
             )
             
-            # Recompute policy parameters for new flock size
-            policy = _create_policy_for_world(backend_adapter)
+            # Build policy using the new config system
+            policy = build_policy(backend_adapter, scenario.policy_config)
             
             # Initialize jobs for the scenario
-            target_pos = np.array(scenario.targets[0], dtype=float) if scenario.targets else None
-            from server import jobs_api
-            repo = jobs_api.get_repo()
-            scenario_job = repo.create(
-                target=target_pos,
-                #target_radius=policy.fN * 1.5,
-                is_active=True if target_pos is not None else False,
+            # Convert target position to a Circle target (required by Job type)
+            target = None
+            if scenario.targets and len(scenario.targets) > 0:
+                target_pos = np.array(scenario.targets[0], dtype=float)
+                # Create a Circle target with the position and a reasonable radius
+                target = state.Circle(center=target_pos, radius=policy.fN * 1.5)
+            
+            # Create an in-memory job for the simulation (NOT persisted to database)
+            # This keeps simulation state separate from farm jobs
+            from uuid import uuid4
+            now = datetime.now(timezone.utc).timestamp()
+            scenario_job = state.Job(
+                id=uuid4(),
+                target=target,
+                remaining_time=None,
+                is_active=True,  # Always active so simulation shows immediately
                 drones=len(scenario.drones),
-                status="running" if target_pos is not None else "pending",
+                status="running",  # Always running - will show grazing if no target
                 start_at=None,
+                completed_at=None,
                 scenario_id=str(scenario_id),  # Link job to the loaded scenario
+                maintain_until="target_is_reached",
+                created_at=now,
+                updated_at=now,
             )
-            # Replace jobs cache with only the scenario job (fresh start)
-            jobs_cache = JobCache([scenario_job])
-            jobs = jobs_cache.list  # Update the alias
+            # Reset jobs cache with only the scenario job (fresh start)
+            # Important: use reset_with() to maintain the same cache object reference
+            # that the jobs_api blueprint uses
+            jobs_cache.reset_with([scenario_job])
             
             # Track what's loaded
             current_scenario_id = str(scenario_id)
             
-            # Pause the simulation so user can see the setup
-            backend_adapter.paused = True
+            # Don't pause - let the simulation start immediately
+            # Users can set a target on the map to begin herding
+            backend_adapter.paused = False
             
         return jsonify({
             "ok": True,
@@ -392,6 +449,8 @@ def load_scenario(scenario_id):
             "num_drones": len(scenario.drones),
             "boundary": scenario.boundary,
             "has_target": len(scenario.targets) > 0 if scenario.targets else False,
+            "world_config_applied": scenario.world_config is not None,
+            "policy_config_applied": scenario.policy_config is not None,
             "paused": backend_adapter.paused,
         }), 200
         
@@ -447,9 +506,263 @@ def get_current_scenario():
         "num_drones": len(scenario.drones),
     }), 200
 
+@app.route("/policy-presets", methods=["GET"])
+def get_policy_presets():
+    """
+    Get all available policy presets.
+    
+    Returns a dictionary mapping preset keys to their full configurations.
+    """
+    from planning.policy_configs import POLICY_PRESETS
+    
+    presets_dict = {
+        key: config.to_dict()
+        for key, config in POLICY_PRESETS.items()
+    }
+    
+    return jsonify(presets_dict), 200
+
+
+@app.route("/scenario-types", methods=["GET"])
+def get_scenario_types():
+    """
+    Get all available scenario type definitions.
+    
+    Returns a list of scenario type definitions that can be used as templates
+    for creating new scenarios.
+    """
+    from server.scenario_types import SCENARIO_TYPES
+    
+    types_list = [
+        st.to_dict() for st in SCENARIO_TYPES.values()
+    ]
+    
+    return jsonify(types_list), 200
+
+
+@app.route("/scenario-types/<key>", methods=["GET"])
+def get_scenario_type(key: str):
+    """
+    Get a specific scenario type definition by key.
+    """
+    from server.scenario_types import get_scenario_type
+    
+    scenario_type = get_scenario_type(key)
+    if not scenario_type:
+        return jsonify({"error": {"type": "NotFound", "message": f"scenario type '{key}' not found"}}), 404
+    
+    return jsonify(scenario_type.to_dict()), 200
+
+
+@app.route("/scenario-types/<key>/instantiate", methods=["POST"])
+def instantiate_scenario_type(key: str):
+    """
+    Create a new scenario from a scenario type template.
+    
+    Request body (all optional):
+    - name: str - Name for the new scenario
+    - num_agents: int - Override number of agents
+    - num_controllers: int - Override number of controllers
+    - seed: int - Random seed for layout generation
+    - overrides: dict - Additional scenario field overrides
+    
+    Returns the created scenario.
+    """
+    from server.scenario_types import get_scenario_type, generate_initial_layout
+    from uuid import uuid4
+    from datetime import datetime, timezone
+    
+    scenario_type = get_scenario_type(key)
+    if not scenario_type:
+        return jsonify({"error": {"type": "NotFound", "message": f"scenario type '{key}' not found"}}), 404
+    
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+    except Exception:
+        body = {}
+    
+    # Get optional overrides
+    name = body.get("name") or f"{scenario_type.name} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    num_agents = body.get("num_agents")
+    num_controllers = body.get("num_controllers")
+    seed = body.get("seed")
+    overrides = body.get("overrides") or {}
+    
+    # Generate initial layout
+    bounds = (0.0, 250.0, 0.0, 250.0)
+    layout = generate_initial_layout(
+        scenario_type,
+        num_agents=num_agents,
+        num_controllers=num_controllers,
+        bounds=bounds,
+        seed=seed,
+    )
+    
+    # Build the scenario
+    from server.scenarios_api import Scenario, REPO
+    
+    # Merge world_config and policy_config from type with any overrides
+    world_config = scenario_type.default_world_config.copy() if scenario_type.default_world_config else {}
+    if overrides.get("world_config"):
+        world_config.update(overrides["world_config"])
+    
+    policy_config = scenario_type.default_policy_config.copy() if scenario_type.default_policy_config else {}
+    if overrides.get("policy_config"):
+        policy_config.update(overrides["policy_config"])
+    
+    appearance = {"themeKey": scenario_type.default_theme_key} if scenario_type.default_theme_key else None
+    if overrides.get("appearance"):
+        if appearance:
+            appearance.update(overrides["appearance"])
+        else:
+            appearance = overrides["appearance"]
+    
+    scenario = Scenario(
+        id=uuid4(),
+        name=name,
+        description=overrides.get("description") or scenario_type.description,
+        tags=scenario_type.tags.copy() if scenario_type.tags else [],
+        visibility="public",
+        seed=seed,
+        sheep=layout["sheep"],
+        drones=layout["drones"],
+        targets=layout["targets"],
+        obstacles=overrides.get("obstacles") or [],
+        goals=overrides.get("goals") or [],
+        boundary=world_config.get("boundary", "none"),
+        bounds=bounds,
+        world_config=world_config if world_config else None,
+        policy_config=policy_config if policy_config else None,
+        target_sequence=None,
+        scenario_type=key,
+        appearance=appearance,
+    )
+    
+    REPO.create(scenario)
+    
+    from dataclasses import asdict
+    return jsonify(asdict(scenario)), 201, {"Location": f"/scenarios/{scenario.id}"}
+
+
+# ============== Phase 5: Metrics & Evaluation API ==============
+
+@app.route("/metrics/current", methods=["GET"])
+def get_current_metrics():
+    """
+    Get metrics for the currently running simulation.
+    
+    Returns partial metrics if run is in progress, or None if no run is active.
+    """
+    from server.metrics import get_collector
+    
+    collector = get_collector()
+    current = collector.get_current_run()
+    
+    if current is None:
+        return jsonify({
+            "active": False,
+            "run_id": None,
+            "message": "No active metrics run"
+        }), 200
+    
+    return jsonify({
+        "active": True,
+        "run_id": current.run_id,
+        "num_steps": len(current.steps),
+        "started_at": current.started_at,
+        "latest_step": current.steps[-1].to_dict() if current.steps else None,
+    }), 200
+
+
+@app.route("/metrics/runs", methods=["GET"])
+def list_metrics_runs():
+    """
+    List all completed metrics runs.
+    """
+    from server.metrics import get_collector
+    
+    collector = get_collector()
+    runs = [
+        {
+            "run_id": run.run_id,
+            "started_at": run.started_at,
+            "ended_at": run.ended_at,
+            "num_steps": len(run.steps),
+            "summary": run.summary,
+        }
+        for run in collector.completed_runs.values()
+    ]
+    
+    return jsonify({"runs": runs, "count": len(runs)}), 200
+
+
+@app.route("/metrics/runs/<run_id>", methods=["GET"])
+def get_metrics_run(run_id: str):
+    """
+    Get detailed metrics for a specific run.
+    
+    Includes summary statistics and recent step data.
+    """
+    from server.metrics import get_collector
+    
+    collector = get_collector()
+    run = collector.get_run(run_id)
+    
+    if run is None:
+        return jsonify({"error": {"type": "NotFound", "message": f"run '{run_id}' not found"}}), 404
+    
+    return jsonify(run.to_dict()), 200
+
+
+@app.route("/metrics/start", methods=["POST"])
+def start_metrics_collection():
+    """
+    Manually start metrics collection for the current simulation.
+    
+    Optional body: { "run_id": "custom-id" }
+    """
+    from server.metrics import start_metrics_run
+    import uuid
+    
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+    except Exception:
+        body = {}
+    
+    run_id = body.get("run_id") or str(uuid.uuid4())[:8]
+    run = start_metrics_run(run_id)
+    
+    return jsonify({
+        "started": True,
+        "run_id": run.run_id,
+        "started_at": run.started_at,
+    }), 200
+
+
+@app.route("/metrics/stop", methods=["POST"])
+def stop_metrics_collection():
+    """
+    Stop the current metrics collection and compute summary.
+    """
+    from server.metrics import end_metrics_run
+    
+    run = end_metrics_run()
+    
+    if run is None:
+        return jsonify({
+            "stopped": False,
+            "message": "No active metrics run to stop"
+        }), 200
+    
+    return jsonify({
+        "stopped": True,
+        "run_id": run.run_id,
+        "summary": run.summary,
+    }), 200
+
 
 def run_flask():
-    app.run(debug=True, use_reloader=False, port=5000, host='127.0.0.1')
+    app.run(debug=True, use_reloader=False, port=5001, host='127.0.0.1')
 
 
 if __name__ == "__main__":
@@ -469,7 +782,15 @@ if __name__ == "__main__":
             now = datetime.now(timezone.utc).timestamp()
             for j in jobs:
                 if j.status == "scheduled" and j.start_at is not None and j.start_at <= now:
+                    # Deactivate all other active jobs first (one active at a time)
+                    for other in jobs:
+                        if other.id != j.id and other.is_active:
+                            other.is_active = False
+                            jobs_to_sync.add(other.id)
+                    
+                    # Promote this job to running and activate it
                     j.status = "running"
+                    j.is_active = True
                     jobs_to_sync.add(j.id)
             
             # Check goal satisfaction and update remaining_time
@@ -528,12 +849,27 @@ if __name__ == "__main__":
             
             if active_job and active_job.target is not None:
                 # Sync job target to world target
-                backend_adapter.target = active_job.target
+                # Extract center coordinates from Circle/Polygon for the World (which expects numpy array)
+                if isinstance(active_job.target, state.Circle):
+                    backend_adapter.target = active_job.target.center
+                elif isinstance(active_job.target, state.Polygon):
+                    # For polygon, use centroid as target
+                    backend_adapter.target = active_job.target.points.mean(axis=0)
+                else:
+                    raise TypeError(f"Job target must be Circle or Polygon, got {type(active_job.target)}")
+                
+                # Sync drone count from job to world
+                if active_job.drones != backend_adapter.num_controllers:
+                    backend_adapter.set_drone_count(active_job.drones)
+                
                 # Auto-unpause if paused
                 if backend_adapter.paused:
                     backend_adapter.paused = False
             elif active_job and active_job.target is None:
                 # Active job but no target yet - keep running for visualization (sheep will graze)
+                # Also sync drone count
+                if active_job.drones != backend_adapter.num_controllers:
+                    backend_adapter.set_drone_count(active_job.drones)
                 if backend_adapter.paused:
                     backend_adapter.paused = False
                 backend_adapter.target = None
@@ -544,13 +880,22 @@ if __name__ == "__main__":
                     backend_adapter.paused = False
                 backend_adapter.target = None
             
-            for job in jobs:
+            for job in list(jobs):  # Copy to avoid modifying list while iterating
                 if job.completed_at is not None:
                     jobs_cache.remove(job.id)
-                    jobs = jobs_cache.list
             
             
             for _ in range(15):
                 plan = policy.plan(backend_adapter.get_state(), jobs, backend_adapter.dt)
                 backend_adapter.step(plan)
+            
+            # Record metrics if collection is active
+            from server.metrics import get_collector
+            collector = get_collector()
+            if collector.get_current_run() is not None:
+                world_state = backend_adapter.get_state()
+                target = active_job.target if active_job else None
+                t = backend_adapter.t if hasattr(backend_adapter, 't') else 0.0
+                fN = policy.fN if hasattr(policy, 'fN') else 50.0
+                collector.record_step(world_state, target, t, fN)
         

@@ -176,6 +176,86 @@ class World:
         """Get current polygon obstacles."""
         return [p.copy() for p in self.polys]
 
+    # ---------- Domain-neutral accessors (Phase 6) ----------
+    # These properties provide generic naming for agents/controllers
+    # to enable future reuse for human evacuation scenarios.
+    
+    @property
+    def agents_xy(self) -> np.ndarray:
+        """
+        Get agent positions (domain-neutral accessor).
+        
+        In herding: agents = sheep
+        In evacuation: agents = humans
+        """
+        return self.sheep_xy
+    
+    @property
+    def sheep_xy(self) -> np.ndarray:
+        """Get sheep positions (herding-specific accessor)."""
+        return self.P
+    
+    @property
+    def controllers_xy(self) -> np.ndarray:
+        """
+        Get controller positions (domain-neutral accessor).
+        
+        In herding: controllers = drones/shepherds
+        In evacuation: controllers = guiding robots
+        """
+        return self.shepherd_xy
+    
+    @property
+    def shepherd_xy(self) -> np.ndarray:
+        """Get shepherd/drone positions (herding-specific accessor)."""
+        return self.dogs
+    
+    @property
+    def num_agents(self) -> int:
+        """Get number of agents."""
+        return self.N
+    
+    @property
+    def num_controllers(self) -> int:
+        """Get number of controllers."""
+        return self.dogs.shape[0]
+
+    def set_drone_count(self, count: int) -> None:
+        """
+        Dynamically set the number of drones/controllers.
+        
+        If increasing, new drones are spawned near existing drones.
+        If decreasing, extra drones are removed.
+        """
+        current_count = self.dogs.shape[0]
+        if count == current_count:
+            return
+        
+        if count < 1:
+            count = 1  # Minimum 1 drone
+        
+        if count > current_count:
+            # Add more drones - spawn them near existing drones
+            new_drones = []
+            for i in range(count - current_count):
+                # Pick a random existing drone to spawn near
+                ref_idx = i % current_count
+                ref_pos = self.dogs[ref_idx]
+                # Offset by small random amount
+                offset = self.rng.uniform(-10, 10, size=2)
+                new_pos = ref_pos + offset
+                # Clamp to bounds
+                new_pos[0] = np.clip(new_pos[0], self.xmin + 5, self.xmax - 5)
+                new_pos[1] = np.clip(new_pos[1], self.ymin + 5, self.ymax - 5)
+                new_drones.append(new_pos)
+            self.dogs = np.vstack([self.dogs, new_drones])
+            # Extend apply_repulsion array
+            self.apply_repulsion = np.ones(self.dogs.shape[0], dtype=bool)
+        else:
+            # Remove drones (keep the first 'count' drones)
+            self.dogs = self.dogs[:count]
+            self.apply_repulsion = self.apply_repulsion[:count]
+
     # ---------- vectorized geometry kernels ----------
     def _precompute_polygon_edges(self, poly: np.ndarray) -> dict:
         """Precompute edge vectors, normals, and lengths for a polygon."""
