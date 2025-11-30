@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import ObjectMarker from "./ObjectMarker";
+import ObjectMarker from "./MapPlot/ObjectMarker";
 import map_bg from "../../img/HighResRanch.png";
 import { createCustomScenario, loadScenario } from "../api/state";
 
