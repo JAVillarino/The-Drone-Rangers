@@ -133,7 +133,7 @@ def is_goal_satisfied(w: state.State, target: state.Target) -> bool:
     if w.flock.size == 0:
         return True
 
-    if isinstance(target, state.Circle):
+    if isinstance(target, state.Circle) and target.radius is not None:
         # squared comparison for speed / numerical stability
         tol_sq = target.radius * target.radius
 
@@ -199,7 +199,8 @@ class ShepherdPolicy:
         elif isinstance(target, state.Circle):
             dGoal = np.linalg.norm(P - target.center, axis=1) # distance to goal
             # If the sheep is inside the goal, set the distance to -inf so it won't be targeted.
-            dGoal = np.where(dGoal < target.radius, -np.inf, dGoal)
+            if target.radius is not None:
+                dGoal = np.where(dGoal < target.radius, -np.inf, dGoal)
         elif isinstance(target, state.Polygon):
             # Compute the distance to the closest point on the polygon (vectorized)
             closest_points = closest_point_on_polygon(P, target.points)
