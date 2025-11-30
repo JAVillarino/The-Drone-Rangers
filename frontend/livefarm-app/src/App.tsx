@@ -76,7 +76,9 @@ function App() {
     }
   });
 
-  const handleNavigateToLiveSystem = () => {
+  const handleNavigateToLiveSystem = async () => {
+    // Reset the backend to farm mode (clears any simulation state, loads farm jobs)
+    await requestRestart();
     setCurrentView('live-system');
   };
 
