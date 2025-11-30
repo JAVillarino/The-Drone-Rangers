@@ -79,23 +79,14 @@ def initialize_sim():
     repo = jobs_api.get_repo()
     db_jobs = repo.list()
     
-    # Filter: keep running and scheduled jobs for recovery
-    # Completed/cancelled jobs are kept in DB but don't need to be in-memory
-    active_jobs = [j for j in db_jobs if j.status in ("running", "scheduled", "pending")]
-    
     # If no jobs exist, create a default pending job
     if not db_jobs:
-        now = datetime.now(timezone.utc).timestamp()
-        default_job = repo.create(
-            target=None,
-            is_active=False,
-            drones=1,
-            status="pending",
-            start_at=None,
-            scenario_id=None,  # Default job is not scenario-specific
-        )
-        active_jobs = [default_job]
-    
+        active_jobs = []
+    else:
+        # Filter: keep running and scheduled jobs for recovery
+        # Completed/cancelled jobs are kept in DB but don't need to be in-memory
+        active_jobs = [j for j in db_jobs if j.status in ("running", "scheduled", "pending")]
+
     return backend_adapter, policy, JobCache(active_jobs)
 
 backend_adapter, policy, jobs_cache = initialize_sim()
