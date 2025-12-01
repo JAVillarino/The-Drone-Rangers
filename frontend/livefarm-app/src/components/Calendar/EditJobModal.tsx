@@ -140,9 +140,9 @@ export default function EditJobModal({
 
       // Only include scheduled_time if job is scheduled
       if (job.job_type === 'scheduled') {
-        if (scheduledDateTime !== originalValues?.scheduledDateTime) {
-          updates.scheduled_time = scheduledDateTime;
-        }
+        //if (scheduledDateTime !== originalValues?.scheduledDateTime) {
+          updates.scheduled_time = getDateTimeLocalValue();
+        //}
       }
 
       // Include target if changed - convert to CircleTarget format

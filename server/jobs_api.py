@@ -426,6 +426,13 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
             updates_db["status"] = normalized_status
             updates_mem["status"] = normalized_status
 
+        if "start_at" in data:
+            start_at = _parse_iso_timestamp(data["start_at"])
+            if start_at is None:
+                return jsonify({"error": "start_at must be provided for scheduled jobs"}), 400
+            updates_db["start_at"] = start_at
+            updates_mem["start_at"] = start_at
+
         # Atomic update: DB and memory together under lock
         with world_lock:
             # Get existing job for validation (check cache first for speed/in-memory jobs)

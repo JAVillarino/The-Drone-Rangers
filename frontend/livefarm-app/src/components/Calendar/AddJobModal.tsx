@@ -51,7 +51,6 @@ export default function AddJobModal({
 
     setIsSubmitting(true);
 
-    console.log("scheduledDateTime in handleSubmit:", scheduledDateTime);
 
     try {
       const jobData: CreateFarmJobRequest = {
@@ -66,7 +65,6 @@ export default function AddJobModal({
         drone_count: droneCount
       };
 
-      console.log("scheduled_time in jobData:", jobData.scheduled_time);
 
       await onSubmit(jobData);
       
@@ -95,13 +93,11 @@ export default function AddJobModal({
     if (!scheduledDateTime) return '';
     // Convert ISO string to local datetime-local format
     const date = new Date(scheduledDateTime);
-    //console.log("date in getDateTimeLocalValue before padding:", date);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
-    //console.log("date in getDateTimeLocalValue after padding:", `${year}-${month}-${day}T${hours}:${minutes}`);
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
@@ -109,11 +105,8 @@ export default function AddJobModal({
     const value = e.target.value;
     if (value) {
       // Convert datetime-local to ISO string
-      console.log("datetime value:", value);
       const localDate = new Date(value);
       setScheduledDateTime(localDate);
-      console.log("localDate:", localDate);
-      console.log("scheduledDateTime IN HANDLE DATE TIME CHANGE:", scheduledDateTime);
     } else {
       setScheduledDateTime(null);
     }
