@@ -1,8 +1,7 @@
-import { useState } from 'react';
-import { Job, State, Target } from '../types';
-import JobStatus from './JobStatus.tsx';
+import { useState, useMemo } from 'react';
+import { State, Target, Job } from '../types';
+import JobStatusContainer from './JobStatusContainer.tsx';
 import { Map, usePan } from './MapPlot/UsePan.tsx';
-import { setJobActiveState, setJobDroneCount, deleteFarmJob } from '../api/state.ts';
 
 interface LiveFarmTabProps {
   data: State;
@@ -11,6 +10,9 @@ interface LiveFarmTabProps {
   onRestart: () => void;
   onBack?: () => void;
   selectedImage?: string;
+  filterValue: number | null;
+  filterUnit: 'hours' | 'days' | 'weeks' | 'months';
+  onFilterChange: (value: number | null, unit: 'hours' | 'days' | 'weeks' | 'months') => void;
 }
 
 const CANVAS_SIZE = 600;
@@ -18,40 +20,16 @@ const CANVAS_SIZE = 600;
 const zoomMin = 0;
 const zoomMax = 250;
 
-const jobStatus = (j: Job) => {
-  if (j.remaining_time == 0) {
-      return "Completed";
-  }
-  if (!j.target) {
-      return "No target set";
-  }
-  if (!j.is_active) {
-      return "Stopped";
-  }
-  
-  return "In progress"
-}
-
 export type SetTargetVars = { jobId: string, target: Target };
 
 export function LiveFarmTab({
   data,
   onSetTarget,
-  selectedImage
+  selectedImage,
+  filterValue,
+  filterUnit,
+  onFilterChange
 }: LiveFarmTabProps) {
-  const handleCancel = async (jobId: string) => {
-    if (!confirm('Are you sure you want to delete this job?')) {
-      return;
-    }
-    
-    try {
-      await deleteFarmJob(jobId);
-      // Job will be removed from the list automatically via SSE stream update
-    } catch (error) {
-      console.error('Failed to delete job:', error);
-      alert('Failed to delete job. Please try again.');
-    }
-  };
 
   
     // Map selected image IDs to actual image paths
@@ -69,6 +47,69 @@ export function LiveFarmTab({
   const [choosingTarget, setChoosingTarget] = useState<string | null>(null);
 
 
+  // Filter jobs based on time frame
+  const filteredJobs = useMemo(() => {
+    if (filterValue === null || filterValue <= 0) {
+      return data.jobs;
+    }
+
+    const now = Date.now();
+    let timeFrameMs: number;
+    
+    switch (filterUnit) {
+      case 'hours':
+        timeFrameMs = filterValue * 60 * 60 * 1000;
+        break;
+      case 'days':
+        timeFrameMs = filterValue * 24 * 60 * 60 * 1000;
+        break;
+      case 'weeks':
+        timeFrameMs = filterValue * 7 * 24 * 60 * 60 * 1000;
+        break;
+      case 'months':
+        timeFrameMs = filterValue * 30 * 24 * 60 * 60 * 1000; // Approximate
+        break;
+    }
+
+    const cutoffTime = now + timeFrameMs;
+
+    return data.jobs.filter((job: Job) => {
+      // Always show immediate jobs (jobs without start_at)
+      if (job.start_at === null) {
+        return true;
+      }
+      // Always show active jobs
+      if (job.is_active) {
+        return true;
+      }
+      // For scheduled jobs that are not active, convert start_at to milliseconds
+      // start_at comes from backend as ISO string (from to_dict()), but type says number
+      let jobTime: number;
+      if (typeof job.start_at === 'string') {
+        // ISO string - convert to timestamp
+        jobTime = new Date(job.start_at).getTime();
+      } else if (typeof job.start_at === 'number') {
+        // Number (timestamp in seconds) - convert to milliseconds
+        jobTime = job.start_at * 1000;
+      } else {
+        // Should not happen, but handle gracefully
+        return false;
+      }
+      // Show scheduled jobs that will occur within the time frame
+      // Include jobs that are in the future (or very recent past) and within the cutoff time
+      // Use >= now to include jobs scheduled for exactly now, and <= cutoffTime for the upper bound
+      const isWithinTimeFrame = jobTime >= now && jobTime <= cutoffTime;
+      return isWithinTimeFrame;
+    });
+  }, [data.jobs, filterValue, filterUnit]);
+
+  // Create filtered data for map
+  const filteredData = useMemo(() => ({
+    ...data,
+    jobs: filteredJobs
+  }), [data, filteredJobs]);
+
+
   function handleClick(e: React.MouseEvent<SVGSVGElement, MouseEvent>) {
     const svg = e.currentTarget;
     const pt = svg.createSVGPoint();
@@ -82,7 +123,7 @@ export function LiveFarmTab({
         }
 
         const job = data.jobs.find((j) => j.id === choosingTarget);
-        const oldRadius = job?.target?.type === "circle" ? job?.target.radius : null;
+        const oldRadius = job?.target?.type === "circle" ? job?.target.radius : undefined;
       
         onSetTarget({jobId: choosingTarget, target: {
           type:"circle",
@@ -97,21 +138,14 @@ export function LiveFarmTab({
   return (
     <div className="live-farm-tab">
       <div className="map-container">
-            {data.jobs.map((job, index) => 
-                <JobStatus 
-                    key={`job-${job.id || index}`}
-                    jobName={`${index + 1}`}
-                    status={jobStatus(job)}
-                    target={job.target}
-                    droneCount={job.drones}
-                    isActive={job.is_active}
-                    onSelectOnMap={() => setChoosingTarget(job.id)}
-                    onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
-                    onCancel={() => handleCancel(job.id)}
-                    onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
-                    onTargetChange={(newTarget: Target) => onSetTarget({jobId: job.id, target: newTarget})}
-                />
-            )}
+            <JobStatusContainer
+              jobs={filteredJobs}
+              filterValue={filterValue}
+              filterUnit={filterUnit}
+              onFilterChange={onFilterChange}
+              onSetTarget={(jobId, target) => onSetTarget({ jobId, target })}
+              onSelectOnMap={(jobId) => setChoosingTarget(jobId)}
+            />
 
             {choosingTarget && (
                 <div style={{
@@ -141,7 +175,7 @@ export function LiveFarmTab({
                 style={{ cursor: choosingTarget ? 'crosshair' : 'default' }}
             >
               {/* TODO: Actually take in the obstacles. */}
-              <Map data={data} obstacles={[]} backgroundImage={backgroundImage} scaleCoord={scaleCoord} />
+              <Map data={filteredData} obstacles={[]} backgroundImage={backgroundImage} scaleCoord={scaleCoord} />
             </svg>
         </div>
     </div>

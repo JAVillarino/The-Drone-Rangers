@@ -7,6 +7,8 @@ interface JobStatusProps {
   target: Target | null;
   droneCount: number;
   isActive: boolean;
+  isOpen?: boolean;
+  onToggle?: () => void;
   onSelectOnMap: () => void;
   onPauseToggle: () => void;
   onCancel: () => void;
@@ -20,14 +22,18 @@ const JobStatus: React.FC<JobStatusProps> = ({
   target,
   droneCount,
   isActive,
+  isOpen = false,
+  onToggle,
   onSelectOnMap,
   onPauseToggle,
   onCancel,
   onDronesChange,
   onTargetChange,
 }) => {
-  // State for managing the card's UI
-  const [isFolded, setIsFolded] = useState<boolean>(false);
+  // Use controlled isOpen prop if provided, otherwise fall back to local state
+  const [localIsFolded, setLocalIsFolded] = useState<boolean>(false);
+  const isFolded = onToggle !== undefined ? !isOpen : localIsFolded;
+  const handleToggle = onToggle || (() => setLocalIsFolded(!localIsFolded));
   const [isKebabMenuOpen, setIsKebabMenuOpen] = useState<boolean>(false);
   // Local state for drone count input (synced with prop)
   const [localDroneCount, setLocalDroneCount] = useState<number>(droneCount);
@@ -51,7 +57,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
       const newRadius = target.radius;
       // Only update if the radius actually changed
       if (newRadius !== prevRadiusRef.current) {
-        prevRadiusRef.current = newRadius;
+        prevRadiusRef.current = newRadius ?? null;
         if (typeof newRadius === 'number') {
           setRadiusInput(newRadius.toString());
         } else {
@@ -102,7 +108,10 @@ const JobStatus: React.FC<JobStatusProps> = ({
   return (
     <div className={`card-container ${isFolded ? 'folded' : ''}`}>
       <div className="card-header">
-        <button className="fold-button" onClick={() => setIsFolded(!isFolded)}>
+        <button 
+          className="fold-button" 
+          onClick={handleToggle}
+        >
           {isFolded ? '▶' : '▼'}
         </button>
         <h3>Herding {jobName}</h3>

@@ -33,6 +33,10 @@ export default function RealFarmView({
   const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false);
   const [isEditJobModalOpen, setIsEditJobModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<FarmJob | null>(null);
+  
+  // Filter state - persisted across tab switches
+  const [filterValue, setFilterValue] = useState<number | null>(null);
+  const [filterUnit, setFilterUnit] = useState<'hours' | 'days' | 'weeks' | 'months'>('hours');
 
   const queryClient = useQueryClient();
 
@@ -162,6 +166,12 @@ export default function RealFarmView({
               onRestart={onRestart}
               onBack={onBack}
               selectedImage={selectedImage}
+              filterValue={filterValue}
+              filterUnit={filterUnit}
+              onFilterChange={(value, unit) => {
+                setFilterValue(value);
+                setFilterUnit(unit);
+              }}
             />
           )
         ) : (
