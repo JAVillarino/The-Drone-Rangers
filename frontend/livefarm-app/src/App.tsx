@@ -97,21 +97,15 @@ function App() {
     <>
       {currentView === 'welcome' && (
         <WelcomePage 
-          onNavigateToSimulator={() => {
-            // Redirect to simulation app, skip its welcome page
-            window.location.href = 'http://localhost:5173?view=simulator';
-          }}
           onNavigateToLiveSystem={handleNavigateToLiveSystem}
         />
       )}
       {currentView === 'live-system' && (
         <RealFarmView
-          data={data!}
           onSetTarget={handleSetTarget}
           onPlayPause={playPauseMutation.mutate}
           onRestart={requestRestart}
           onBack={handleBackToWelcome}
-          onNavigateToDroneManagement={handleNavigateToDroneManagement}
         />
       )}
       {currentView === 'drone-management' && (

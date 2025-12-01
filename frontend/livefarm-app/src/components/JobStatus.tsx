@@ -137,26 +137,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
           </button>
           {isKebabMenuOpen && (
             <div className="kebab-menu">
-              <div className="kebab-section">
-                <div className="kebab-section-header">Drone Health</div>
-                <div className="drone-health-item">
-                  <span className="drone-name">Drone-01</span>
-                  <span className="health-status healthy">●</span>
-                </div>
-                <div className="drone-health-item">
-                  <span className="drone-name">Drone-02</span>
-                  <span className="health-status healthy">●</span>
-                </div>
-                <div className="drone-health-item">
-                  <span className="drone-name">Drone-03</span>
-                  <span className="health-status warning">●</span>
-                </div>
-                <div className="drone-health-item">
-                  <span className="drone-name">Drone-04</span>
-                  <span className="health-status healthy">●</span>
-                </div>
-              </div>
-              <div className="kebab-divider"></div>
+
               <button onClick={handleCancel}>Cancel Job</button>
             </div>
           )}

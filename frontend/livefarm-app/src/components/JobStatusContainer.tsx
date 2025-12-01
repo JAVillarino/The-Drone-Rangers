@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Job, Target } from '../types';
 import JobStatus from './JobStatus';
 import { setJobActiveState, setJobDroneCount, deleteFarmJob } from '../api/state';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface JobStatusContainerProps {
   jobs: Job[];
@@ -35,6 +36,7 @@ export default function JobStatusContainer({
   onSelectOnMap,
   onOpenJobChange
 }: JobStatusContainerProps) {
+  const queryClient = useQueryClient();
   const [openJobId, setOpenJobId] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filterInputValue, setFilterInputValue] = useState<string>(filterValue?.toString() || '');
@@ -88,7 +90,12 @@ export default function JobStatusContainer({
       // If the cancelled job was open, close it
       if (openJobId === jobId) {
         setOpenJobId(null);
+        onOpenJobChange?.(null);
       }
+      // Invalidate state query to immediately refresh the job list
+      queryClient.invalidateQueries({ queryKey: ['objects', 'real-farm'] });
+      // Also invalidate farm-jobs query for calendar view
+      queryClient.invalidateQueries({ queryKey: ['farm-jobs'] });
     } catch (error) {
       console.error('Failed to delete job:', error);
       alert('Failed to delete job. Please try again.');
