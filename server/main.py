@@ -72,7 +72,7 @@ def _create_policy_for_world(w: world.World) -> herding.ShepherdPolicy:
         too_close=1.5 * w.ra,
         collect_standoff=1.0 * w.ra,
     )
-    
+
     # from planning.policy_configs import build_policy
     # return build_policy(w, policy_config=None)  # None means use "default" preset
 
@@ -813,12 +813,10 @@ if __name__ == "__main__":
                     # Only check goal for running+active jobs
                     if herding.policy.is_goal_satisfied(backend_adapter.get_state(), job.target):
                         job.remaining_time = 0
-                        # Double-check status before marking completed (race protection)
-                        if job.status == "running" and job.is_active:
-                            job.status = "completed"
-                            job.is_active = False
-                            job.completed_at = datetime.now(timezone.utc).timestamp()
-                            jobs_to_sync.add(job.id)
+                        job.status = "completed"
+                        job.is_active = False
+                        job.completed_at = datetime.now(timezone.utc).timestamp()
+                        jobs_to_sync.add(job.id)
                     else:
                         job.remaining_time = None
                 else:
