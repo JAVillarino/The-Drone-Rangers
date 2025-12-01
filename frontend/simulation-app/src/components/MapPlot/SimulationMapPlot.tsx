@@ -29,37 +29,70 @@ interface MapPlotProps {
 }
 
 const CANVAS_SIZE = 600;
-const zoomMin = 0;
+
 const zoomMax = 250;
 
 export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, selectedImage, themeKey }: MapPlotProps) {
     if (!data) return <p>No data yet</p>;
-    
+
     const paused = data.paused ?? false;
     const theme = getScenarioTheme(themeKey ?? "default-herd");
 
     const imageMap: { [key: string]: string } = {
         "option1": "../../img/King_Ranch_better.jpg",
         "option2": "../../img/HighResRanch.png",
-        "evacuation": "../../img/HighResRanch.png",
+        "evacuation": "../../img/evacuation-map.jpg",
     };
 
     const getBackgroundImage = () => {
+        // First check if theme specifies an image background
         if (theme.backgroundType === "image" && theme.backgroundValue) {
             return theme.backgroundValue;
         }
+        // Check if selectedImage is provided directly
         if (selectedImage && imageMap[selectedImage]) {
             return imageMap[selectedImage];
         }
+        // Theme-specific defaults
         if (themeKey === "evacuation-prototype") {
-            return imageMap["evacuation"] || "../../img/HighResRanch.png";
+            return imageMap["evacuation"];
         }
         return "../../img/HighResRanch.png";
     };
-    
+
     const backgroundImage = getBackgroundImage();
 
-    const { svgRef, scaleCoord, inverseScaleCoord } = usePan({ data, zoomMin, zoomMax, scale: 0.7, canvasSize: CANVAS_SIZE });
+    // Dynamic zoom/bounds based on scenario type
+    const getZoomMin = () => {
+        return 0;
+    };
+    const currentZoomMin = getZoomMin();
+
+    const getZoomMax = () => {
+        if (themeKey === "oil-spill") return 300; // Zoom out for ocean
+        return 250; // Default
+    };
+    const currentZoomMax = getZoomMax();
+
+    const getWorldBounds = () => {
+        if (themeKey === "evacuation-prototype") {
+            return { minX: -250, maxX: 400, minY: 0, maxY: 500 };
+        }
+        if (themeKey === "oil-spill") {
+            return { minX: 0, maxX: 300, minY: 0, maxY: 300 };
+        }
+        return { minX: 0, maxX: 250, minY: 0, maxY: 250 };
+    };
+    const currentWorldBounds = getWorldBounds();
+
+    const { svgRef, scaleCoord, inverseScaleCoord } = usePan({
+        data,
+        zoomMin: currentZoomMin,
+        zoomMax: currentZoomMax,
+        scale: 0.85,
+        canvasSize: CANVAS_SIZE,
+        worldBounds: currentWorldBounds
+    });
 
     const [choosingTargetJobId, setChoosingTargetJobId] = useState<string | null>(null);
     const [isEditMenuOpen, setIsEditMenuOpen] = useState(false);
@@ -74,6 +107,7 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
             console.log('Target updated for job:', jobId, newTarget);
         } catch (error) {
             console.error('Failed to update target:', error);
+            alert("Failed to update target. The job might have expired or changed.");
         }
     }
 
@@ -93,20 +127,23 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
         if (choosingTargetJobId) {
             const worldX = inverseScaleCoord(cursorpt.x, "x");
             const worldY = inverseScaleCoord(cursorpt.y, "y");
-            
+
             const job = data.jobs.find(j => j.id === choosingTargetJobId);
             const currentRadius = job?.target?.type === 'circle' ? job.target.radius : 25;
-            
+
             const newTarget: Target = {
                 type: 'circle',
                 center: [worldX, worldY],
                 radius: currentRadius ?? 25
             };
-            
+
             setTarget(choosingTargetJobId, newTarget)
                 .then(() => console.log('Target set for job:', choosingTargetJobId))
-                .catch(err => console.error('Failed to set target:', err));
-            
+                .catch(err => {
+                    console.error('Failed to set target:', err);
+                    alert("Failed to set target. The job might have expired or changed. Try restarting the scenario.");
+                });
+
             setChoosingTargetJobId(null);
         }
     }
@@ -137,10 +174,10 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
     };
 
     return (
-        <div className="map-container">  
+        <div className="map-container">
             {/* Job status cards - same as live farm view */}
-            {data.jobs.map((job, index) => 
-                <JobStatus 
+            {data.jobs.map((job, index) =>
+                <JobStatus
                     key={`job-${job.id || index}`}
                     jobName={`Job ${index + 1}`}
                     status={jobStatus(job)}
@@ -178,7 +215,7 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
                         Click to place points ({obstaclePoints.length} placed)
                     </span>
                     {obstaclePoints.length >= 3 && (
-                        <button 
+                        <button
                             onClick={handleFinishObstacle}
                             style={{
                                 background: '#48bb78',
@@ -193,7 +230,7 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
                             Finish
                         </button>
                     )}
-                    <button 
+                    <button
                         onClick={handleCancelObstacle}
                         style={{
                             background: '#e53e3e',
@@ -229,9 +266,9 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
             )}
 
             <SimulationStatus data={data} />
-            
+
             {onBack && (
-                <button 
+                <button
                     className="back-btn"
                     onClick={onBack}
                     style={{
@@ -246,9 +283,6 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
             )}
 
             <div className="playback-controls">
-                <button className="sim-ctrl-btn" onClick={onPlayPause} title={paused ? "Play" : "Pause"}>
-                    <span className="control-icon">{paused ? "▶" : "⏸"}</span>
-                </button>
                 <button className="sim-ctrl-btn" onClick={() => onRestart()} title="Restart">
                     <span className="control-icon">↻</span>
                 </button>
@@ -266,9 +300,9 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
                 </div>
             </div>
 
-            <svg 
-                ref={svgRef} 
-                className="map"  
+            <svg
+                ref={svgRef}
+                className="map"
                 onClick={handleClick}
                 style={{ cursor: isDrawingObstacle ? 'crosshair' : choosingTargetJobId ? 'crosshair' : 'default' }}
             >

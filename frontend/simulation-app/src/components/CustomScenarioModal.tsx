@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import ObjectMarker from "./MapPlot/ObjectMarker";
-import map_bg from "../../img/HighResRanch.png";
+import map_bg from "../../img/King_Ranch_better.jpg";
+import cityMap from "../../img/evacuation-map.jpg";
+import oceanMap from "../../img/ocean-map.jpg";
 import { createCustomScenario, loadScenario, fetchPolicyPresets, fetchScenarioTypes, PolicyPreset, ScenarioType } from "../api/state";
 import { ScenarioThemeKey } from "../theme";
 
@@ -35,7 +37,7 @@ type CustomScenarioModalProps = {
     onSubmit: (config: CustomScenario) => void;
     worldMin: number,
     worldMax: number
-  };
+};
 
 export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: CustomScenarioModalProps) {
     const [numAnimals, setNumAnimals] = useState(10);
@@ -45,18 +47,23 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
     const [scenarioName, setScenarioName] = useState("");
     const [scenarioDescription, setScenarioDescription] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
-    
+
     // Policy configuration state
     const [policyPresets, setPolicyPresets] = useState<Record<string, PolicyPreset>>({});
     const [selectedPreset, setSelectedPreset] = useState<string>("default");
     const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
     const [customSpeedMultiplier, setCustomSpeedMultiplier] = useState(1.0);
     const [customDriveForce, setCustomDriveForce] = useState(1.0);
-    
+
+    // Advanced Physics Parameters
+    const [customCohesion, setCustomCohesion] = useState(1.0);   // wa
+    const [customSeparation, setCustomSeparation] = useState(1.0); // wr
+    const [customAlignment, setCustomAlignment] = useState(1.0);   // k_nn / wd
+
     // Scenario types state
     const [scenarioTypes, setScenarioTypes] = useState<ScenarioType[]>([]);
     const [selectedScenarioType, setSelectedScenarioType] = useState<string>("");
-    
+
     // Fetch policy presets and scenario types on mount
     useEffect(() => {
         fetchPolicyPresets().then(presets => {
@@ -66,7 +73,7 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
             setScenarioTypes(types);
         });
     }, []);
-    
+
     // Update recommended agents when scenario type changes
     useEffect(() => {
         if (selectedScenarioType) {
@@ -76,7 +83,7 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
             }
         }
     }, [selectedScenarioType, scenarioTypes]);
-    
+
     // Derive theme key from selected scenario type
     const getThemeKey = (): ScenarioThemeKey => {
         if (selectedScenarioType) {
@@ -87,7 +94,7 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
         }
         return "default-herd";
     };
-    
+
     // Derive icon set from selected scenario type
     const getIconSet = (): "herding" | "evacuation" => {
         if (selectedScenarioType) {
@@ -98,7 +105,17 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
         }
         return "herding";
     };
-    
+
+    // Determine background image based on selected scenario type/environment
+    const getBackgroundImage = () => {
+        if (selectedScenarioType) {
+            const scenarioType = scenarioTypes.find(t => t.key === selectedScenarioType);
+            if (scenarioType?.environment === "city") return cityMap;
+            if (scenarioType?.environment === "ocean") return oceanMap;
+        }
+        return map_bg;
+    };
+
     const dragItem = useRef<DragItem | null>(null); // { type: 'animal' | 'drone' | 'target', id: number | null, offsetX: number, offsetY: number }
     const mapRef = useRef<SVGSVGElement | null>(null);
 
@@ -110,9 +127,9 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                 if (prev[i] !== undefined) return prev[i];
                 // Place animals in a grid pattern within the background image area
                 const cols = Math.ceil(Math.sqrt(numAnimals));
-                const spacing = 80;
-                const startX = 100;
-                const startY = 100;
+                const spacing = 50; // Reduced spacing to fit more on screen
+                const startX = 50;
+                const startY = 50;
                 const x = startX + (i % cols) * spacing;
                 const y = startY + Math.floor(i / cols) * spacing;
                 return [x, y] as [number, number];
@@ -135,10 +152,10 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
         if (!mapRef.current) return;
 
         const mapRect = mapRef.current.getBoundingClientRect();
-        const currentPos = type === 'drone' ? dronePosition : 
-                          type === 'target' ? targetPosition : 
-                          animalPositions[index!];
-        
+        const currentPos = type === 'drone' ? dronePosition :
+            type === 'target' ? targetPosition :
+                animalPositions[index!];
+
         dragItem.current = {
             type,
             index,
@@ -150,12 +167,12 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
         document.addEventListener('mousemove', handleGlobalMouseMove);
         document.addEventListener('mouseup', handleGlobalMouseUp);
     };
-    
+
     // Right-click to remove an animal
     const handleRightClick = (e: React.MouseEvent, type: "animal" | "drone" | "target", index: number | null = null) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         if (type === "animal" && index !== null) {
             // Remove the animal at this index
             setAnimalPositions(prev => prev.filter((_, i) => i !== index));
@@ -163,15 +180,15 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
         }
         // Don't allow removing drone or target - they are required
     };
-    
+
     // Double-click on map to add a new animal
     const handleMapDoubleClick = (e: React.MouseEvent<SVGSVGElement>) => {
         if (!mapRef.current) return;
-        
+
         const mapRect = mapRef.current.getBoundingClientRect();
         const x = e.clientX - mapRect.left;
         const y = e.clientY - mapRect.top;
-        
+
         // Add a new animal at the clicked position
         setAnimalPositions(prev => [...prev, [x, y]]);
         setNumAnimals(prev => prev + 1);
@@ -179,7 +196,7 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
 
     const handleGlobalMouseMove = (e: MouseEvent) => {
         if (!dragItem.current || !mapRef.current) return;
-        
+
         const mapRect = mapRef.current.getBoundingClientRect();
         let newX = e.clientX - mapRect.left - dragItem.current.offsetX;
         let newY = e.clientY - mapRect.top - dragItem.current.offsetY;
@@ -188,13 +205,13 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
         // newX and newY are used directly without clamping
 
         const { type } = dragItem.current;
-        
+
         // Immediate visual update using direct DOM manipulation
         const entityElement = mapRef.current.querySelector(`[data-entity-type="${type}"][data-entity-index="null"]`);
         if (entityElement) {
             entityElement.setAttribute('transform', `translate(${newX}, ${newY})`);
         }
-        
+
         // Throttled React state update for data consistency
         if (!dragItem.current.updateTimeout) {
             dragItem.current.updateTimeout = setTimeout(() => {
@@ -225,16 +242,16 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
     const handleMouseUp = () => {
         handleGlobalMouseUp();
     };
-    
+
     const handleSubmit = async () => {
         if (!mapRef.current) return;
-        
+
         // Validate required fields
         if (!scenarioName.trim()) {
             alert("Please enter a scenario name");
             return;
         }
-        
+
         if (numAnimals < 2) {
             alert("Please add at least 2 animals for a meaningful simulation");
             return;
@@ -244,21 +261,22 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
 
         try {
             const mapRect = mapRef.current.getBoundingClientRect();
-            
+
             // --- Coordinate Transformation ---
             // These values should match your MapPlot component for consistency
-            
+
             const canvasWidth = mapRect.width;
             const canvasHeight = mapRect.height;
 
             const transform = (pos: [number, number]): [number, number] => {
                 const worldX = (pos[0] / canvasWidth) * (worldMax - worldMin) + worldMin;
-                // Note: SVG/HTML Y is top-to-bottom, simulation Y might be bottom-to-top.
-                // Inverting Y axis for a more standard cartesian coordinate system.
-                const worldY = ((canvasHeight - pos[1]) / canvasHeight) * (worldMax - worldMin) + worldMin;
+                // Fix: Do NOT invert Y axis. The simulation and map both use top-left origin logic or consistent coordinates.
+                // If the simulation expects bottom-left origin, the backend adapter usually handles it.
+                // For the visual editor to match the result, we should map directly.
+                const worldY = (pos[1] / canvasHeight) * (worldMax - worldMin) + worldMin;
                 return [parseFloat(worldX.toFixed(2)), parseFloat(worldY.toFixed(2))];
             };
-            
+
             // Build policy config from preset and custom overrides
             const basePreset = policyPresets[selectedPreset];
             const policyConfig = basePreset ? {
@@ -270,10 +288,10 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                 max_speed_multiplier: customSpeedMultiplier,
                 drive_force_multiplier: customDriveForce,
             };
-            
+
             // Derive theme from scenario type
             const themeKey = getThemeKey();
-            
+
             // Create the scenario data for the API
             const scenarioData = {
                 name: scenarioName.trim(),
@@ -300,16 +318,22 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                 // Include policy configuration
                 policy_config: policyConfig,
                 // Include scenario type if selected
-                scenario_type: selectedScenarioType || undefined,
+
+                // Include world config with advanced physics
+                world_config: {
+                    wa_multiplier: customCohesion,
+                    wr_multiplier: customSeparation,
+                    wd_multiplier: customAlignment,
+                }
             };
 
             // Send to backend
             const result = await createCustomScenario(scenarioData);
-            
+
             if (result.success && result.scenarioId) {
                 // Load the created scenario into the running simulation
                 const loadResult = await loadScenario(result.scenarioId);
-                
+
                 if (loadResult.success) {
                     console.log("Custom scenario created and loaded successfully!");
                     console.log("Scenario ID:", result.scenarioId);
@@ -336,7 +360,7 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
             } else {
                 alert(`Failed to create scenario: ${result.error || 'Unknown error'}`);
             }
-                
+
 
         } catch (error) {
             console.error("Error creating scenario:", error);
@@ -391,7 +415,7 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                             />
                         </div>
                     </div>
-                    
+
                     {/* Policy Configuration Section */}
                     <div className="modal-config-section">
                         <div className="config-row">
@@ -429,7 +453,7 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                                 </select>
                             </div>
                         </div>
-                        
+
                         {/* Advanced config toggle */}
                         <button
                             type="button"
@@ -449,11 +473,11 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                         >
                             {showAdvancedConfig ? '▼' : '▶'} Advanced Parameters
                         </button>
-                        
+
                         {showAdvancedConfig && (
-                            <div className="advanced-config" style={{ 
-                                background: '#f7fafc', 
-                                padding: '12px', 
+                            <div className="advanced-config" style={{
+                                background: '#f7fafc',
+                                padding: '12px',
                                 borderRadius: '8px',
                                 marginTop: '8px'
                             }}>
@@ -487,26 +511,71 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                                         style={{ width: '100%', cursor: 'pointer' }}
                                     />
                                 </div>
+                                <div className="slider-group" style={{ marginBottom: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
+                                    <label style={{ fontSize: '13px', color: '#4a5568', display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Cohesion (Clumping)</span>
+                                        <span style={{ fontWeight: 600 }}>{customCohesion.toFixed(1)}x</span>
+                                    </label>
+                                    <input
+                                        type="range"
+                                        min="0.0"
+                                        max="3.0"
+                                        step="0.1"
+                                        value={customCohesion}
+                                        onChange={(e) => setCustomCohesion(parseFloat(e.target.value))}
+                                        style={{ width: '100%', cursor: 'pointer' }}
+                                    />
+                                </div>
+                                <div className="slider-group" style={{ marginBottom: '12px' }}>
+                                    <label style={{ fontSize: '13px', color: '#4a5568', display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Separation (Spacing)</span>
+                                        <span style={{ fontWeight: 600 }}>{customSeparation.toFixed(1)}x</span>
+                                    </label>
+                                    <input
+                                        type="range"
+                                        min="0.1"
+                                        max="5.0"
+                                        step="0.1"
+                                        value={customSeparation}
+                                        onChange={(e) => setCustomSeparation(parseFloat(e.target.value))}
+                                        style={{ width: '100%', cursor: 'pointer' }}
+                                    />
+                                </div>
+                                <div className="slider-group">
+                                    <label style={{ fontSize: '13px', color: '#4a5568', display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Alignment (Flocking)</span>
+                                        <span style={{ fontWeight: 600 }}>{customAlignment.toFixed(1)}x</span>
+                                    </label>
+                                    <input
+                                        type="range"
+                                        min="0.0"
+                                        max="2.0"
+                                        step="0.1"
+                                        value={customAlignment}
+                                        onChange={(e) => setCustomAlignment(parseFloat(e.target.value))}
+                                        style={{ width: '100%', cursor: 'pointer' }}
+                                    />
+                                </div>
                             </div>
                         )}
                     </div>
                 </div>
-                
-                <svg 
-                    ref={mapRef} 
+
+                <svg
+                    ref={mapRef}
                     id="custom-map"
                     onDoubleClick={handleMapDoubleClick}
                     onContextMenu={(e) => e.preventDefault()}
                 >
-                    <image href={map_bg} x="0" y="0" width="100%" height="100%" />
+                    <image href={getBackgroundImage()} x="0" y="0" width="100%" height="100%" />
                     {/* Render Animals/People - right-click to remove, drag to move */}
                     {animalPositions.map((pos, index) => (
-                        <g 
-                            key={`animal-${index}`} 
-                            onMouseDown={(e) => handleMouseDown(e, 'animal', index)} 
+                        <g
+                            key={`animal-${index}`}
+                            onMouseDown={(e) => handleMouseDown(e, 'animal', index)}
                             onContextMenu={(e) => handleRightClick(e, 'animal', index)}
-                            className="entity-marker" 
-                            data-entity-type="animal" 
+                            className="entity-marker"
+                            data-entity-type="animal"
                             data-entity-index={index}
                             style={{ cursor: 'grab' }}
                         >
@@ -514,32 +583,32 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                         </g>
                     ))}
                     {/* Render Drone/Guide */}
-                    <g 
-                        onMouseDown={(e) => handleMouseDown(e, 'drone')} 
-                        className="entity-marker" 
-                        data-entity-type="drone" 
+                    <g
+                        onMouseDown={(e) => handleMouseDown(e, 'drone')}
+                        className="entity-marker"
+                        data-entity-type="drone"
                         data-entity-index={null}
                         style={{ cursor: 'grab' }}
                     >
                         <ObjectMarker type="drone" x={dronePosition[0]} y={dronePosition[1]} iconSet={getIconSet()} />
                     </g>
                     {/* Render Target/Exit */}
-                    <g 
-                        onMouseDown={(e) => handleMouseDown(e, 'target')} 
-                        className="entity-marker" 
-                        data-entity-type="target" 
+                    <g
+                        onMouseDown={(e) => handleMouseDown(e, 'target')}
+                        className="entity-marker"
+                        data-entity-type="target"
                         data-entity-index={null}
                         style={{ cursor: 'grab' }}
                     >
                         <ObjectMarker type="target" x={targetPosition[0]} y={targetPosition[1]} iconSet={getIconSet()} />
                     </g>
                 </svg>
-                
+
                 {/* Help text for entity manipulation */}
-                <div style={{ 
-                    fontSize: '12px', 
-                    color: '#718096', 
-                    textAlign: 'center', 
+                <div style={{
+                    fontSize: '12px',
+                    color: '#718096',
+                    textAlign: 'center',
                     padding: '8px',
                     background: '#f7fafc',
                     borderRadius: '0 0 8px 8px'
@@ -549,8 +618,8 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
 
                 <div id="modal-footer">
                     <button className="modal-btn cancel-btn" onClick={onClose} disabled={isSubmitting}>Cancel</button>
-                    <button 
-                        className="modal-btn submit-btn" 
+                    <button
+                        className="modal-btn submit-btn"
                         onClick={handleSubmit}
                         disabled={isSubmitting || !scenarioName.trim()}
                     >

@@ -105,7 +105,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
         <button className="fold-button" onClick={() => setIsFolded(!isFolded)}>
           {isFolded ? '▶' : '▼'}
         </button>
-        <h3>Herding {jobName}</h3>
+        <h3>Simulation Scenario</h3>
         <div className="kebab-menu-container" ref={kebabRef}>
           <button
             className="kebab-button"

@@ -15,6 +15,8 @@ except ImportError:
             return func
         return decorator
 
+print(f"DEBUG: Numba available: {NUMBA_AVAILABLE}")
+
 class World:
     """
     Stable flock + rectangular boundaries.
@@ -41,6 +43,7 @@ class World:
         wa: float = 1.05,         # c attraction
         ws: float = 100.0,          # ρ_s dog repulsion
         wm: float = 20,          # h inertia
+        w_target: float = 0.0,    # target attraction (optional)
         w_align: float = 0.0,     # no alignment in base paper
 
         # far-field grazing
@@ -98,11 +101,14 @@ class World:
         if obstacles_polygons is not None:
             for poly in obstacles_polygons:
                 self.add_polygon(poly)
+                
+        # simulation time
+        self.t = 0.0
 
         # params
         self.ra, self.rs, self.k_nn = ra, rs, k_nn
         self.dt, self.vmax, self.umax = dt, vmax, umax
-        self.wr, self.wa, self.ws, self.wm, self.w_align = wr, wa, ws, wm, w_align
+        self.wr, self.wa, self.ws, self.wm, self.w_align, self.w_target = wr, wa, ws, wm, w_align, w_target
         self.graze_alpha = graze_alpha
         self.sigma = sigma
 
@@ -270,71 +276,118 @@ class World:
         return {'V': V, 'E': E, 'N': N, 'L': L}
 
     def _point_in_poly_batch(self, P: np.ndarray, V: np.ndarray) -> np.ndarray:
-        """Vectorized ray casting for point-in-polygon test."""
+        """Vectorized ray casting for point-in-polygon test (Vectorized)."""
         if NUMBA_AVAILABLE:
             return _point_in_poly_batch_numba(P, V)
         else:
-            n_points = P.shape[0]
-            n_vertices = V.shape[0]
-            inside = np.zeros(n_points, dtype=bool)
+            # P: (N, 2)
+            # V: (M, 2)
             
-            for i in range(n_points):
-                px, py = P[i]
-                j = n_vertices - 1
-                
-                for k in range(n_vertices):
-                    xi, yi = V[k]
-                    xj, yj = V[j]
-                    
-                    denom = (yj - yi)
-                    if ((yi > py) != (yj > py)) and (px < (xj - xi) * (py - yi) / (denom + 1e-12) + xi):
-                        inside[i] = not inside[i]
-                    j = k
-                    
+            # Prepare edge vertices
+            # V1: (M, 2) -> Start points
+            # V2: (M, 2) -> End points (rolled)
+            V1 = V
+            V2 = np.roll(V, -1, axis=0)
+            
+            # Broadcast P against Edges
+            # P_x, P_y: (N, 1)
+            P_x = P[:, 0][:, np.newaxis]
+            P_y = P[:, 1][:, np.newaxis]
+            
+            # V1_x, V1_y: (1, M)
+            V1_x = V1[:, 0][np.newaxis, :]
+            V1_y = V1[:, 1][np.newaxis, :]
+            
+            # V2_x, V2_y: (1, M)
+            V2_x = V2[:, 0][np.newaxis, :]
+            V2_y = V2[:, 1][np.newaxis, :]
+            
+            # Check y-bounds for intersection
+            # (V1_y > P_y) != (V2_y > P_y)
+            # Result: (N, M) boolean
+            intersect_y = (V1_y > P_y) != (V2_y > P_y)
+            
+            # Check x-intersection
+            # P_x < (V2_x - V1_x) * (P_y - V1_y) / (V2_y - V1_y) + V1_x
+            # We only need to compute this where intersect_y is True
+            
+            # Denominator: (V2_y - V1_y)
+            denom = V2_y - V1_y
+            # Avoid division by zero (though if intersect_y is true, denom shouldn't be 0 unless V1_y==V2_y==P_y, which is edge case)
+            denom = np.where(denom == 0, 1e-12, denom)
+            
+            x_inters = (V2_x - V1_x) * (P_y - V1_y) / denom + V1_x
+            
+            intersect_x = P_x < x_inters
+            
+            # Combine
+            # (N, M)
+            crossings = intersect_y & intersect_x
+            
+            # Count crossings: odd = inside
+            # (N,)
+            inside = np.sum(crossings, axis=1) % 2 == 1
+            
             return inside
 
     def _closest_point_on_polygon(self, P: np.ndarray, edges: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Find closest points on polygon boundary for batch of points."""
+        """Find closest points on polygon boundary for batch of points (Vectorized)."""
         if NUMBA_AVAILABLE:
             return _closest_point_on_polygon_numba(P, edges['V'], edges['E'], edges['L'])
         else:
             V, E, L = edges['V'], edges['E'], edges['L']
-            n_points = P.shape[0]
-            n_edges = V.shape[0]
+            # P: (N, 2)
+            # V: (M, 2) -> Vertices
+            # E: (M, 2) -> Edge vectors
+            # L: (M,)   -> Edge lengths
             
-            Q = np.zeros((n_points, 2))
-            n = np.zeros((n_points, 2))
-            s = np.zeros(n_points)
+            # Broadcast P against E
+            # P_exp: (N, 1, 2)
+            # V_exp: (1, M, 2)
+            P_exp = P[:, np.newaxis, :]
+            V_exp = V[np.newaxis, :, :]
             
-            for i in range(n_points):
-                min_dist_sq = np.inf
-                closest_point = P[i]
-                closest_normal = np.array([0, 0])
-                
-                for j in range(n_edges):
-                    v0, v1 = V[j], V[(j + 1) % n_edges]
-                    edge_vec = v1 - v0
-                    to_point = P[i] - v0
-                    
-                    if L[j] > 1e-9:
-                        t = np.clip(np.dot(to_point, edge_vec) / (L[j]**2), 0, 1)
-                    else:
-                        t = 0
-                    
-                    closest_on_edge = v0 + t * edge_vec
-                    dist_sq = np.sum((P[i] - closest_on_edge)**2)
-                    
-                    if dist_sq < min_dist_sq:
-                        min_dist_sq = dist_sq
-                        closest_point = closest_on_edge
-                        closest_normal = edges['N'][j]
-                
-                Q[i] = closest_point
-                n[i] = closest_normal
-                s[i] = np.sqrt(min_dist_sq)
+            # Vector from each vertex to each point: (N, M, 2)
+            # to_point[i, j] = P[i] - V[j]
+            to_point = P_exp - V_exp
+            
+            # Project to_point onto edge vectors E
+            # E is (M, 2), broadcast to (1, M, 2)
+            E_exp = E[np.newaxis, :, :]
+            L_sq = L**2
+            L_sq = L_sq[np.newaxis, :] # (1, M)
+            
+            # Dot product: (N, M, 2) * (1, M, 2) -> sum over axis 2 -> (N, M)
+            dot = np.sum(to_point * E_exp, axis=2)
+            
+            # t = dot / L^2, clipped to [0, 1]
+            # Handle zero-length edges safely
+            t = np.zeros_like(dot)
+            valid_edges = L_sq > 1e-18
+            # We can just divide where valid, L_sq is broadcasted
+            t = np.divide(dot, L_sq, out=np.zeros_like(dot), where=valid_edges)
+            t = np.clip(t, 0.0, 1.0)
+            
+            # Closest point on each edge: V + t*E
+            # (1, M, 2) + (N, M, 1) * (1, M, 2) -> (N, M, 2)
+            closest_on_edges = V_exp + t[:, :, np.newaxis] * E_exp
+            
+            # Distance squared from P to closest_on_edges
+            # (N, 1, 2) - (N, M, 2) -> (N, M, 2)
+            diff = P_exp - closest_on_edges
+            dist_sq = np.sum(diff**2, axis=2) # (N, M)
+            
+            # Find min distance for each point
+            min_idx = np.argmin(dist_sq, axis=1) # (N,)
+            row_idx = np.arange(P.shape[0])
+            
+            # Extract closest points and normals
+            Q = closest_on_edges[row_idx, min_idx] # (N, 2)
+            n = edges['N'][min_idx] # (N, 2)
+            s = np.sqrt(dist_sq[row_idx, min_idx]) # (N,)
             
             # Apply sign based on inside/outside
-            inside = self._point_in_poly_batch(P, V)
+            inside = self._point_in_poly_batch(P, edges['V'])
             s[inside] = -s[inside]
             
             return Q, n, s
@@ -960,7 +1013,19 @@ class World:
             # Combine forces (0.0 for flyover)
             # ws_eff = 0.0 if self.ignore_dog_repulsion else self.ws
             # H = self.wr*R + self.wa*A + ws_eff*S + self.wm*prev + self.w_align*AL
+            # Combine forces (0.0 for flyover)
+            # ws_eff = 0.0 if self.ignore_dog_repulsion else self.ws
+            # H = self.wr*R + self.wa*A + ws_eff*S + self.wm*prev + self.w_align*AL
             H = self.wr*R + self.wa*A + self.ws*S + self.wm*prev + self.w_align*AL
+            
+            # Target attraction (if enabled)
+            if self.w_target > 0.0 and self.target is not None:
+                # Vector to target
+                T_vec = self.target - self.P[i]
+                dist_t = np.linalg.norm(T_vec)
+                if dist_t > 0:
+                    T = T_vec / dist_t
+                    H += self.w_target * T
             
             # Normal push (already weighted by distance ramp)
             H += self.w_obs * nrm[i]
@@ -1003,23 +1068,28 @@ class World:
             self._refresh_neighbors()
 
         # Apply planner output
-        match plan:
-            case DoNothing():
-                self.apply_repulsion = np.zeros(self.dogs.shape[0])
-            case DronePositions(positions=pos, apply_repulsion=apply, target_sheep_indices=_):
-                dog_count = self.dogs.shape[0]
-                if pos.shape[0] != dog_count or apply.size != dog_count:
-                    raise ValueError(f"DronePositions plan must have {dog_count} positions and repulsion flags.")
-                
-                # Apply bounds to all drone positions
-                new_dogs_pos = self._apply_bounds_point(pos)
-                self.dogs = new_dogs_pos
-                self.apply_repulsion = apply.copy()
-            case _ as unexpected_plan:
-                raise Exception("Unexpected plan type", unexpected_plan)
+        if isinstance(plan, DoNothing):
+            self.apply_repulsion = np.zeros(self.dogs.shape[0])
+        elif isinstance(plan, DronePositions):
+            pos = plan.positions
+            apply = plan.apply_repulsion
+            
+            dog_count = self.dogs.shape[0]
+            if pos.shape[0] != dog_count or apply.size != dog_count:
+                raise ValueError(f"DronePositions plan must have {dog_count} positions and repulsion flags.")
+            
+            # Apply bounds to all drone positions
+            new_dogs_pos = self._apply_bounds_point(pos)
+            self.dogs = new_dogs_pos
+            self.apply_repulsion = apply.copy()
+        else:
+            raise Exception("Unexpected plan type", plan)
 
         # Then move sheep using the new dog pos + flag
         self._sheep_step()
+        
+        # Advance time
+        self.t += self.dt
 
     def get_state(self) -> state.State:        
         return state.State(

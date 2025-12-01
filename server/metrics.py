@@ -179,7 +179,7 @@ class MetricsCollector:
         spread_radius = float(np.max(distances_to_gcm))
         
         # Compute cohesiveness
-        cohesiveness = fN / (spread_radius + 1e-6)
+        cohesiveness = float(fN / (spread_radius + 1e-6))
         
         # Compute fraction in goal
         fraction_in_goal = 0.0
@@ -192,6 +192,7 @@ class MetricsCollector:
                 distances_to_goal = np.linalg.norm(flock - np.array(target.center), axis=1)
                 fraction_in_goal = float(np.sum(distances_to_goal <= target.radius) / len(flock))
                 gcm_to_goal = float(np.linalg.norm(gcm - np.array(target.center)))
+                # print(f"DEBUG: Circle Target: center={target.center}, radius={target.radius}, frac={fraction_in_goal}, dist={gcm_to_goal}")
             elif isinstance(target, state.Polygon):
                 # For polygons, use point-in-polygon check
                 from planning.herding.utils import points_inside_polygon
@@ -200,18 +201,23 @@ class MetricsCollector:
                 # Use centroid for distance
                 poly_center = np.mean(target.points, axis=0)
                 gcm_to_goal = float(np.linalg.norm(gcm - poly_center))
+                # print(f"DEBUG: Polygon Target: points={target.points}, frac={fraction_in_goal}")
+        else:
+             print("DEBUG: Target is None")
         
         # Compute min obstacle distance (simplified - would need obstacle data)
-        min_obstacle_distance = float('inf')  # Placeholder
+        # JSON doesn't support Infinity, so use -1.0 to indicate "no obstacles" or "unknown"
+        min_obstacle_distance = -1.0
         
         step = StepMetrics(
-            t=t,
+            t=float(t),
             fraction_in_goal=fraction_in_goal,
             spread_radius=spread_radius,
             min_obstacle_distance=min_obstacle_distance,
             cohesiveness=cohesiveness,
             gcm_to_goal_distance=gcm_to_goal,
         )
+        print(f"Metrics: dist={gcm_to_goal:.2f}, frac={fraction_in_goal:.2f}, t={t:.2f}")
         
         self.current_run.add_step(step)
     

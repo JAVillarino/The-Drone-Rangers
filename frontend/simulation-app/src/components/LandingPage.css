@@ -250,6 +250,7 @@
   object-fit: cover;
   display: block;
   flex-shrink: 0;
+  image-rendering: -webkit-optimize-contrast; /* Improve sharpness */
 }
 
 /* Scenario panel */

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { State } from '../types.ts';
+import { MetricsDisplay } from './MetricsDisplay';
 
 interface SimulationStatusProps {
   data: State;
@@ -35,7 +36,6 @@ const SimulationStatus: React.FC<SimulationStatusProps> = ({ data }) => {
 
   // Calculate drone count
   const activeDrones = data.drones ? data.drones.length : 0;
-  const totalDrones = 10; // Hardcoded as requested
 
   // Calculate realistic battery life (10 minutes = 600 seconds)
   const getBatteryLife = (droneIndex: number) => {
@@ -64,14 +64,14 @@ const SimulationStatus: React.FC<SimulationStatusProps> = ({ data }) => {
         ⋮
       </button>
       {isMenuOpen && (
-        <div className="simulation-status-menu">
+        <div className="simulation-status-menu" style={{ width: '350px', maxHeight: '80vh', overflowY: 'auto' }}>
           <div className="simulation-status-item">
             <strong>Flock Size:</strong>
             <span>{data.flock ? data.flock.length : 0}</span>
           </div>
           <div className="simulation-status-item clickable" onClick={handleDroneDetailsToggle}>
             <strong>Drone(s):</strong>
-            <span>{activeDrones}/{totalDrones}</span>
+            <span>{activeDrones}</span>
           </div>
           {isDroneDetailsExpanded && data.drones && data.drones.map((_drone, index) => (
             <div key={`drone-${index}`} className="simulation-status-drone-detail">
@@ -90,6 +90,10 @@ const SimulationStatus: React.FC<SimulationStatusProps> = ({ data }) => {
             <strong>Obstacles:</strong>
             <span>0</span>
           </div>
+
+          {/* Metrics Display Section */}
+          <div className="simulation-status-divider" style={{ margin: '10px 0', borderTop: '1px solid #eee' }}></div>
+          <MetricsDisplay />
         </div>
       )}
     </div>

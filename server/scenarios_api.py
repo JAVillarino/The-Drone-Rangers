@@ -61,6 +61,9 @@ class Scenario:
     
     # Domain tag for future extensibility
     domain: Optional[str] = None  # "herding", "evacuation", etc.
+    
+    # Environment (farm, city, ocean)
+    environment: str = "farm"
 
     version: int = 1
     schema_version: int = 1
@@ -216,6 +219,30 @@ REPO = ScenarioRepo()
 def _seed_presets():
     """Add default preset scenarios on startup (based on existing backend_adapter config)."""
     presets = [
+        # City evacuation scenario with urban intersection background
+        Scenario(
+            id=uuid4(),
+            name="City Evacuation - 40 People",
+            description="Urban evacuation at a city intersection: guide 40 people to the designated safe zone using coordinated drone robots",
+            tags=["preset", "evacuation", "urban", "city", "intersection"],
+            visibility="preset",
+            seed=123,
+            sheep=[(float(x), float(y)) for x, y in spawn_uniform(40, (50, 200, 200, 240), seed=123).tolist()],
+            drones=[(30.0, 125.0), (220.0, 125.0), (125.0, 30.0)],  # Three drones surrounding
+            targets=[(125.0, 30.0)],  # Safe zone at the bottom
+            # Accident in the intersection (central obstacle) + side debris
+            obstacles=[
+                {"polygon": [[115.0, 115.0], [135.0, 115.0], [135.0, 135.0], [115.0, 135.0]]}, # Center (smaller)
+                {"polygon": [[30.0, 110.0], [50.0, 110.0], [50.0, 140.0], [30.0, 140.0]]},     # Left (shifted left)
+                {"polygon": [[200.0, 110.0], [220.0, 110.0], [220.0, 140.0], [200.0, 140.0]]}, # Right (shifted right)
+            ],
+            boundary="reflect",
+            bounds=(-250.0, 400.0, 0.0, 500.0),
+            scenario_type="evacuation_prototype",
+            policy_config={"key": "evacuation-prototype"},
+            appearance={"themeKey": "evacuation-prototype", "iconSet": "evacuation"},
+            environment="city",
+        ),
         Scenario(
             id=uuid4(),
             name="Default - 50 Sheep Uniform",
@@ -228,6 +255,7 @@ def _seed_presets():
             targets=[],  # No default target
             boundary="none",
             bounds=(0.0, 250.0, 0.0, 250.0),
+            environment="farm",
         ),
         Scenario(
             id=uuid4(),
@@ -241,6 +269,7 @@ def _seed_presets():
             targets=[],  # No default target
             boundary="none",
             bounds=(0.0, 250.0, 0.0, 250.0),
+            environment="farm",
         ),
         Scenario(
             id=uuid4(),
@@ -254,6 +283,7 @@ def _seed_presets():
             targets=[],  # No default target
             boundary="none",
             bounds=(0.0, 250.0, 0.0, 250.0),
+            environment="farm",
         ),
         Scenario(
             id=uuid4(),
@@ -267,23 +297,25 @@ def _seed_presets():
             targets=[],  # No default target
             boundary="none",
             bounds=(0.0, 250.0, 0.0, 250.0),
+            environment="farm",
         ),
-        # Evacuation prototype scenario
+        # Oil Spill Cleanup Scenario
         Scenario(
             id=uuid4(),
-            name="Evacuation - 30 People",
-            description="Human evacuation scenario: guide 30 people to the exit using drone robots",
-            tags=["preset", "evacuation", "prototype", "research"],
+            name="Oil Spill Cleanup - 100 Droplets",
+            description="Contain and clean up oil spills in the ocean using boom-equipped boats.",
+            tags=["preset", "oil", "ocean", "cleanup"],
             visibility="preset",
-            seed=42,
-            sheep=[(float(x), float(y)) for x, y in spawn_uniform(30, (50, 200, 50, 200), seed=42).tolist()],
-            drones=[(25.0, 125.0), (225.0, 125.0)],  # Two drones on the sides
-            targets=[(125.0, 225.0)],  # Exit at the top
-            boundary="reflect",
+            seed=99,
+            sheep=[(float(x), float(y)) for x, y in spawn_clusters(100, 5, (0, 250, 0, 250), spread=20.0, seed=99).tolist()],
+            drones=[(50.0, 50.0), (200.0, 50.0), (125.0, 200.0)],
+            targets=[],
+            boundary="none",
             bounds=(0.0, 250.0, 0.0, 250.0),
-            scenario_type="evacuation_prototype",
-            policy_config={"key": "evacuation-prototype"},
-            appearance={"themeKey": "evacuation-prototype", "iconSet": "evacuation"},
+            scenario_type="oil_spill_cleanup",
+            policy_config={"key": "default"},
+            appearance={"themeKey": "oil-spill", "iconSet": "oil"},
+            environment="ocean",
         ),
     ]
     
