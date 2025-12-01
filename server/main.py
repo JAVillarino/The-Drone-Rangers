@@ -64,8 +64,17 @@ def _create_policy_for_world(w: world.World) -> herding.ShepherdPolicy:
     
     Uses the new build_policy helper with default config.
     """
-    from planning.policy_configs import build_policy
-    return build_policy(w, policy_config=None)  # None means use "default" preset
+    total_area = 0.5 * w.N * (w.ra ** 2)
+    collected_herd_radius = np.sqrt(total_area)
+    return herding.ShepherdPolicy(
+        fN=collected_herd_radius,
+        umax=w.umax,
+        too_close=1.5 * w.ra,
+        collect_standoff=1.0 * w.ra,
+    )
+    
+    # from planning.policy_configs import build_policy
+    # return build_policy(w, policy_config=None)  # None means use "default" preset
 
 def initialize_sim():
     """Initialize a new simulation with default parameters."""
