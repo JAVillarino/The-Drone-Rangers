@@ -266,8 +266,7 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
         # Determine job type and scheduling
         job_type = data.get("job_type", "immediate")
         scheduled_time = data.get("scheduled_time") or data.get("start_at")
-        activate_immediately = data.get("activate_immediately", False)
-        
+        activate_immediately = job_type == "immediate"
         # Parse scheduled_time if provided
         start_at = None
         if job_type == "scheduled" or scheduled_time:
