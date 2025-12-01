@@ -92,8 +92,9 @@ def decide_initial_status(start_at_ts: Optional[float], activate_immediately: bo
     Returns: (status, is_active)
     """
     if start_at_ts is not None and start_at_ts > now_ts:
-        # Future scheduled job
-        return "scheduled", True
+        # Future scheduled job - should NOT be active until start_at time arrives
+        # The main loop will promote it to running when start_at <= now
+        return "scheduled", False
     if activate_immediately:
         # Immediate activation
         return ("running" if has_target else "pending"), has_target

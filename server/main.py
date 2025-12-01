@@ -64,8 +64,17 @@ def _create_policy_for_world(w: world.World) -> herding.ShepherdPolicy:
     
     Uses the new build_policy helper with default config.
     """
-    from planning.policy_configs import build_policy
-    return build_policy(w, policy_config=None)  # None means use "default" preset
+    total_area = 0.5 * w.N * (w.ra ** 2)
+    collected_herd_radius = np.sqrt(total_area)
+    return herding.ShepherdPolicy(
+        fN=collected_herd_radius,
+        umax=w.umax,
+        too_close=1.5 * w.ra,
+        collect_standoff=1.0 * w.ra,
+    )
+
+    # from planning.policy_configs import build_policy
+    # return build_policy(w, policy_config=None)  # None means use "default" preset
 
 def initialize_sim():
     """Initialize a new simulation with default parameters."""
@@ -795,8 +804,11 @@ if __name__ == "__main__":
         jobs_to_sync = set()  # Use set to avoid duplicate syncs
         with world_lock:
             # Promote any scheduled jobs that should now start
-            now = datetime.now(timezone.utc).timestamp()
+            now = datetime.now().timestamp()
+            #print("now in main loop:", now);
             for j in jobs:
+                #print("j.status in main loop:", j.status);
+                #print("j.start_at in main loop:", j.start_at);
                 if j.status == "scheduled" and j.start_at is not None and j.start_at <= now:
                     # Deactivate all other active jobs first (one active at a time)
                     for other in jobs:
@@ -821,12 +833,10 @@ if __name__ == "__main__":
                     # Only check goal for running+active jobs
                     if herding.policy.is_goal_satisfied(backend_adapter.get_state(), job.target):
                         job.remaining_time = 0
-                        # Double-check status before marking completed (race protection)
-                        if job.status == "running" and job.is_active:
-                            job.status = "completed"
-                            job.is_active = False
-                            job.completed_at = datetime.now(timezone.utc).timestamp()
-                            jobs_to_sync.add(job.id)
+                        job.status = "completed"
+                        job.is_active = False
+                        job.completed_at = datetime.now(timezone.utc).timestamp()
+                        jobs_to_sync.add(job.id)
                     else:
                         job.remaining_time = None
                 else:

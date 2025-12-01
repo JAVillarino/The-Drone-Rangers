@@ -156,68 +156,12 @@ class ShepherdPolicy:
     - Collect: Each drone collects an assigned outermost sheep.
     """
     
-    def __init__(self, world=None, config=None, *, fN: float = None, umax: float = None, 
-                 too_close: float = None, collect_standoff: float = None, 
-                 conditionally_apply_repulsion: bool = None):
-        """
-        Initialize ShepherdPolicy with either a PolicyConfig or explicit parameters.
-        
-        Args:
-            world: World instance (optional, for accessing base parameters)
-            config: PolicyConfig instance (if None, uses default preset)
-            fN, umax, too_close, collect_standoff, conditionally_apply_repulsion:
-                Legacy parameters for backwards compatibility. If provided, they override config.
-        """
-        from planning.policy_configs import POLICY_PRESETS, PolicyConfig
-        
-        # Handle legacy initialization (direct parameter passing)
-        if fN is not None and umax is not None and too_close is not None and collect_standoff is not None:
-            # Legacy mode: create a custom config from explicit parameters
-            self.config = PolicyConfig(
-                key="custom",
-                name="Custom Policy",
-                description="Custom policy from explicit parameters",
-            )
-            self.fN = fN
-            self.umax = umax
-            self.too_close = too_close
-            self.collect_standoff = collect_standoff
-            self.conditionally_apply_repulsion = conditionally_apply_repulsion if conditionally_apply_repulsion is not None else True
-            self.world = world
-            return
-        
-        # New mode: use PolicyConfig
-        if config is None:
-            config = POLICY_PRESETS["default"]
-        
-        self.config = config
-        self.world = world
-        
-        # Compute derived parameters from config and world
-        # If world is provided, we can scale base parameters; otherwise use reasonable defaults
-        if world is not None:
-            # Calculate base fN from world flock size
-            total_area = 0.5 * world.N * (world.ra ** 2)
-            base_fN = np.sqrt(total_area)
-            
-            self.fN = base_fN * config.fN_multiplier
-            # Apply max_speed_multiplier to base umax
-            self.umax = world.umax * config.max_speed_multiplier
-            self.too_close = config.too_close_multiplier * world.ra
-            self.collect_standoff = config.collect_standoff_multiplier * world.ra
-        else:
-            # Fallback defaults when no world is provided
-            self.fN = 50.0 * config.fN_multiplier
-            self.umax = 1.5 * config.max_speed_multiplier
-            self.too_close = 6.0 * config.too_close_multiplier
-            self.collect_standoff = 4.0 * config.collect_standoff_multiplier
-        
-        self.conditionally_apply_repulsion = config.conditionally_apply_repulsion
-        
-        # Store Phase 3 multipliers for use in planning methods
-        self.drive_force_multiplier = config.drive_force_multiplier
-        self.repulsion_weight_multiplier = config.repulsion_weight_multiplier
-        self.goal_bias_multiplier = config.goal_bias_multiplier
+    def __init__(self, *, fN: float, umax: float, too_close: float, collect_standoff: float, conditionally_apply_repulsion: bool = True):
+        self.fN = fN
+        self.umax = umax
+        self.too_close = too_close
+        self.collect_standoff = collect_standoff
+        self.conditionally_apply_repulsion = conditionally_apply_repulsion
 
     def _gcm(self, world: state.State) -> np.ndarray:
         """Global Center of Mass."""
@@ -272,25 +216,24 @@ class ShepherdPolicy:
         for i in range(N_drones):
             dD_all[:, i] = np.linalg.norm(P - D[i], axis=1)        
         
-        # Use config-based weights as baseline, with dynamic adjustments
+        # works well for 3-4 sheep in each corner. Also worked fairly well for there being a big uniform one.
+        # gcm_weight = 0.7
+        # goal_weight = 0.3
+        # closeness_weight = 1
+                
+        # I'm thinking maybe the problem is that herding towards the GCM doesn't work very well if it's already cohesive, because it should be herding towards the goal.
         cohesiveness = self._mean_cohesiveness(world, G)
-        goal_distance = np.max(dGoal) / self.fN if np.max(dGoal) > 0 else 0
-        
-        # Start from config baseline weights
-        base_gcm_weight = self.config.gcm_weight
-        base_goal_weight = self.config.goal_weight
-        base_closeness_weight = self.config.closeness_weight
-        
+        goal_distance_ratio = np.max(dGoal) / self.fN
         # The more cohesive it is, the less we care about the gcm.
-        gcm_weight = base_gcm_weight * lerp_clamped(0.8, 0.6, 0.3, 1.5, cohesiveness)
+        gcm_weight = lerp_clamped(0.8, 0.6, 0.3, 1.5, cohesiveness)
         # The closer we are to the goal, the less it matters how far from the GCM the sheep is.
-        gcm_weight *= lerp_clamped(0.5, 1, 1, 3, goal_distance)
+        gcm_weight *= lerp_clamped(0.5, 1, 1, 3, goal_distance_ratio)
         # The more cohesive it is, the more we care about how far it is from the goal.
-        goal_weight = base_goal_weight * lerp_clamped(0.2, 0.4, 0.3, 1.5, cohesiveness)
-        # The more cohesive the herd is, the less it matters how far the drone is from the sheep.
-        closeness_weight = base_closeness_weight * lerp_clamped(1, 0.2, 0.3, 1.5, cohesiveness)
+        goal_weight = lerp_clamped(0.2, 0.4, 0.3, 1.5, cohesiveness)
+        # The more cohesive the herd is, the less it matters how far the drone is from the sheep. 
+        closeness_weight = lerp_clamped(1, 0.2, 0.3, 1.5, cohesiveness)
         # The closer the sheep are to the goal, the less it matters how far the drone is from the sheep.
-        closeness_weight *= lerp_clamped(0.2, 1, 2, 4, goal_distance)
+        closeness_weight *= lerp_clamped(0.2, 1, 2, 4, goal_distance_ratio)
         
         intrinsic_score = gcm_weight * dG + goal_weight * dGoal
 
@@ -373,13 +316,27 @@ class ShepherdPolicy:
         return 1 if (value > 0.7) else 0
         
 
-    # ------------------ Strategy-Specific Planning Methods ------------------
-    def _gentle_plan(self, world: state.State, target, G: np.ndarray, dt: float) -> Plan:
-        """
-        Gentle strategy: standard collect-and-drive behavior.
-        This is the default behavior with configurable multipliers.
-        """
+    # ------------------ Main Planning Method ------------------
+    def plan(self, world: state.State, jobs: list[state.Job], dt: float) -> Plan:
+        """Return the movement plan for all drones."""
+        target = None
+        all_jobs_satisfied = True
+        for job in jobs:
+            if job.is_active and job.target is not None:
+                if not is_goal_satisfied(world, job.target):
+                    all_jobs_satisfied = False
+                
+                # TODO: We should be able to do better than this. We should instead assign drones to different jobs here and don't mess with the world.
+                target = job.target
+                break
+                
+        # Why isn't the job satisfied
+        if all_jobs_satisfied:
+            return DoNothing()
+        
         N_drones = world.drones.shape[0]
+        G = self._gcm(world)
+        # Initialize arrays for the plan
         target_positions = np.zeros((N_drones, 2))
         apply_repulsion = np.full(N_drones, 1)
         target_indices = np.full(N_drones, -1, dtype=int)
@@ -390,6 +347,7 @@ class ShepherdPolicy:
         # Check flyover status for each drone individually
         if self.conditionally_apply_repulsion:
             for i in range(N_drones):                
+                # Check if the path from current drone position to its assigned collect point needs a flyover
                 apply_repulsion[i] = self._should_apply_repulsion(world, i, G, target, target_positions)
         
         # Vector from drone to target position
@@ -403,14 +361,11 @@ class ShepherdPolicy:
         too_close_sq = self.too_close ** 2
         new_positions = np.copy(world.drones)
 
-        # Apply drive_force_multiplier from config
-        drive_mult = self.drive_force_multiplier
-
         for i, d in enumerate(world.drones):
             dist_sq = np.min(np.sum((world.flock - d)**2, axis=1))
             if dist_sq >= too_close_sq or not apply_repulsion[i]:
-                # Apply configurable drive force multiplier
-                new_positions[i] = d + self.umax * dt * dir_unit[i] * drive_mult
+                # Only move drones that are not too close
+                new_positions[i] = d + self.umax * dt * dir_unit[i]
             # else: drone is too close, so it stays put
 
         return DronePositions(
@@ -420,199 +375,3 @@ class ShepherdPolicy:
             gcm=G,
             radius=self.fN,
         )
-    
-    def _aggressive_plan(self, world: state.State, target, G: np.ndarray, dt: float) -> Plan:
-        """
-        Aggressive strategy: faster movement, tighter approach to sheep.
-        
-        Key differences from gentle:
-        - Tighter too_close threshold (allows closer approach to sheep)
-        - Always applies repulsion (no flyover optimization)
-        - Maintains momentum even when close to sheep
-        
-        All speed scaling comes from config multipliers only (no compounding).
-        """
-        N_drones = world.drones.shape[0]
-        target_positions, target_indices = self._collect_points(world, G, target)
-        
-        # Aggressive mode: always apply repulsion (no flyover)
-        apply_repulsion = np.full(N_drones, 1)
-        
-        dir_to_target = target_positions - world.drones 
-        dist = np.linalg.norm(dir_to_target, axis=1)
-        dir_unit = dir_to_target / (dist[:, None] + 1e-9)
-        
-        # Aggressive: use a tighter too_close threshold (allows closer approach)
-        # Reduced by 20% from base to allow closer herding
-        too_close_sq = (self.too_close * 0.8) ** 2
-        new_positions = np.copy(world.drones)
-
-        # Use config's drive_force_multiplier directly (no additional compounding)
-        drive_mult = self.drive_force_multiplier
-
-        for i, d in enumerate(world.drones):
-            dist_sq = np.min(np.sum((world.flock - d)**2, axis=1))
-            if dist_sq >= too_close_sq:
-                # Full speed with config multiplier
-                new_positions[i] = d + self.umax * dt * dir_unit[i] * drive_mult
-            else:
-                # Even when close, maintain 60% momentum for aggressive pressure
-                new_positions[i] = d + self.umax * dt * dir_unit[i] * (drive_mult * 0.6)
-
-        return DronePositions(
-            positions=new_positions,
-            apply_repulsion=apply_repulsion,
-            target_sheep_indices=target_indices,
-            gcm=G,
-            radius=self.fN,
-        )
-    
-    def _defensive_plan(self, world: state.State, target, G: np.ndarray, dt: float) -> Plan:
-        """
-        Defensive strategy: slower, containment-focused, prioritizes keeping flock together.
-        
-        Key differences from gentle:
-        - Larger too_close threshold (maintains more distance from sheep)
-        - Always applies repulsion to maintain containment
-        - Slower movement for gentler pressure
-        
-        All speed scaling comes from config multipliers only (no compounding).
-        """
-        N_drones = world.drones.shape[0]
-        target_positions, target_indices = self._collect_points(world, G, target)
-        
-        # Defensive: always apply repulsion to maintain containment
-        apply_repulsion = np.full(N_drones, 1)
-        
-        dir_to_target = target_positions - world.drones 
-        dist = np.linalg.norm(dir_to_target, axis=1)
-        dir_unit = dir_to_target / (dist[:, None] + 1e-9)
-        
-        # Defensive: use the config's too_close_multiplier directly
-        # The config already has 1.8x for defensive, no additional scaling needed
-        too_close_sq = self.too_close ** 2
-        new_positions = np.copy(world.drones)
-
-        # Use config's drive_force_multiplier directly (no additional compounding)
-        drive_mult = self.drive_force_multiplier
-
-        for i, d in enumerate(world.drones):
-            dist_sq = np.min(np.sum((world.flock - d)**2, axis=1))
-            if dist_sq >= too_close_sq:
-                # Move with config-controlled speed
-                new_positions[i] = d + self.umax * dt * dir_unit[i] * drive_mult
-            else:
-                new_positions[i] = d  # Stay put if too close
-
-        return DronePositions(
-            positions=new_positions,
-            apply_repulsion=apply_repulsion,
-            target_sheep_indices=target_indices,
-            gcm=G,
-            radius=self.fN,
-        )
-    
-    def _patrol_plan(self, world: state.State, target, G: np.ndarray, dt: float) -> Plan:
-        """
-        Patrol strategy: maintain perimeter around flock for containment.
-        
-        This mode does NOT drive sheep toward a goal. Instead it:
-        - Positions drones evenly around the flock perimeter
-        - Maintains containment to prevent sheep from wandering
-        - Uses smooth orbital movement around the flock center
-        
-        Use cases:
-        - Holding flock in place while waiting
-        - Night containment / perimeter security
-        - Preventing spread while preparing another task
-        
-        Note: Jobs using patrol mode will NOT be satisfied (sheep won't reach goal).
-        This is intentional - patrol is for containment, not driving.
-        """
-        N_drones = world.drones.shape[0]
-        
-        # Calculate patrol radius based on flock spread
-        if world.flock.shape[0] > 0:
-            flock_spread = np.max(np.linalg.norm(world.flock - G, axis=1))
-            patrol_radius = max(self.fN, flock_spread * 1.3)
-        else:
-            patrol_radius = self.fN
-        
-        # Position drones evenly around the flock perimeter (no goal bias)
-        target_positions = np.zeros((N_drones, 2))
-        for i in range(N_drones):
-            angle = 2 * np.pi * i / N_drones
-            target_positions[i] = G + patrol_radius * np.array([np.cos(angle), np.sin(angle)])
-        
-        # Patrol mode: apply repulsion to maintain containment pressure
-        apply_repulsion = np.full(N_drones, 1)
-        target_indices = np.full(N_drones, -1, dtype=int)
-        
-        dir_to_target = target_positions - world.drones 
-        dist = np.linalg.norm(dir_to_target, axis=1)
-        dir_unit = dir_to_target / (dist[:, None] + 1e-9)
-        
-        new_positions = np.copy(world.drones)
-        
-        # Patrol speed from config
-        patrol_speed = self.drive_force_multiplier
-        
-        for i in range(N_drones):
-            # Add slight orbital tangent for smooth perimeter movement
-            offset_from_gcm = world.drones[i] - G
-            tangent = np.array([-offset_from_gcm[1], offset_from_gcm[0]])
-            tangent_norm = np.linalg.norm(tangent)
-            if tangent_norm > 1e-6:
-                tangent = tangent / tangent_norm
-            else:
-                tangent = np.array([1.0, 0.0])
-            
-            # Blend: 80% toward patrol position, 20% orbital drift
-            blended_dir = 0.8 * dir_unit[i] + 0.2 * tangent
-            blended_dir = blended_dir / (np.linalg.norm(blended_dir) + 1e-9)
-            
-            new_positions[i] = world.drones[i] + self.umax * dt * blended_dir * patrol_speed
-
-        return DronePositions(
-            positions=new_positions,
-            apply_repulsion=apply_repulsion,
-            target_sheep_indices=target_indices,
-            gcm=G,
-            radius=patrol_radius,
-        )
-
-    # ------------------ Main Planning Method ------------------
-    def plan(self, world: state.State, jobs: list[state.Job], dt: float) -> Plan:
-        """
-        Return the movement plan for all drones.
-        
-        Dispatches to strategy-specific planning methods based on self.config.strategy_mode.
-        """
-        target = None
-        all_jobs_satisfied = True
-        for job in jobs:
-            if job.is_active and job.target is not None:
-                if not is_goal_satisfied(world, job.target):
-                    all_jobs_satisfied = False
-                
-                # TODO: We should be able to do better than this. We should instead assign drones to different jobs here and don't mess with the world.
-                target = job.target
-                break
-                
-        # If all jobs satisfied, do nothing
-        if all_jobs_satisfied:
-            return DoNothing()
-        
-        G = self._gcm(world)
-        
-        # Dispatch to strategy-specific planning method
-        strategy_mode = self.config.strategy_mode if hasattr(self, 'config') else "gentle"
-        
-        if strategy_mode == "aggressive":
-            return self._aggressive_plan(world, target, G, dt)
-        elif strategy_mode == "defensive":
-            return self._defensive_plan(world, target, G, dt)
-        elif strategy_mode == "patrol":
-            return self._patrol_plan(world, target, G, dt)
-        else:  # "gentle" or default
-            return self._gentle_plan(world, target, G, dt)
