@@ -91,10 +91,21 @@ export default function JobStatusContainer({
     }
   };
 
+  // Format the filter time frame for display
+  const getFilterDisplayText = () => {
+    if (filterValue === null || filterValue <= 0) {
+      return 'Job Queue';
+    }
+    const unitText = filterValue === 1 
+      ? filterUnit.slice(0, -1) // Remove 's' for singular (e.g., "hour" instead of "hours")
+      : filterUnit; // Keep plural for multiple (e.g., "hours", "weeks")
+    return `Job Queue: ${filterValue} ${unitText}`;
+  };
+
   return (
     <div className="job-status-container">
       <div className="job-status-header">
-        <h2>Job Queue</h2>
+        <h2>{getFilterDisplayText()}</h2>
         <div className="filter-container" ref={filterPopupRef}>
           <button
             className="filter-button"
