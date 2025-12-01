@@ -16,6 +16,7 @@ interface RealFarmViewProps {
   onPlayPause: () => void;
   onRestart: () => void;
   selectedImage?: string;
+  initialTab?: 'schedule' | 'live-farm' | 'drone-management';
 }
 
 const zoomMin = 0;
@@ -26,14 +27,15 @@ export default function RealFarmView({
   onSetTarget,
   onPlayPause,
   onRestart,
-  selectedImage
+  selectedImage,
+  initialTab = 'live-farm'
 }: RealFarmViewProps) {
-  const [activeTab, setActiveTab] = useState<'schedule' | 'live-farm' | 'drone-management'>('live-farm');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'live-farm' | 'drone-management'>(initialTab);
   const [scheduleView, setScheduleView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false);
   const [isEditJobModalOpen, setIsEditJobModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<FarmJob | null>(null);
-  
+
   // Filter state - persisted across tab switches
   const [filterValue, setFilterValue] = useState<number | null>(null);
   const [filterUnit, setFilterUnit] = useState<'hours' | 'days' | 'weeks' | 'months'>('hours');
@@ -128,14 +130,14 @@ export default function RealFarmView({
   return (
     <div className="real-farm-view">
       <TabNavigation
-          tabs={[
-            { key: 'live-farm', label: 'Live Monitoring' },
-            { key: 'schedule', label: 'Mission Planning' },
-            { key: 'drone-management', label: 'Drone Management' },
-          ]}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-        />
+        tabs={[
+          { key: 'live-farm', label: 'Live Monitoring' },
+          { key: 'schedule', label: 'Mission Planning' },
+          { key: 'drone-management', label: 'Drone Management' },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
 
       <div className="tab-content">
         {activeTab === 'schedule' ? (
@@ -184,7 +186,7 @@ export default function RealFarmView({
           ) : stateError ? (
             <p>Error loading farm data: {stateError instanceof Error ? stateError.message : 'Unknown error'}</p>
           ) : (
-            <DroneManagementPage 
+            <DroneManagementPage
               data={data}
             />
           )

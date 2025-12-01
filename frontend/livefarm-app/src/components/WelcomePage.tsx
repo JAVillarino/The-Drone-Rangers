@@ -3,9 +3,10 @@ import "./LandingPage.css";
 
 interface WelcomePageProps {
   onNavigateToLiveSystem: () => void;
+  onNavigateToDroneManagement: () => void;
 }
 
-export default function WelcomePage({ onNavigateToLiveSystem }: WelcomePageProps) {
+export default function WelcomePage({ onNavigateToLiveSystem, onNavigateToDroneManagement }: WelcomePageProps) {
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   return (
@@ -21,7 +22,7 @@ export default function WelcomePage({ onNavigateToLiveSystem }: WelcomePageProps
 
       {/* Centered button */}
       <div className="lp-button-container">
-        <button 
+        <button
           className="lp-view-ranch-btn"
           onClick={() => {
             setIsTransitioning(true);
@@ -29,6 +30,15 @@ export default function WelcomePage({ onNavigateToLiveSystem }: WelcomePageProps
           }}
         >
           View Ranch
+        </button>
+        <button
+          className="lp-manage-drones-btn"
+          onClick={() => {
+            setIsTransitioning(true);
+            setTimeout(() => onNavigateToDroneManagement(), 500);
+          }}
+        >
+          Manage Drones
         </button>
       </div>
     </div>

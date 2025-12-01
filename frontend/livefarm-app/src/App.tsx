@@ -1,4 +1,4 @@
-import {useState, useCallback} from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchState, setTarget, setPlayPause, requestRestart } from './api/state'
 import { State, Target } from "./types.ts"
@@ -29,7 +29,7 @@ function App() {
 
   // Determine if we should use SSE (when live-system view is active)
   const shouldUseSSE = currentView === 'live-system';
-  
+
   // Memoize the error handler to prevent SSE connection from being recreated on every render
   const handleSSEError = useCallback((error: Event) => {
     console.error('SSE error, falling back to polling:', error);
@@ -75,9 +75,12 @@ function App() {
     }
   });
 
-  const handleNavigateToLiveSystem = async () => {
+  const [initialTab, setInitialTab] = useState<'schedule' | 'live-farm' | 'drone-management'>('live-farm');
+
+  const handleNavigateToLiveSystem = async (tab: 'schedule' | 'live-farm' | 'drone-management' = 'live-farm') => {
     // Reset the backend to farm mode (clears any simulation state, loads farm jobs)
     await requestRestart();
+    setInitialTab(tab);
     setCurrentView('live-system');
   };
 
@@ -86,7 +89,7 @@ function App() {
   };
 
   const handleNavigateToDroneManagement = () => {
-    setCurrentView('drone-management');
+    handleNavigateToLiveSystem('drone-management');
   };
 
   const handleBackFromDroneManagement = () => {
@@ -96,8 +99,9 @@ function App() {
   return (
     <>
       {currentView === 'welcome' && (
-        <WelcomePage 
-          onNavigateToLiveSystem={handleNavigateToLiveSystem}
+        <WelcomePage
+          onNavigateToLiveSystem={() => handleNavigateToLiveSystem('live-farm')}
+          onNavigateToDroneManagement={handleNavigateToDroneManagement}
         />
       )}
       {currentView === 'live-system' && (
@@ -106,6 +110,7 @@ function App() {
           onPlayPause={playPauseMutation.mutate}
           onRestart={requestRestart}
           onBack={handleBackToWelcome}
+          initialTab={initialTab}
         />
       )}
       {currentView === 'drone-management' && (

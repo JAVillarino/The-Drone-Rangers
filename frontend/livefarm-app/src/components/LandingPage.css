@@ -43,6 +43,7 @@
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -116,6 +117,7 @@
     opacity: 0;
     transform: translateX(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -159,7 +161,7 @@
 
 /* Ranch header in center */
 .lp-ranch-header {
-  margin: 0 0 60px;
+  margin: 0 0 32px;
   font-size: clamp(48px, 8vw, 72px);
   font-weight: 800;
   color: var(--lp-primary);
@@ -176,6 +178,7 @@
   align-items: center;
   flex: 1;
   min-height: 200px;
+  gap: 24px;
 }
 
 .lp-view-ranch-btn {
@@ -201,6 +204,31 @@
 .lp-view-ranch-btn:active {
   transform: translateY(0);
   box-shadow: 0 8px 25px rgba(72, 187, 120, 0.3);
+}
+
+.lp-manage-drones-btn {
+  padding: 16px 40px;
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
+  background: linear-gradient(135deg, var(--lp-primary) 0%, var(--lp-primary-light) 100%);
+  border: none;
+  border-radius: var(--lp-radius);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 25px rgba(66, 153, 225, 0.3);
+  animation: fadeInUp 0.6s ease-out 0.4s both;
+}
+
+.lp-manage-drones-btn:hover {
+  background: linear-gradient(135deg, var(--lp-primary-light) 0%, var(--lp-primary) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px rgba(66, 153, 225, 0.4);
+}
+
+.lp-manage-drones-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 8px 25px rgba(66, 153, 225, 0.3);
 }
 
 #landing-title {
@@ -474,9 +502,12 @@
 }
 
 @keyframes buttonPulse {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: var(--lp-shadow), 0 4px 14px rgba(43, 108, 176, 0.3);
   }
+
   50% {
     box-shadow: var(--lp-shadow), 0 6px 20px rgba(43, 108, 176, 0.5);
   }
@@ -566,38 +597,49 @@
     transform: translateX(-150px) translateY(0) scale(0.5);
     opacity: 0;
   }
+
   8% {
     opacity: 1;
   }
+
   15% {
     transform: translateX(-100px) translateY(-15px) scale(0.8);
   }
+
   25% {
     transform: translateX(-50px) translateY(-8px) scale(1.1);
   }
+
   35% {
     transform: translateX(0) translateY(-12px) scale(1.3);
   }
+
   45% {
     transform: translateX(50px) translateY(-6px) scale(1.1);
   }
+
   55% {
     transform: translateX(100px) translateY(-10px) scale(1);
   }
+
   65% {
     transform: translateX(150px) translateY(-4px) scale(1.2);
   }
+
   75% {
     transform: translateX(200px) translateY(-2px) scale(0.9);
   }
+
   85% {
     transform: translateX(250px) translateY(0) scale(0.7);
     opacity: 0.9;
   }
+
   92% {
     transform: translateX(300px) translateY(0) scale(0.5);
     opacity: 0.6;
   }
+
   100% {
     transform: translateX(350px) translateY(0) scale(0.3);
     opacity: 0;
@@ -611,10 +653,13 @@
 }
 
 @keyframes startingPulse {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scale(1);
     box-shadow: var(--lp-shadow), 0 4px 14px rgba(43, 108, 176, 0.3);
   }
+
   50% {
     transform: scale(1.02);
     box-shadow: var(--lp-shadow), 0 6px 20px rgba(43, 108, 176, 0.6);
@@ -721,15 +766,15 @@
   .coming-soon-content {
     padding: 40px 20px;
   }
-  
+
   .coming-soon-title {
     font-size: 2.5rem;
   }
-  
+
   .coming-soon-description {
     font-size: 1.1rem;
   }
-  
+
   .coming-soon-features {
     grid-template-columns: 1fr;
     gap: 30px;
@@ -740,6 +785,7 @@
   .lp-actions {
     justify-content: stretch;
   }
+
   .lp-actions .lp-btn {
     width: 100%;
     min-width: unset;
@@ -848,13 +894,13 @@
   .lp {
     padding: 32px 16px 48px;
   }
-  
+
   .lp-back-btn {
     position: relative;
     margin-bottom: 24px;
     align-self: flex-start;
   }
-  
+
   .lp-company-header {
     top: 16px;
     left: 16px;
@@ -878,24 +924,24 @@
     padding: 14px 32px;
     font-size: 16px;
   }
-  
+
   #landing-title {
     font-size: 32px;
   }
-  
+
   #landing-subtitle {
     font-size: 17px;
     margin-bottom: 32px;
   }
-  
+
   .choice-radio-container {
     padding: 14px 16px;
   }
-  
+
   .lp-panel {
     padding: 24px;
   }
-  
+
   #scenario-description {
     padding: 16px;
   }
@@ -1263,32 +1309,32 @@
     flex-direction: column;
     gap: 12px;
   }
-  
+
   .welcome-feature {
     padding: 12px;
   }
-  
+
   .welcome-card {
     min-height: 280px;
   }
-  
+
   .welcome-card-header {
     padding: 20px 20px 12px;
   }
-  
+
   .welcome-card-content {
     padding: 16px 20px;
   }
-  
+
   .welcome-card-action {
     padding: 12px 20px;
   }
-  
+
   .welcome-card-icon {
     width: 40px;
     height: 40px;
   }
-  
+
   .welcome-card-title {
     font-size: 18px;
   }

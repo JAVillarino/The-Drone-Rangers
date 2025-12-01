@@ -40,6 +40,7 @@ export default function JobStatusContainer({
   const [openJobId, setOpenJobId] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filterInputValue, setFilterInputValue] = useState<string>(filterValue?.toString() || '');
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterPopupRef = useRef<HTMLDivElement>(null);
 
   // Sync filter input when filterValue changes externally
@@ -50,14 +51,19 @@ export default function JobStatusContainer({
   // Close filter popup when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (filterPopupRef.current && !filterPopupRef.current.contains(event.target as Node)) {
+      if (
+        isFilterOpen &&
+        filterPopupRef.current &&
+        !filterPopupRef.current.contains(event.target as Node) &&
+        filterButtonRef.current &&
+        !filterButtonRef.current.contains(event.target as Node)
+      ) {
         setIsFilterOpen(false);
       }
     };
-    if (isFilterOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isFilterOpen]);
 
   const handleFilterApply = () => {
@@ -84,7 +90,7 @@ export default function JobStatusContainer({
     if (!confirm('Are you sure you want to delete this job?')) {
       return;
     }
-    
+
     // If the cancelled job was open, close it
     if (openJobId === jobId) {
       setOpenJobId(null);
@@ -100,7 +106,7 @@ export default function JobStatusContainer({
         jobs: oldData.jobs.filter(job => job.id !== jobId)
       };
     });
-    
+
     try {
       await deleteFarmJob(jobId);
       // Invalidate queries to ensure we get fresh data from backend
@@ -120,7 +126,7 @@ export default function JobStatusContainer({
     if (filterValue === null || filterValue <= 0) {
       return 'Job Queue';
     }
-    const unitText = filterValue === 1 
+    const unitText = filterValue === 1
       ? filterUnit.slice(0, -1) // Remove 's' for singular (e.g., "hour" instead of "hours")
       : filterUnit; // Keep plural for multiple (e.g., "hours", "weeks")
     return `Job Queue: ${filterValue} ${unitText}`;
@@ -130,49 +136,51 @@ export default function JobStatusContainer({
     <div className="job-status-container">
       <div className="job-status-header">
         <h2>{getFilterDisplayText()}</h2>
-        <div className="filter-container" ref={filterPopupRef}>
+        <div className="filter-container">
           <button
             className="filter-button"
             onClick={() => setIsFilterOpen(!isFilterOpen)}
             aria-label="Filter jobs"
+            ref={filterButtonRef}
           >
-            <img src="../../../../img/filter_icon.png" alt="Filter" id="filter-icon"/>
+            <img src="../../../../img/filter_icon.png" alt="Filter" id="filter-icon" />
           </button>
-          {isFilterOpen && (
-            <div className="filter-popup">
-              <div className="filter-popup-header">Filter by Time</div>
-              <div className="filter-popup-body">
-                <input
-                  type="number"
-                  className="filter-input"
-                  value={filterInputValue}
-                  onChange={(e) => setFilterInputValue(e.target.value)}
-                  placeholder="Enter number"
-                  min="1"
-                />
-                <select
-                  className="filter-select"
-                  value={filterUnit}
-                  onChange={(e) => onFilterChange(filterValue, e.target.value as typeof filterUnit)}
-                >
-                  <option value="hours">hours</option>
-                  <option value="days">days</option>
-                  <option value="weeks">weeks</option>
-                  <option value="months">months</option>
-                </select>
-              </div>
-              <div className="filter-popup-footer">
-                <button className="filter-apply-btn" onClick={handleFilterApply}>
-                  Apply
-                </button>
-                <button className="filter-clear-btn" onClick={handleFilterClear}>
-                  Clear Filter
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
+
+      {isFilterOpen && (
+        <div className="filter-inline-panel" ref={filterPopupRef}>
+          <div className="filter-popup-header">Filter by Time</div>
+          <div className="filter-popup-body">
+            <input
+              type="number"
+              className="filter-input"
+              value={filterInputValue}
+              onChange={(e) => setFilterInputValue(e.target.value)}
+              placeholder="Enter number"
+              min="1"
+            />
+            <select
+              className="filter-select"
+              value={filterUnit}
+              onChange={(e) => onFilterChange(filterValue, e.target.value as typeof filterUnit)}
+            >
+              <option value="hours">hours</option>
+              <option value="days">days</option>
+              <option value="weeks">weeks</option>
+              <option value="months">months</option>
+            </select>
+          </div>
+          <div className="filter-popup-footer">
+            <button className="filter-apply-btn" onClick={handleFilterApply}>
+              Apply
+            </button>
+            <button className="filter-clear-btn" onClick={handleFilterClear}>
+              Clear Filter
+            </button>
+          </div>
+        </div>
+      )}
       <div className="job-status-list">
         {jobs.map((job, index) => {
           // Map Job status to calendar status format
@@ -187,7 +195,7 @@ export default function JobStatusContainer({
           } else {
             calendarStatus = job.status;
           }
-          
+
           return (
             <JobStatus
               key={`job-${job.id || index}`}
