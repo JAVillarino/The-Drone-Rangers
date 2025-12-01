@@ -7,6 +7,7 @@ with named presets and support for custom overrides.
 from __future__ import annotations
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Union, Dict, Any, Literal
+import numpy as np
 
 StrategyMode = Literal["gentle", "aggressive", "defensive", "patrol"]
 
@@ -216,7 +217,24 @@ def build_policy(world, policy_config: Optional[Union[str, dict, PolicyConfig]] 
     else:
         raise TypeError(f"Unsupported policy_config type: {type(policy_config)}")
     
-    # Create and return the policy
-    return ShepherdPolicy(world, config=config)
+    # Calculate derived parameters from config and world
+    # Calculate base fN from world flock size
+    total_area = 0.5 * world.N * (world.ra ** 2)
+    base_fN = np.sqrt(total_area)
+    
+    # Apply config multipliers to world parameters
+    fN = base_fN * config.fN_multiplier
+    umax = world.umax * config.max_speed_multiplier
+    too_close = config.too_close_multiplier * world.ra
+    collect_standoff = config.collect_standoff_multiplier * world.ra
+    
+    # Create and return the policy with direct parameters
+    return ShepherdPolicy(
+        fN=fN,
+        umax=umax,
+        too_close=too_close,
+        collect_standoff=collect_standoff,
+        conditionally_apply_repulsion=config.conditionally_apply_repulsion
+    )
 
 
