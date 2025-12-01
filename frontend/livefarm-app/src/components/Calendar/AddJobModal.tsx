@@ -20,7 +20,7 @@ export default function AddJobModal({
   backgroundImage
 }: AddJobModalProps) {
   const [jobType, setJobType] = useState<'immediate' | 'scheduled'>('immediate');
-  const [scheduledDateTime, setScheduledDateTime] = useState<string>('');
+  const [scheduledDateTime, setScheduledDateTime] = useState<Date | null>(null);
   const [isRecurring, setIsRecurring] = useState(false);
   const [targetPosition, setTargetPosition] = useState<[number, number] | null>(null);
   const [droneCount, setDroneCount] = useState<number>(1);
@@ -51,10 +51,12 @@ export default function AddJobModal({
 
     setIsSubmitting(true);
 
+    console.log("scheduledDateTime in handleSubmit:", scheduledDateTime);
+
     try {
       const jobData: CreateFarmJobRequest = {
         job_type: jobType,
-        scheduled_time: jobType === 'scheduled' ? scheduledDateTime : undefined,
+        scheduled_time: jobType === 'scheduled' && scheduledDateTime ? getDateTimeLocalValue() : undefined,
         is_recurring: isRecurring,
         target: {
           type: "circle",
@@ -64,11 +66,13 @@ export default function AddJobModal({
         drone_count: droneCount
       };
 
+      console.log("scheduled_time in jobData:", jobData.scheduled_time);
+
       await onSubmit(jobData);
       
       // Reset form
       setJobType('immediate');
-      setScheduledDateTime('');
+      setScheduledDateTime(null);
       setIsRecurring(false);
       setTargetPosition(null);
       setDroneCount(1);
@@ -91,11 +95,13 @@ export default function AddJobModal({
     if (!scheduledDateTime) return '';
     // Convert ISO string to local datetime-local format
     const date = new Date(scheduledDateTime);
+    //console.log("date in getDateTimeLocalValue before padding:", date);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
+    //console.log("date in getDateTimeLocalValue after padding:", `${year}-${month}-${day}T${hours}:${minutes}`);
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
@@ -103,10 +109,13 @@ export default function AddJobModal({
     const value = e.target.value;
     if (value) {
       // Convert datetime-local to ISO string
+      console.log("datetime value:", value);
       const localDate = new Date(value);
-      setScheduledDateTime(localDate.toISOString());
+      setScheduledDateTime(localDate);
+      console.log("localDate:", localDate);
+      console.log("scheduledDateTime IN HANDLE DATE TIME CHANGE:", scheduledDateTime);
     } else {
-      setScheduledDateTime('');
+      setScheduledDateTime(null);
     }
   };
 
