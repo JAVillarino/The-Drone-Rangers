@@ -789,21 +789,21 @@ if __name__ == "__main__":
         with world_lock:
             # Promote any scheduled jobs that should now start
             now = datetime.now().timestamp()
-            #print("now in main loop:", now);
             for j in jobs:
-                #print("j.status in main loop:", j.status);
-                #print("j.start_at in main loop:", j.start_at);
                 if j.status == "scheduled" and j.start_at is not None and j.start_at <= now:
-                    # Deactivate all other active jobs first (one active at a time)
-                    for other in jobs:
-                        if other.id != j.id and other.is_active:
-                            other.is_active = False
-                            jobs_to_sync.add(other.id)
+                    # Check if there's currently an active job
+                    has_active_job = any(other.is_active and other.status == "running" 
+                                        for other in jobs if other.id != j.id)
                     
-                    # Promote this job to running and activate it
-                    j.status = "running"
-                    j.is_active = True
-                    jobs_to_sync.add(j.id)
+                    if not has_active_job:
+                        # No active job - promote to running and activate immediately
+                        j.status = "running"
+                        j.is_active = True
+                        jobs_to_sync.add(j.id)
+                    else:
+                        # There's an active job - add this scheduled job to the queue as pending
+                        j.status = "pending"
+                        jobs_to_sync.add(j.id)
             
             # Check goal satisfaction and update remaining_time
             for job in jobs:
@@ -816,10 +816,28 @@ if __name__ == "__main__":
                     # Only check goal for running+active jobs
                     if herding.policy.is_goal_satisfied(backend_adapter.get_state(), job.target):
                         job.remaining_time = 0
-                        job.status = "completed"
-                        job.is_active = False
-                        job.completed_at = datetime.now(timezone.utc).timestamp()
-                        jobs_to_sync.add(job.id)
+                        # Double-check status before marking completed (race protection)
+                        if job.status == "running" and job.is_active:
+                            job.status = "completed"
+                            job.is_active = False
+                            job.completed_at = datetime.now(timezone.utc).timestamp()
+                            jobs_to_sync.add(job.id)
+                            
+                            # Activate the next pending job in the queue
+                            # Order: scheduled jobs by start_at, then regular pending jobs by created_at
+                            pending_jobs = [j for j in jobs 
+                                           if j.status == "pending" and j.target is not None]
+                            if pending_jobs:
+                                # Sort: scheduled jobs (with start_at) first by start_at, 
+                                # then regular pending jobs by created_at
+                                pending_jobs.sort(key=lambda j: (
+                                    j.start_at if j.start_at is not None else float('inf'),
+                                    j.created_at
+                                ))
+                                next_job = pending_jobs[0]
+                                next_job.status = "running"
+                                next_job.is_active = True
+                                jobs_to_sync.add(next_job.id)
                     else:
                         job.remaining_time = None
                 else:
