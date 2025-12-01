@@ -120,7 +120,6 @@ def initialize_sim():
     return backend_adapter, policy, JobCache(active_jobs)
 
 backend_adapter, policy, jobs_cache = initialize_sim()
-jobs = jobs_cache.list  # Convenience alias for iteration
 
 app = Flask(__name__)
 
@@ -178,7 +177,8 @@ app.register_blueprint(scenarios_bp)
 app.register_blueprint(create_drones_blueprint(backend_adapter))
 
 # Register jobs API blueprint
-api_jobs_bp = jobs_api.create_jobs_blueprint(world_lock, jobs_cache)
+# Pass a lambda to always get the current global backend_adapter (which changes on scenario load)
+api_jobs_bp = jobs_api.create_jobs_blueprint(world_lock, jobs_cache, lambda: backend_adapter)
 app.register_blueprint(api_jobs_bp)
 
 @app.route("/state", methods=["GET", "OPTIONS"])
@@ -188,7 +188,7 @@ def get_state():
         return Response(status=200)
     with world_lock:
         state = backend_adapter.get_state()
-        state.jobs = jobs
+        state.jobs = jobs_cache.list
         state_dict = state.to_dict()
         state_dict["paused"] = backend_adapter.paused
         return jsonify(state_dict)
@@ -214,7 +214,7 @@ def stream_state():
                     # Acquire lock for thread-safe state access
                     with world_lock:
                         state = backend_adapter.get_state()
-                        state.jobs = jobs
+                        state.jobs = jobs_cache.list
                         state_dict = state.to_dict()
                         state_dict["paused"] = backend_adapter.paused
                         
@@ -358,7 +358,7 @@ def play_pause():
 @app.route("/load-scenario/<uuid:scenario_id>", methods=["POST"])
 def load_scenario(scenario_id):
     """Load a scenario from the repository into the running simulation."""
-    global backend_adapter, policy, current_scenario_id, jobs_cache, jobs
+    global backend_adapter, policy, current_scenario_id, jobs_cache
     
     scenario = REPO.get(scenario_id)
     if not scenario:
@@ -396,7 +396,11 @@ def load_scenario(scenario_id):
             obstacles_polygons = []
             if scenario.obstacles:
                 for obs in scenario.obstacles:
-                    if "polygon" in obs:
+                    # Handle both list-of-points and dict-with-polygon-key formats
+                    if isinstance(obs, list):
+                        poly = np.array(obs, dtype=float)
+                        obstacles_polygons.append(poly)
+                    elif isinstance(obs, dict) and "polygon" in obs:
                         poly = np.array(obs["polygon"], dtype=float)
                         obstacles_polygons.append(poly)
             
@@ -418,7 +422,7 @@ def load_scenario(scenario_id):
             if scenario.targets and len(scenario.targets) > 0:
                 target_pos = np.array(scenario.targets[0], dtype=float)
                 # Create a Circle target with the position and a reasonable radius
-                target = state.Circle(center=target_pos, radius=policy.fN * 1.5)
+                target = state.Circle(center=target_pos, radius=policy.fN * 3.0)
             
             # Create an in-memory job for the simulation (NOT persisted to database)
             # This keeps simulation state separate from farm jobs
@@ -636,7 +640,7 @@ def instantiate_scenario_type(key: str):
         sheep=layout["sheep"],
         drones=layout["drones"],
         targets=layout["targets"],
-        obstacles=overrides.get("obstacles") or [],
+        obstacles=overrides.get("obstacles") or layout.get("obstacles") or [],
         goals=overrides.get("goals") or [],
         boundary=world_config.get("boundary", "none"),
         bounds=bounds,
@@ -775,6 +779,15 @@ def run_flask():
 
 
 if __name__ == "__main__":
+    import signal
+    import sys
+    
+    def signal_handler(sig, frame):
+        print("\nCaught Ctrl+C, shutting down...")
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
+
     # Start Flask in a background thread.
     threading.Thread(target=run_flask, daemon=True).start()
     
@@ -782,6 +795,9 @@ if __name__ == "__main__":
     last_rem_sync_ts = 0.0
     
     while True:
+        # Get current jobs from cache
+        jobs = jobs_cache.list
+        
         # TODO: This sleep should be within the loop of frames.
         time.sleep(0.05)  # 20 FPS update rate for simulation loop (original speed)
         # Update job statuses and remaining times
@@ -805,6 +821,7 @@ if __name__ == "__main__":
                         j.status = "pending"
                         jobs_to_sync.add(j.id)
             
+            # Check goal satisfaction and update remaining_time
             # Check goal satisfaction and update remaining_time
             for job in jobs:
                 if job.target is None:
@@ -856,6 +873,8 @@ if __name__ == "__main__":
         
         # Throttled remaining_time sync (once per second for running jobs)
         current_time = time.time()
+        # Throttled remaining_time sync (once per second for running jobs)
+        current_time = time.time()
         if current_time - last_rem_sync_ts >= 1.0:
             for job in jobs:
                 if job.status == "running" and job.remaining_time is not None:
@@ -902,11 +921,29 @@ if __name__ == "__main__":
                     backend_adapter.paused = False
                 backend_adapter.target = None
             else:
-                # No active job - allow simulation to run for live monitoring (grazing behavior)
-                # This allows users to see the simulation even without jobs
+                # No active job - allow simulation to run for live monitoring
                 if backend_adapter.paused:
                     backend_adapter.paused = False
-                backend_adapter.target = None
+                
+                # If we have a pending job with a target, use it for the world target
+                # This ensures the policy (and visualization) knows where to go even if the job isn't "started"
+                pending_target_job = None
+                for job in jobs:
+                    if job.status == "pending" and job.target is not None:
+                        pending_target_job = job
+                        break
+                
+                if pending_target_job:
+                    # Sync pending job target to world target
+                    if isinstance(pending_target_job.target, state.Circle):
+                        backend_adapter.target = pending_target_job.target.center
+                    elif isinstance(pending_target_job.target, state.Polygon):
+                        backend_adapter.target = pending_target_job.target.points.mean(axis=0)
+                else:
+                    # Only clear target if we really have no target source
+                    # But be careful not to clear it if it was set manually via API (though API sets usually create jobs now?)
+                    # For now, let's trust that if there's no job, there's no target.
+                    backend_adapter.target = None
             
             for job in list(jobs):  # Copy to avoid modifying list while iterating
                 if job.completed_at is not None:
@@ -922,8 +959,26 @@ if __name__ == "__main__":
             collector = get_collector()
             if collector.get_current_run() is not None:
                 world_state = backend_adapter.get_state()
-                target = active_job.target if active_job else None
+                
+                # Determine target for metrics
+                target = None
+                if active_job and active_job.target:
+                    target = active_job.target
+                else:
+                    # Try to find a pending job with a target
+                    for job in jobs:
+                        if job.status == "pending" and job.target:
+                            target = job.target
+                            break
+                    
+                    # Fallback to world target if still no job target found
+                    if target is None and backend_adapter.target is not None:
+                        from planning import state
+                        radius = policy.fN if hasattr(policy, 'fN') else 10.0
+                        target = state.Circle(center=backend_adapter.target, radius=radius)
+                
                 t = backend_adapter.t if hasattr(backend_adapter, 't') else 0.0
                 fN = policy.fN if hasattr(policy, 'fN') else 50.0
+                
                 collector.record_step(world_state, target, t, fN)
         

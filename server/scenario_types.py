@@ -43,6 +43,9 @@ class ScenarioTypeDefinition:
     # Tags for categorization
     tags: List[str] = None
     
+    # Environment (farm, city, ocean)
+    environment: str = "farm"
+    
     def __post_init__(self):
         if self.tags is None:
             self.tags = []
@@ -69,6 +72,7 @@ SCENARIO_TYPES: Dict[str, ScenarioTypeDefinition] = {
         recommended_agents=50,
         recommended_controllers=3,
         tags=["training", "dense", "containment"],
+        environment="farm",
     ),
     
     "herd_scattered_recovery": ScenarioTypeDefinition(
@@ -86,6 +90,7 @@ SCENARIO_TYPES: Dict[str, ScenarioTypeDefinition] = {
         recommended_agents=50,
         recommended_controllers=4,
         tags=["training", "scattered", "collection"],
+        environment="farm",
     ),
     
     "obstacle_corridor_push": ScenarioTypeDefinition(
@@ -103,6 +108,7 @@ SCENARIO_TYPES: Dict[str, ScenarioTypeDefinition] = {
         recommended_agents=40,
         recommended_controllers=3,
         tags=["obstacle", "corridor", "challenge"],
+        environment="farm",
     ),
     
     "patrol_perimeter": ScenarioTypeDefinition(
@@ -120,6 +126,7 @@ SCENARIO_TYPES: Dict[str, ScenarioTypeDefinition] = {
         recommended_agents=60,
         recommended_controllers=4,
         tags=["patrol", "containment", "monitoring"],
+        environment="farm",
     ),
     
     "large_flock_challenge": ScenarioTypeDefinition(
@@ -137,23 +144,57 @@ SCENARIO_TYPES: Dict[str, ScenarioTypeDefinition] = {
         recommended_agents=200,
         recommended_controllers=6,
         tags=["large", "clusters", "challenge", "multi-drone"],
+        environment="farm",
     ),
     
     "evacuation_prototype": ScenarioTypeDefinition(
         key="evacuation_prototype",
-        name="Evacuation Prototype",
-        description="Experimental scenario for human evacuation research. Spread-aware, cautious approach.",
+        name="City Evacuation",
+        description="Urban evacuation scenario at a city intersection. Guide people to safety zones using coordinated drone robots.",
         default_world_config={
             "boundary": "reflect",
+            "k_nn": 1,          # Minimal flocking - people don't herd like sheep
+            "wa": 0.1,          # Very low attraction - people don't clump
+            "wr": 2.0,          # Moderate repulsion - personal space
+            "wd": 0.2,          # Low alignment - people move independently
+            "graze_alpha": 0.0, # No random grazing
+            "vmax": 1.0,        # Realistic walking speed
+            "dt": 0.05,         # Small time steps for smooth movement
         },
         default_policy_config={
             "key": "evacuation-prototype",
         },
         default_theme_key="evacuation-prototype",
         default_icon_set="evacuation",  # Person icons instead of sheep
-        recommended_agents=30,
-        recommended_controllers=2,
-        tags=["evacuation", "prototype", "research"],
+        recommended_agents=40,
+        recommended_controllers=3,
+        tags=["evacuation", "urban", "city", "research"],
+        environment="city",
+    ),
+
+    "oil_spill_cleanup": ScenarioTypeDefinition(
+        key="oil_spill_cleanup",
+        name="Oil Spill Cleanup",
+        description="Contain and clean up oil spills in the ocean using boom-equipped boats.",
+        default_world_config={
+            "boundary": "none",
+            "k_nn": 0,          # No flocking/alignment
+            "wa": 0.1,          # Minimal attraction - prevents clumping
+            "wr": 10.0,         # Low repulsion - oil can overlap slightly
+            "ws": 80.0,         # Strong response to boats
+            "wm": 0.0,          # No inertia
+            "vmax": 0.5,        # Slow movement
+            "graze_alpha": 0.0, # No random wandering
+        },
+        default_policy_config={
+            "key": "default",   # Standard herding logic works for pushing
+        },
+        default_theme_key="oil-spill",
+        default_icon_set="oil",
+        recommended_agents=100,
+        recommended_controllers=4,
+        tags=["oil", "ocean", "cleanup", "slow"],
+        environment="ocean",
     ),
 }
 
@@ -264,9 +305,13 @@ def generate_initial_layout(
     # Default target: center of bounds
     targets = [[center_x, center_y]]
     
+    # Generate obstacles (if applicable)
+    obstacles = []
+    
     return {
         "sheep": [[float(x), float(y)] for x, y in agents],
         "drones": [[float(x), float(y)] for x, y in controllers],
         "targets": targets,
+        "obstacles": obstacles,
     }
 

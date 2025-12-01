@@ -39,8 +39,8 @@ export interface State {
 
 /** Scenario appearance configuration for theming */
 export interface ScenarioAppearance {
-  themeKey?: "default-herd" | "dense-herd" | "scattered-herd" | "stress-near-obstacles" | "evacuation-prototype";
-  iconSet?: "herding" | "evacuation";
+  themeKey?: "default-herd" | "dense-herd" | "scattered-herd" | "stress-near-obstacles" | "evacuation-prototype" | "oil-spill";
+  iconSet?: "herding" | "evacuation" | "oil";
 }
 
 export interface Scenario {
@@ -69,6 +69,8 @@ export interface Scenario {
   policy_config?: Record<string, any> | string;
   /** Scenario type key (e.g., "evacuation_prototype") */
   scenario_type?: string;
+  /** Environment type (farm, city, ocean) */
+  environment?: "farm" | "city" | "ocean";
 }
 
 export interface ScenariosResponse {

@@ -237,15 +237,14 @@ class JobRepo:
 
 # -------- API Blueprint Factory --------
 
-def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
+def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Blueprint:
     """
     Factory to create a unified jobs API blueprint.
     
-    Provides /api/jobs endpoints that handle both:
-    - Frontend requests (with job_type, drone_count, etc.)
-    - Internal requests (with drones, activate_immediately, etc.)
-    
-    All field names are normalized internally for compatibility.
+    Args:
+        world_lock: Thread lock for world access
+        jobs_cache: In-memory job cache
+        get_backend_adapter: Callable that returns the current backend_adapter (World)
     """
     repo = get_repo()  # Use shared singleton instance
     bp = Blueprint("api_jobs", __name__, url_prefix="/api")
@@ -304,6 +303,17 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
         # Add to in-memory cache (ensures single instance per ID)
         with world_lock:
             jobs_cache.add(job)
+            
+            # If activated immediately, start metrics
+            if is_active:
+                from server.metrics import start_metrics_run, get_collector
+                # Stop existing if any (though decide_initial_status checks shouldn't happen)
+                if get_collector().get_current_run() is not None:
+                    from server.metrics import end_metrics_run
+                    end_metrics_run()
+                
+                start_metrics_run(str(job.id))
+                print(f"Started metrics collection for new job {job.id}")
 
         return jsonify(job.to_dict()), 201
 
@@ -360,11 +370,16 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
         except ValueError as e:
             return jsonify({"error": f"Invalid job ID: {e}"}), 400
 
+        # Try DB first, then cache
         job = repo.get(job_id_uuid)
+        if job is None:
+            with world_lock:
+                job = jobs_cache.get(job_id_uuid)
+        
         if job is None:
             return jsonify({"error": f"Job {job_id} not found"}), 404
 
-        # Sync remaining_time from in-memory
+        # Sync remaining_time from in-memory (if we got it from DB)
         with world_lock:
             _sync_remaining_time_from_memory(job, jobs_cache)
 
@@ -414,7 +429,7 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
 
         # Atomic update: DB and memory together under lock
         with world_lock:
-            # Get existing job for validation
+            # Get existing job for validation (check cache first for speed/in-memory jobs)
             existing_job = jobs_cache.get(job_id_uuid)
             if existing_job is None:
                 # Try to get from DB
@@ -435,20 +450,68 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
                         other_job.is_active = False
                         repo.update_fields(other_job.id, is_active=0)
             
-            # Update in database
-            updated_job = repo.update_fields(job_id_uuid, **updates_db)
-            if updated_job is None:
+            # Update in database (if it exists there)
+            updated_job_db = repo.update_fields(job_id_uuid, **updates_db)
+            
+            # Update in-memory job (if it exists there)
+            job_mem = jobs_cache.get(job_id_uuid)
+            
+            # If not in DB and not in memory, it's gone
+            if updated_job_db is None and job_mem is None:
                 return jsonify({"error": f"Job {job_id} not found"}), 404
 
-            # Update in-memory job (same object)
-            job = jobs_cache.get(job_id_uuid)
-            if job:
+            # If we have a memory job, update it and return it (it's the source of truth for sim)
+            if job_mem:
                 for key, value in updates_mem.items():
-                    setattr(job, key, value)
-                # Sync updated_at from DB to maintain consistency
-                job.updated_at = updated_job.updated_at
-
-        return jsonify(updated_job.to_dict()), 200
+                    setattr(job_mem, key, value)
+                # Sync updated_at
+                job_mem.updated_at = datetime.now(timezone.utc).timestamp()
+                
+                # --- CRITICAL: Sync drone count with world if this is the active job ---
+                if "drones" in updates_mem:
+                    try:
+                        new_count = int(updates_mem["drones"])
+                        # Get current backend_adapter using the getter
+                        backend_adapter = get_backend_adapter()
+                        
+                        # Use the World's built-in method to resize drone array safely
+                        if hasattr(backend_adapter, 'set_drone_count'):
+                            backend_adapter.set_drone_count(new_count)
+                        
+                        # Also update num_controllers property if it exists (for some adapters)
+                        if hasattr(backend_adapter, 'num_controllers') and not isinstance(backend_adapter.num_controllers, int):
+                             # If it's a property, it might be read-only, so we skip setting it
+                             # The World.num_controllers is a property, so we don't set it directly
+                             pass
+                            
+                    except Exception as e:
+                        print(f"Error updating drone count in world: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        # Don't fail the request, just log the error
+                        pass
+                
+                # --- Metrics Management ---
+                # If job is becoming active/running, start metrics
+                if updates_mem.get("is_active") or updates_mem.get("status") == "running":
+                    from server.metrics import start_metrics_run, get_collector
+                    if get_collector().get_current_run() is None:
+                        start_metrics_run(str(job_id_uuid))
+                        print(f"Started metrics collection for job {job_id_uuid}")
+                
+                # If job is stopping/completing, stop metrics
+                if updates_mem.get("is_active") is False or updates_mem.get("status") in ["completed", "cancelled"]:
+                    from server.metrics import end_metrics_run, get_collector
+                    if get_collector().get_current_run() is not None:
+                        end_metrics_run()
+                        print(f"Stopped metrics collection for job {job_id_uuid}")
+                        
+                return jsonify(job_mem.to_dict()), 200
+                        
+                return jsonify(job_mem.to_dict()), 200
+            
+            # If only in DB, return DB version
+            return jsonify(updated_job_db.to_dict()), 200
 
     @bp.route("/jobs/<job_id>", methods=["DELETE"])
     def delete_job(job_id):
@@ -460,16 +523,21 @@ def create_jobs_blueprint(world_lock, jobs_cache) -> Blueprint:
 
         # Atomic delete: DB and memory together under lock
         with world_lock:
-            # Get job before deleting (for response)
-            job = repo.get(job_id_uuid)
-            if job is None:
+            # Check if job exists anywhere
+            job_db = repo.get(job_id_uuid)
+            job_mem = jobs_cache.get(job_id_uuid)
+            
+            if job_db is None and job_mem is None:
                 return jsonify({"error": f"Job {job_id} not found"}), 404
+            
+            job_to_return = job_mem if job_mem else job_db
             
             # Delete from database
             repo.delete(job_id_uuid)
+            # Delete from memory
             jobs_cache.remove(job_id_uuid)
 
-        return jsonify(job.to_dict()), 200
+        return jsonify(job_to_return.to_dict()), 200
 
     return bp
 

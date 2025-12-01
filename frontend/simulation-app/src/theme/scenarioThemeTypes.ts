@@ -12,6 +12,7 @@ export type ScenarioThemeKey =
   | "scattered-herd"
   | "stress-near-obstacles"
   | "evacuation-prototype"
+  | "oil-spill"
   | "real-farm";
 
 export interface EntityIconSet {
@@ -64,7 +65,7 @@ export interface ScenarioTheme {
   icons: EntityIconSet;
   
   /** Icon set to use: "herding" (sheep/drones) or "evacuation" (people/guides) */
-  iconSet: "herding" | "evacuation";
+  iconSet: "herding" | "evacuation" | "oil";
 
   /** Entity color configuration */
   colors: EntityColors;

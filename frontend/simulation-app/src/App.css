@@ -484,6 +484,7 @@
     opacity: 0;
     transform: scale(0.95) translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -636,14 +637,17 @@
 }
 
 #custom-map {
-  width: 600px;
-  height: 800px;
+  width: 650px;
+  height: 650px;
+  /* Make square to match default world bounds */
   background: #f8f9fa;
   position: relative;
   overflow: hidden;
   cursor: grab;
   margin: 0 auto;
   transition: none;
+  border-radius: 8px;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.05);
 }
 
 #custom-map:active {
@@ -653,8 +657,10 @@
 #custom-map image {
   width: 100%;
   height: 100%;
-  object-fit: fill;
+  object-fit: cover;
+  /* Cover to avoid distortion */
   object-position: center;
+  image-rendering: -webkit-optimize-contrast;
 }
 
 #modal-footer {
@@ -764,25 +770,25 @@
     margin: 20px;
     border-radius: 16px;
   }
-  
+
   #modal-header {
     padding: 24px 20px;
     gap: 20px;
   }
-  
+
   #modal-header h2 {
     font-size: 26px;
   }
-  
+
   #input-group label {
     font-size: 12px;
   }
-  
+
   #modal-footer {
     padding: 20px;
     flex-direction: column;
   }
-  
+
   .modal-btn {
     width: 100%;
   }

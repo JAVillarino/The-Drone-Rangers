@@ -10,7 +10,7 @@ const backendURL = "";
 
 // SSE endpoint constants
 export const SSE_ENDPOINTS = {
-  state: `${backendURL}/stream/state`, // PLACEHOLDER URL - update with actual SSE endpoint
+    state: `${backendURL}/stream/state`, // PLACEHOLDER URL - update with actual SSE endpoint
 } as const;
 
 /**
@@ -68,6 +68,7 @@ export interface ScenarioType {
     default_icon_set?: "herding" | "evacuation";
     recommended_agents?: number;
     recommended_controllers?: number;
+    environment?: "farm" | "city" | "ocean";
 }
 
 export async function fetchState() {
@@ -93,12 +94,12 @@ export async function setTarget(jobId: string, target: Target) {
                 body: JSON.stringify({ target })
             }
         );
-        
+
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || `Request failed with status ${response.status}`);
         }
-        
+
         return await response.json();
     } catch (err) {
         console.error("Error sending target:", err);
@@ -111,7 +112,7 @@ export async function setPlayPause() {
         const response = await fetch(`${backendURL}/pause`,
             {
                 method: "POST",
-                headers: {"Content-Length": "0"},
+                headers: { "Content-Length": "0" },
             }
         );
         return await response.json();
@@ -125,7 +126,7 @@ export async function requestRestart() {
         const response = await fetch(`${backendURL}/restart`,
             {
                 method: "POST",
-                headers: {"Content-Length": "0"}
+                headers: { "Content-Length": "0" }
             }
         );
         return await response.json();
@@ -184,11 +185,11 @@ export async function getPresetScenarios(): Promise<Scenario[]> {
         const response = await fetch(`${backendURL}/scenarios?visibility=preset&limit=100`, {
             method: "GET",
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const data: ScenariosResponse = await response.json();
         return data.items;
     } catch (err) {
@@ -203,11 +204,11 @@ export async function getAllScenarios(): Promise<Scenario[]> {
         const response = await fetch(`${backendURL}/scenarios?limit=100&sort=-created_at`, {
             method: "GET",
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const data: ScenariosResponse = await response.json();
         return data.items;
     } catch (err) {
@@ -287,15 +288,15 @@ export async function createCustomScenario(scenarioData: {
 
         const createdScenario = await response.json();
         console.log("Created scenario:", createdScenario);
-        return { 
-            success: true, 
-            scenarioId: createdScenario.id 
+        return {
+            success: true,
+            scenarioId: createdScenario.id
         };
     } catch (err) {
         console.error("Error creating custom scenario:", err);
-        return { 
-            success: false, 
-            error: err instanceof Error ? err.message : "Unknown error occurred" 
+        return {
+            success: false,
+            error: err instanceof Error ? err.message : "Unknown error occurred"
         };
     }
 }
@@ -309,14 +310,14 @@ export async function loadScenario(scenarioId: string): Promise<{ success: boole
                 "Content-Type": "application/json",
             },
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             const errorMsg = errorData.error?.message || `HTTP error! status: ${response.status}`;
             console.error("Load scenario error:", errorData);
             return { success: false, error: errorMsg };
         }
-        
+
         const data = await response.json();
         console.log("Loaded scenario successfully:", data);
         return { success: true, data };
@@ -369,11 +370,11 @@ export async function fetchFarmJobs(_params?: {
             } else if (backendStatus === 'pending') {
                 frontendStatus = 'pending';
             }
-            
+
             // Infer job_type based on start_at field
             const hasStartAt = backendJob.start_at !== null && backendJob.start_at !== undefined;
             const jobType: 'immediate' | 'scheduled' = hasStartAt ? 'scheduled' : 'immediate';
-            
+
             const converted: FarmJob = {
                 id: backendJob.id,
                 job_type: jobType,
@@ -419,7 +420,7 @@ export async function createFarmJob(jobData: CreateFarmJobRequest): Promise<Farm
  * Update a farm job
  */
 export async function updateFarmJob(
-    jobId: string | number, 
+    jobId: string | number,
     updates: {
         scheduled_time?: string;
         target?: [number, number] | { type: "circle"; center: [number, number]; radius: number | null } | { type: "polygon"; points: [number, number][] } | null;
