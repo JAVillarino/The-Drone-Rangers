@@ -18,8 +18,12 @@ export function usePan({ data, zoomMin, zoomMax, scale, canvasSize }: UsePanArgs
   const bounds = useMemo(() => {
     const xs = [...data.flock.map(f => f[0]), ...data.drones.map(f => f[0])];
     const ys = [...data.flock.map(f => f[1]), ...data.drones.map(f => f[1])];
-    xs.push(...data.jobs.flatMap(j => j.target && j.target.type === "circle" ? [j.target.center[0]] : []));
-    ys.push(...data.jobs.flatMap(j => j.target && j.target.type === "circle" ? [j.target.center[1]] : []));
+    xs.push(...data.jobs
+      .filter(j => j.status !== 'cancelled')
+      .flatMap(j => j.target && j.target.type === "circle" ? [j.target.center[0]] : []));
+    ys.push(...data.jobs
+      .filter(j => j.status !== 'cancelled')
+      .flatMap(j => j.target && j.target.type === "circle" ? [j.target.center[1]] : []));
 
     return {
       minX: xs.length ? Math.min(...xs) : zoomMin,
@@ -143,11 +147,14 @@ export function Map(props: RenderArgs) {
         />
       ))}
       {(() => {
+        // Filter out cancelled jobs
+        const activeJobs = data.jobs.filter(j => j.status !== 'cancelled');
+        
         // Determine which job is active (only one can be active at a time)
-        const activeJob = data.jobs.find(j => j.is_active && j.target);
+        const activeJob = activeJobs.find(j => j.is_active && j.target);
         
         // Calculate queue order for immediate jobs (sorted by created_at)
-        const immediateJobs = data.jobs
+        const immediateJobs = activeJobs
           .filter(j => !j.start_at && j.target) // Immediate jobs (no start_at)
           .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         
@@ -157,10 +164,10 @@ export function Map(props: RenderArgs) {
           immediateJobIndices[job.id] = index;
         });
 
-        return data.jobs.map((job, i) => {
-          if (!job.target) {
-            return null;
-          }
+        return activeJobs.map((job, i) => {
+            if (!job.target) {
+              return null;
+            }
 
           const isActive = activeJob?.id === job.id;
           const immediateJobIndex = immediateJobIndices[job.id];

@@ -130,7 +130,7 @@ export default function EditJobModal({
       // - status (only if canceling)
       const updates: {
         scheduled_time?: string;
-        target?: { type: "circle"; center: [number, number]; radius: number | null };
+        target?: { type: "circle"; center: [number, number]; radius?: number };
         drone_count?: number;
         status?: 'cancelled';
       } = {};
@@ -151,7 +151,7 @@ export default function EditJobModal({
         updates.target = {
           type: "circle",
           center: targetPosition,
-          radius: originalTargetRadius ?? 10.0
+          radius: originalTargetRadius ?? undefined
         };
       }
 

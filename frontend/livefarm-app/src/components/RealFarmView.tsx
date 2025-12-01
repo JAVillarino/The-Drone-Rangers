@@ -96,6 +96,8 @@ export default function RealFarmView({
 
   const handleJobUpdated = () => {
     queryClient.invalidateQueries({ queryKey: ['farm-jobs'] });
+    // Also invalidate state query so map view updates immediately
+    queryClient.invalidateQueries({ queryKey: ['objects', 'real-farm'] });
   };
 
   // Map selected image IDs to actual image paths (same as MapPlot)
