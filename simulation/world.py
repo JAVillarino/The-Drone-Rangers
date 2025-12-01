@@ -34,7 +34,7 @@ class World:
         k_nn: int = 19,           # nearest neighbors
 
         # timing & speeds (paper: 1 m/ts, dog 1.5 m/ts)
-        dt: float = 1.0,
+        dt: float = 0.07,
         vmax: float = 1.0,
         umax: float = 1.5,
 
@@ -61,11 +61,11 @@ class World:
         
         # polygon obstacles
         obstacles_polygons: list[np.ndarray] | None = None,
-        obstacle_influence: float = 8.0,
-        w_obs: float = 4.0,
+        obstacle_influence: float = 15.0,
+        w_obs: float = 10.0,
         w_tan: float = 12.0,
-        keep_out: float = 6.0,
-        world_keep_out: float = 5.0,
+        keep_out: float = 8.0,
+        world_keep_out: float = 8.0,
         wall_follow_boost: float = 6.0,
         stuck_speed_ratio: float = 0.08,
         near_wall_ratio: float = 0.8,
@@ -164,6 +164,16 @@ class World:
         poly = np.asarray(polygon, float)
         if poly.ndim == 1:
             poly = poly.reshape(1, -1)
+        
+        # Ensure CCW winding
+        # Signed area: 0.5 * sum(x1*y2 - x2*y1)
+        x = poly[:, 0]
+        y = poly[:, 1]
+        area = 0.5 * np.sum(x * np.roll(y, -1) - np.roll(x, -1) * y)
+        
+        # If area is negative (CW), reverse the order
+        if area < 0:
+            poly = poly[::-1]
         
         self.polys.append(poly)
         self.poly_edges.append(self._precompute_polygon_edges(poly))
@@ -1055,7 +1065,13 @@ class World:
             else:
                 h = np.zeros(2)
             
-            V_new[i] = h * self.vmax
+            # Target velocity is vmax in the desired direction
+            v_des = h * self.vmax
+            
+            # Smooth velocity update to allow acceleration/deceleration and reduce jitter
+            # This allows speed to drop below vmax during turns or when forces balance
+            smoothing = 0.8
+            V_new[i] = smoothing * self.V[i] + (1.0 - smoothing) * v_des
 
         return V_new
 

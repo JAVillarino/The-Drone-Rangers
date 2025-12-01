@@ -1,4 +1,4 @@
-import {useState, useCallback, useEffect} from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchState, setTarget, setPlayPause, requestRestart, createCustomScenario } from './api/state'
 import { SimulationMapPlot } from './components/MapPlot/SimulationMapPlot.tsx'
@@ -6,6 +6,7 @@ import { State, Target } from "./types.ts"
 import './App.css'
 import WelcomePage from "./components/WelcomePage";
 import LandingPage from "./components/LandingPage";
+import MetricsDashboard from "./components/MetricsDashboard";
 import { useSSE } from './hooks/useSSE';
 import { ScenarioThemeKey } from "./theme";
 
@@ -15,24 +16,25 @@ interface SetTargetVars {
 }
 
 // Check URL params to determine initial view
-function getInitialView(): 'welcome' | 'simulator' | 'simulation' {
+function getInitialView(): 'welcome' | 'simulator' | 'simulation' | 'metrics' {
   const params = new URLSearchParams(window.location.search);
   const view = params.get('view');
   if (view === 'simulator') return 'simulator';
   if (view === 'simulation') return 'simulation';
+  if (view === 'metrics') return 'metrics';
   return 'welcome';
 }
 
 function App() {
   const queryClient = useQueryClient();
 
-  const [currentView, setCurrentView] = useState<'welcome' | 'simulator' | 'simulation'>(getInitialView);
+  const [currentView, setCurrentView] = useState<'welcome' | 'simulator' | 'simulation' | 'metrics'>(getInitialView);
   const [selectedImage, setSelectedImage] = useState<string>("");
   const [simulationThemeKey, setSimulationThemeKey] = useState<ScenarioThemeKey>("default-herd");
 
   // Determine if we should use SSE (when simulation view is active)
   const shouldUseSSE = currentView === 'simulation';
-  
+
   // Memoize the error handler to prevent SSE connection from being recreated on every render
   const handleSSEError = useCallback((error: Event) => {
     console.error('SSE error, falling back to polling:', error);
@@ -120,19 +122,20 @@ function App() {
     setCurrentView('simulation');
   };
 
+  const handleNavigateToMetrics = () => {
+    setCurrentView('metrics');
+  };
+
   return (
     <>
       {currentView === 'welcome' && (
-        <WelcomePage 
-          onNavigateToSimulator={handleNavigateToSimulator} 
-          onNavigateToLiveSystem={() => {
-            // Redirect to live farm app, skip its welcome page
-            window.location.href = 'http://localhost:5174?view=live-system';
-          }}
+        <WelcomePage
+          onNavigateToSimulator={handleNavigateToSimulator}
+          onNavigateToMetrics={handleNavigateToMetrics}
         />
       )}
       {currentView === 'simulator' && (
-        <LandingPage 
+        <LandingPage
           onSimulationStart={handleSimulationStart}
           startPresetSim={async (scenario: string) => {
             console.log(`Starting preset simulation: ${scenario}`);
@@ -144,14 +147,17 @@ function App() {
         />
       )}
       {currentView === 'simulation' && (
-        <SimulationMapPlot 
-          data={data!} 
+        <SimulationMapPlot
+          data={data!}
           onPlayPause={playPauseMutation.mutate}
-          onRestart={requestRestart} 
-          onBack={handleBackToSimulator} 
+          onRestart={requestRestart}
+          onBack={handleBackToSimulator}
           selectedImage={selectedImage}
           themeKey={simulationThemeKey}
         />
+      )}
+      {currentView === 'metrics' && (
+        <MetricsDashboard onBack={handleBackToWelcome} />
       )}
     </>
   )

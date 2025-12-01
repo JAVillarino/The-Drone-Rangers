@@ -202,10 +202,6 @@ class MetricsCollector:
                 poly_center = np.mean(target.points, axis=0)
                 gcm_to_goal = float(np.linalg.norm(gcm - poly_center))
                 # print(f"DEBUG: Polygon Target: points={target.points}, frac={fraction_in_goal}")
-        else:
-             print("DEBUG: Target is None")
-        
-        # Compute min obstacle distance (simplified - would need obstacle data)
         # JSON doesn't support Infinity, so use -1.0 to indicate "no obstacles" or "unknown"
         min_obstacle_distance = -1.0
         
@@ -217,8 +213,6 @@ class MetricsCollector:
             cohesiveness=cohesiveness,
             gcm_to_goal_distance=gcm_to_goal,
         )
-        print(f"Metrics: dist={gcm_to_goal:.2f}, frac={fraction_in_goal:.2f}, t={t:.2f}")
-        
         self.current_run.add_step(step)
     
     def get_run(self, run_id: str) -> Optional[RunMetrics]:

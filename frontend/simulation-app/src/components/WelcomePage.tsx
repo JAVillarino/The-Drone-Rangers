@@ -3,10 +3,10 @@ import "./LandingPage.css";
 
 interface WelcomePageProps {
   onNavigateToSimulator: () => void;
-  onNavigateToLiveSystem: () => void;
+  onNavigateToMetrics: () => void;
 }
 
-export default function WelcomePage({ onNavigateToSimulator, onNavigateToLiveSystem }: WelcomePageProps) {
+export default function WelcomePage({ onNavigateToSimulator, onNavigateToMetrics }: WelcomePageProps) {
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -19,7 +19,7 @@ export default function WelcomePage({ onNavigateToSimulator, onNavigateToLiveSys
       <div className="lp-grid">
         {/* Simulator Option */}
         <div className="lp-cards">
-          <div 
+          <div
             className={`choice-option lp-card welcome-card ${selectedCard === 'simulator' ? "selected" : ""}`}
             onClick={() => {
               setSelectedCard('simulator');
@@ -54,41 +54,39 @@ export default function WelcomePage({ onNavigateToSimulator, onNavigateToLiveSys
               <div className="action-arrow">→</div>
             </div>
           </div>
-          
-          <div 
-            className={`choice-option lp-card welcome-card ${selectedCard === 'real' ? "selected" : ""}`}
+
+          {/* Metrics Option */}
+          <div
+            className={`choice-option lp-card welcome-card ${selectedCard === 'metrics' ? "selected" : ""}`}
             onClick={() => {
-              setSelectedCard('real');
+              setSelectedCard('metrics');
               setIsTransitioning(true);
-              setTimeout(() => onNavigateToLiveSystem(), 500);
+              setTimeout(() => onNavigateToMetrics(), 500);
             }}
-            onMouseEnter={() => setHoveredCard('real')}
+            onMouseEnter={() => setHoveredCard('metrics')}
             onMouseLeave={() => setHoveredCard(null)}
           >
             <div className="welcome-card-header">
-              <div className="welcome-card-icon operations-icon">
-                <div className="drone-symbol">
-                  <div className="drone-body"></div>
-                  <div className="drone-prop"></div>
-                  <div className="drone-prop"></div>
-                </div>
+              <div className="welcome-card-icon metrics-icon">
+                <span style={{ fontSize: '24px' }}>📊</span>
               </div>
-              <h3 className="welcome-card-title">Live Operations</h3>
+              <h3 className="welcome-card-title">Metrics & History</h3>
             </div>
             <div className="welcome-card-content">
               <p className="welcome-card-description">
-                Deploy your drone fleet for real-world herding operations.
+                Review past simulation runs and analyze performance data.
               </p>
               <div className="welcome-card-features">
-                <span className="feature-tag">Real-time</span>
-                <span className="feature-tag">Live Control</span>
-                <span className="feature-tag">Monitoring</span>
+                <span className="feature-tag">Run History</span>
+                <span className="feature-tag">Performance Stats</span>
+                <span className="feature-tag">Data Export</span>
               </div>
             </div>
             <div className="welcome-card-action">
               <div className="action-arrow">→</div>
             </div>
           </div>
+
         </div>
 
         {/* Description Panel */}
@@ -110,34 +108,34 @@ export default function WelcomePage({ onNavigateToSimulator, onNavigateToLiveSys
                   </div>
                 </div>
               </div>
-            ) : (selectedCard || hoveredCard) === 'real' ? (
+            ) : (selectedCard || hoveredCard) === 'metrics' ? (
               <div>
-                <h3>Live Operations</h3>
-                <p>Deploy your drone fleet for real-world herding operations. Connect to live drone systems and execute autonomous herding missions.</p>
+                <h3>Metrics Dashboard</h3>
+                <p>Deep dive into your simulation performance. Track progress over time and identify areas for improvement.</p>
                 <div className="feature-list">
                   <div className="feature-item">
-                    <strong>Real-time Monitoring:</strong> Live tracking of drone positions and herd movements
+                    <strong>Run History:</strong> Access a complete log of all your simulation runs
                   </div>
                   <div className="feature-item">
-                    <strong>Live Communication:</strong> Direct control and coordination with drone systems
+                    <strong>Detailed Stats:</strong> View success rates, time-to-goal, and cohesiveness scores
                   </div>
                   <div className="feature-item">
-                    <strong>Remote Control:</strong> Manual override and emergency controls
+                    <strong>Comparative Analysis:</strong> Compare different strategies and configurations
                   </div>
                 </div>
               </div>
             ) : (
               <div>
-                <h3>Choose Your Mode</h3>
-                <p>Select between simulation training or live operations to begin your drone herding mission.</p>
+                <h3>Welcome to Drone Rangers</h3>
+                <p>Select an option to get started.</p>
                 <div className="welcome-features">
                   <div className="welcome-feature">
                     <div className="feature-icon">Simulation</div>
                     <p>Safe testing environment</p>
                   </div>
                   <div className="welcome-feature">
-                    <div className="feature-icon">Live Operations</div>
-                    <p>Real-world deployment</p>
+                    <div className="feature-icon">Metrics</div>
+                    <p>Performance tracking</p>
                   </div>
                 </div>
               </div>

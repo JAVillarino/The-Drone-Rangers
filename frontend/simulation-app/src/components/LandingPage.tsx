@@ -345,11 +345,11 @@ export default function LandingPage({ onSimulationStart, startPresetSim, startCu
                                 <option disabled>No scenarios available for this environment</option>
                             )}
 
-                            {/* Custom Scenarios (Always show, or filter? Let's show all for now or maybe filter if they have environment) */}
-                            {presetScenarios.filter(s => s.visibility !== 'preset').length > 0 && (
+                            {/* Custom Scenarios Filtered by Environment */}
+                            {presetScenarios.filter(s => s.visibility !== 'preset' && s.environment === selectedEnvironment).length > 0 && (
                                 <optgroup label="Custom Scenarios">
                                     {presetScenarios
-                                        .filter(s => s.visibility !== 'preset')
+                                        .filter(s => s.visibility !== 'preset' && s.environment === selectedEnvironment)
                                         .map(scenario => (
                                             <option key={scenario.id} value={scenario.id}>
                                                 {scenario.name}
@@ -418,7 +418,8 @@ export default function LandingPage({ onSimulationStart, startPresetSim, startCu
             </div>
         </>
     );
-}/**
+}
+/**
  * Ideas:
  * Header with App Name
  * Maybe:

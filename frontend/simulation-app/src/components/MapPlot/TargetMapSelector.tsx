@@ -30,7 +30,7 @@ export default function TargetMapSelector({
       // Check if initialTarget is in world coordinates (within worldMin/worldMax range)
       // or SVG coordinates (likely much larger values)
       const isWorldCoords = initialTarget[0] >= worldMin && initialTarget[0] <= worldMax &&
-                            initialTarget[1] >= worldMin && initialTarget[1] <= worldMax;
+        initialTarget[1] >= worldMin && initialTarget[1] <= worldMax;
 
       if (isWorldCoords) {
         // Convert world coordinates to SVG coordinates
@@ -48,29 +48,29 @@ export default function TargetMapSelector({
 
   const handleMapClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current) return;
-    
+
     const svg = svgRef.current;
     const pt = svg.createSVGPoint();
     pt.x = e.clientX;
     pt.y = e.clientY;
     const cursorpt = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-    
+
     // Get SVG dimensions
     const svgRect = svg.getBoundingClientRect();
     const svgWidth = svgRect.width;
     const svgHeight = svgRect.height;
-    
+
     // Transform SVG coordinates to world coordinates
     // Similar to CustomScenarioModal transformation
     const worldX = (cursorpt.x / svgWidth) * (worldMax - worldMin) + worldMin;
     // Invert Y axis (SVG Y is top-to-bottom, world Y is bottom-to-top)
     const worldY = ((svgHeight - cursorpt.y) / svgHeight) * (worldMax - worldMin) + worldMin;
-    
+
     const worldCoords: [number, number] = [
       parseFloat(worldX.toFixed(2)),
       parseFloat(worldY.toFixed(2))
     ];
-    
+
     setTargetPos([cursorpt.x, cursorpt.y]); // Store SVG coordinates for display
     onTargetSelect(worldCoords);
   };

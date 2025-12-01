@@ -28,7 +28,13 @@ interface MapPlotProps {
     themeKey?: ScenarioThemeKey
 }
 
-const CANVAS_SIZE = 600;
+const getCanvasSize = (themeKey?: ScenarioThemeKey) => {
+    if (themeKey === "evacuation-prototype") {
+        return { width: 742, height: 523 }; // matches evacuation-map.jpg dimensions
+    }
+    // Use square canvas for square images
+    return { width: 600, height: 600 };
+};
 
 const zoomMax = 250;
 
@@ -62,35 +68,58 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
 
     const backgroundImage = getBackgroundImage();
 
-    // Dynamic zoom/bounds based on scenario type
-    const getZoomMin = () => {
-        return 0;
-    };
-    const currentZoomMin = getZoomMin();
-
-    const getZoomMax = () => {
-        if (themeKey === "oil-spill") return 300; // Zoom out for ocean
-        return 250; // Default
-    };
-    const currentZoomMax = getZoomMax();
-
-    const getWorldBounds = () => {
+    // Fixed zoom window - this is what's VISIBLE at one time
+    const getZoomWindow = () => {
         if (themeKey === "evacuation-prototype") {
-            return { minX: -250, maxX: 400, minY: 0, maxY: 500 };
+            // City: show 500 width (zoomed out from 400)
+            return { min: 0, max: 500 };
         }
         if (themeKey === "oil-spill") {
-            return { minX: 0, maxX: 300, minY: 0, maxY: 300 };
+            // Oil spill: show 300x300 at a time (zoomed out from 250)
+            return { min: 0, max: 300 };
         }
-        return { minX: 0, maxX: 250, minY: 0, maxY: 250 };
+        // Farm: show 300x300 at a time (zoomed out from 250)
+        return { min: 0, max: 300 };
+    };
+    const zoomWindow = getZoomWindow();
+    const currentZoomMin = zoomWindow.min;
+    const currentZoomMax = zoomWindow.max;
+
+    // World bounds - this is the TOTAL PANNABLE AREA (must be larger than zoom window for panning)
+    const getWorldBounds = () => {
+        if (themeKey === "evacuation-prototype") {
+            // City: total area larger than visible window
+            return { minX: -100, maxX: 600, minY: -50, maxY: 500 };
+        }
+        if (themeKey === "oil-spill") {
+            // Oil spill: 0-300 simulation with padding for panning
+            return { minX: -50, maxX: 400, minY: -50, maxY: 400 };
+        }
+        // Farm: 0-250 simulation with padding for panning
+        return { minX: -50, maxX: 350, minY: -50, maxY: 350 };
     };
     const currentWorldBounds = getWorldBounds();
+
+    // Get canvas size based on scenario to match image aspect ratios
+    const canvasSize = getCanvasSize(themeKey);
+
+    // Debug logging to diagnose coordinate system
+    const windowSize = currentZoomMax - currentZoomMin;
+    console.log("SimulationMapPlot - Zoom config:", {
+        currentZoomMin,
+        currentZoomMax,
+        windowSize,
+        worldBounds: currentWorldBounds,
+        canvasSize
+    });
 
     const { svgRef, scaleCoord, inverseScaleCoord } = usePan({
         data,
         zoomMin: currentZoomMin,
         zoomMax: currentZoomMax,
-        scale: 0.85,
-        canvasSize: CANVAS_SIZE,
+        scale: 1.0,
+        canvasWidth: canvasSize.width,
+        canvasHeight: canvasSize.height,
         worldBounds: currentWorldBounds
     });
 
@@ -125,8 +154,14 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
         }
 
         if (choosingTargetJobId) {
-            const worldX = inverseScaleCoord(cursorpt.x, "x");
-            const worldY = inverseScaleCoord(cursorpt.y, "y");
+            let worldX = inverseScaleCoord(cursorpt.x, "x");
+            let worldY = inverseScaleCoord(cursorpt.y, "y");
+
+            // Clamp to worldBounds to prevent targets outside visible area
+            if (currentWorldBounds) {
+                worldX = Math.max(currentWorldBounds.minX, Math.min(currentWorldBounds.maxX, worldX));
+                worldY = Math.max(currentWorldBounds.minY, Math.min(currentWorldBounds.maxY, worldY));
+            }
 
             const job = data.jobs.find(j => j.id === choosingTargetJobId);
             const currentRadius = job?.target?.type === 'circle' ? job.target.radius : 25;
@@ -303,10 +338,21 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
             <svg
                 ref={svgRef}
                 className="map"
+                viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
+                preserveAspectRatio="xMidYMid slice"
                 onClick={handleClick}
                 style={{ cursor: isDrawingObstacle ? 'crosshair' : choosingTargetJobId ? 'crosshair' : 'default' }}
             >
-                <Map data={data} obstacles={obstacles} backgroundImage={backgroundImage} scaleCoord={scaleCoord} theme={theme} />
+                <Map
+                    data={data}
+                    obstacles={obstacles}
+                    backgroundImage={backgroundImage}
+                    scaleCoord={scaleCoord}
+                    theme={theme}
+                    canvasWidth={canvasSize.width}
+                    canvasHeight={canvasSize.height}
+                    worldBounds={currentWorldBounds}
+                />
 
                 {/* Render obstacle being drawn */}
                 {isDrawingObstacle && obstaclePoints.length > 0 && (

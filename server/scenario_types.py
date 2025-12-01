@@ -57,82 +57,10 @@ class ScenarioTypeDefinition:
 
 # Registry of available scenario types
 SCENARIO_TYPES: Dict[str, ScenarioTypeDefinition] = {
-    "herd_dense_training": ScenarioTypeDefinition(
-        key="herd_dense_training",
-        name="Dense Herd Training",
-        description="Tightly clustered herd to practice fine control and containment.",
-        default_world_config={
-            "boundary": "none",
-        },
-        default_policy_config={
-            "key": "defensive",
-        },
-        default_theme_key="dense-herd",
-        default_icon_set="herding",
-        recommended_agents=50,
-        recommended_controllers=3,
-        tags=["training", "dense", "containment"],
-        environment="farm",
-    ),
-    
-    "herd_scattered_recovery": ScenarioTypeDefinition(
-        key="herd_scattered_recovery",
-        name="Scattered Herd Recovery",
-        description="Agents scattered across the field for collection and recovery practice.",
-        default_world_config={
-            "boundary": "none",
-        },
-        default_policy_config={
-            "key": "aggressive",
-        },
-        default_theme_key="scattered-herd",
-        default_icon_set="herding",
-        recommended_agents=50,
-        recommended_controllers=4,
-        tags=["training", "scattered", "collection"],
-        environment="farm",
-    ),
-    
-    "obstacle_corridor_push": ScenarioTypeDefinition(
-        key="obstacle_corridor_push",
-        name="Obstacle Corridor Push",
-        description="Push the herd through a narrow corridor with obstacles on both sides.",
-        default_world_config={
-            "boundary": "reflect",
-        },
-        default_policy_config={
-            "key": "defensive",
-        },
-        default_theme_key="stress-near-obstacles",
-        default_icon_set="herding",
-        recommended_agents=40,
-        recommended_controllers=3,
-        tags=["obstacle", "corridor", "challenge"],
-        environment="farm",
-    ),
-    
-    "patrol_perimeter": ScenarioTypeDefinition(
-        key="patrol_perimeter",
-        name="Patrol Perimeter",
-        description="Maintain flock containment with drones orbiting the perimeter.",
-        default_world_config={
-            "boundary": "none",
-        },
-        default_policy_config={
-            "key": "patrol",
-        },
-        default_theme_key="default-herd",
-        default_icon_set="herding",
-        recommended_agents=60,
-        recommended_controllers=4,
-        tags=["patrol", "containment", "monitoring"],
-        environment="farm",
-    ),
-    
-    "large_flock_challenge": ScenarioTypeDefinition(
-        key="large_flock_challenge",
-        name="Large Flock Challenge",
-        description="200+ agents in multiple clusters - requires coordinated multi-drone strategy.",
+    "herding_standard": ScenarioTypeDefinition(
+        key="herding_standard",
+        name="Herding",
+        description="Standard sheep herding scenario. Guide the flock to the target zone.",
         default_world_config={
             "boundary": "none",
         },
@@ -141,12 +69,12 @@ SCENARIO_TYPES: Dict[str, ScenarioTypeDefinition] = {
         },
         default_theme_key="default-herd",
         default_icon_set="herding",
-        recommended_agents=200,
-        recommended_controllers=6,
-        tags=["large", "clusters", "challenge", "multi-drone"],
+        recommended_agents=50,
+        recommended_controllers=2,
+        tags=["herding", "farm", "standard"],
         environment="farm",
     ),
-    
+
     "evacuation_prototype": ScenarioTypeDefinition(
         key="evacuation_prototype",
         name="City Evacuation",
@@ -155,11 +83,16 @@ SCENARIO_TYPES: Dict[str, ScenarioTypeDefinition] = {
             "boundary": "reflect",
             "k_nn": 1,          # Minimal flocking - people don't herd like sheep
             "wa": 0.1,          # Very low attraction - people don't clump
-            "wr": 2.0,          # Moderate repulsion - personal space
-            "wd": 0.2,          # Low alignment - people move independently
+            "wr": 1.0,          # Moderate repulsion - personal space
+            "w_align": 0.2,     # Low alignment - people move independently
             "graze_alpha": 0.0, # No random grazing
-            "vmax": 1.0,        # Realistic walking speed
-            "dt": 0.05,         # Small time steps for smooth movement
+            "vmax": 0.6,        # Realistic walking speed
+            "umax": 1.0,        # Moderate drone speed
+            "w_target": 8.0,    # Stronger attraction to goal
+            "wr": 0.5,          # Reduced repulsion for smoother flow
+            "ws": 10.0,         # Greatly reduced drone repulsion to prevent erratic movement
+            "ra": 2.0,          # Smaller agent radius for tighter packing
+            "sigma": 0.001,      # Reduced noise for less erratic movement
         },
         default_policy_config={
             "key": "evacuation-prototype",
@@ -180,11 +113,12 @@ SCENARIO_TYPES: Dict[str, ScenarioTypeDefinition] = {
             "boundary": "none",
             "k_nn": 0,          # No flocking/alignment
             "wa": 0.1,          # Minimal attraction - prevents clumping
-            "wr": 10.0,         # Low repulsion - oil can overlap slightly
-            "ws": 80.0,         # Strong response to boats
+            "wr": 5.0,          # Low repulsion - oil can overlap slightly
+            "ws": 50.0,         # Strong response to boats
             "wm": 0.0,          # No inertia
             "vmax": 0.5,        # Slow movement
             "graze_alpha": 0.0, # No random wandering
+            "sigma": 0.0,       # No random noise
         },
         default_policy_config={
             "key": "default",   # Standard herding logic works for pushing
@@ -241,27 +175,7 @@ def generate_initial_layout(
     center_y = (ymin + ymax) / 2
     
     # Generate agent positions based on scenario type
-    if "dense" in scenario_type.key or "containment" in scenario_type.tags:
-        # Dense: agents clustered in center
-        agents = rng.normal(
-            loc=[center_x, center_y],
-            scale=[width * 0.1, height * 0.1],
-            size=(n_agents, 2)
-        )
-    elif "scattered" in scenario_type.key or "scattered" in scenario_type.tags:
-        # Scattered: agents spread across the field
-        agents = rng.uniform(
-            low=[xmin + width * 0.1, ymin + height * 0.1],
-            high=[xmax - width * 0.1, ymax - height * 0.1],
-            size=(n_agents, 2)
-        )
-    elif "corridor" in scenario_type.key:
-        # Corridor: agents in a line formation
-        agents = np.column_stack([
-            rng.uniform(xmin + width * 0.1, xmin + width * 0.3, n_agents),
-            rng.uniform(center_y - height * 0.15, center_y + height * 0.15, n_agents),
-        ])
-    elif "clusters" in scenario_type.tags:
+    if "clusters" in scenario_type.tags:
         # Clusters: agents in 2-4 clusters
         n_clusters = min(4, max(2, n_agents // 30))
         agents_per_cluster = n_agents // n_clusters
@@ -303,7 +217,10 @@ def generate_initial_layout(
     controllers[:, 1] = np.clip(controllers[:, 1], ymin + 5, ymax - 5)
     
     # Default target: center of bounds
-    targets = [[center_x, center_y]]
+    if scenario_type.key == "evacuation_prototype":
+        targets = [[50.0, 50.0]] # Top-Left for evacuation
+    else:
+        targets = [[center_x, center_y]]
     
     # Generate obstacles (if applicable)
     obstacles = []

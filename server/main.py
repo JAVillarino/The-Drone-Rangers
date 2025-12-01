@@ -91,7 +91,6 @@ def initialize_sim():
         target_xy=None,  # No target by default - user must set via frontend
         boundary="none",
         k_nn=k_nn,
-        dt=0.1,
     )
     backend_adapter.paused = True  # Start paused since there's no target yet
     policy = _create_policy_for_world(backend_adapter)
@@ -381,17 +380,43 @@ def load_scenario(scenario_id):
             k_nn = min(21, max(1, num_sheep - 1))  # Default is 21, but cap at N-1
             
             # Build world_params: start with defaults, overlay scenario.world_config
+            # Build world_params: start with defaults
             world_params = {
                 "k_nn": k_nn,
-                "dt": 0.1,
                 "boundary": scenario.boundary,
                 "bounds": scenario.bounds,
             }
             
-            # Overlay scenario-specific world config if provided
-            if scenario.world_config is not None:
-                world_params.update(scenario.world_config)
-            
+            # 1. Overlay base config from scenario type (if any)
+            if scenario.scenario_type:
+                from server.scenario_types import get_scenario_type
+                st = get_scenario_type(scenario.scenario_type)
+                if st and st.default_world_config:
+                    world_params.update(st.default_world_config)
+
+            # 2. Apply overrides and multipliers from scenario.world_config
+            if scenario.world_config:
+                # Separate multipliers from direct overrides
+                multipliers = {k: v for k, v in scenario.world_config.items() if k.endswith("_multiplier")}
+                overrides = {k: v for k, v in scenario.world_config.items() if not k.endswith("_multiplier")}
+                
+                # Apply direct overrides first
+                world_params.update(overrides)
+                
+                # Apply multipliers to the current values (using World defaults as fallback)
+                if "wa_multiplier" in multipliers:
+                    base = world_params.get("wa", 1.05)
+                    world_params["wa"] = base * multipliers["wa_multiplier"]
+                
+                if "wr_multiplier" in multipliers:
+                    base = world_params.get("wr", 50.0) # Default wr is high for sheep
+                    world_params["wr"] = base * multipliers["wr_multiplier"]
+                    
+                if "wd_multiplier" in multipliers:
+                    # Map wd_multiplier to w_align
+                    base = world_params.get("w_align", 0.0)
+                    world_params["w_align"] = base * multipliers["wd_multiplier"]
+
             # Convert obstacles to world format
             obstacles_polygons = []
             if scenario.obstacles:

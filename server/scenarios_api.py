@@ -311,7 +311,7 @@ def _seed_presets():
             drones=[(50.0, 50.0), (200.0, 50.0), (125.0, 200.0)],
             targets=[],
             boundary="none",
-            bounds=(0.0, 250.0, 0.0, 250.0),
+            bounds=(0.0, 300.0, 0.0, 300.0),
             scenario_type="oil_spill_cleanup",
             policy_config={"key": "default"},
             appearance={"themeKey": "oil-spill", "iconSet": "oil"},

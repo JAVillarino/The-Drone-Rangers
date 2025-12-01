@@ -9,11 +9,12 @@ interface UsePanArgs {
   zoomMin: number;
   zoomMax: number;
   scale: number;
-  canvasSize: number;
+  canvasWidth: number;
+  canvasHeight: number;
   worldBounds?: { minX: number, maxX: number, minY: number, maxY: number };
 }
 
-export function usePan({ data, zoomMin, zoomMax, scale, canvasSize, worldBounds }: UsePanArgs) {
+export function usePan({ data, zoomMin, zoomMax, scale, canvasWidth, canvasHeight, worldBounds }: UsePanArgs) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -44,17 +45,23 @@ export function usePan({ data, zoomMin, zoomMax, scale, canvasSize, worldBounds 
   const windowSize = zoomMax - zoomMin;
 
   const clampPan = useCallback((x: number, y: number) => {
+    // Calculate the world coordinates of the visible window edges
+    // Visible window in world coords: [zoomMin + x, zoomMin + x + windowSize]
+    // This must stay within [bounds.minX, bounds.maxX]
+
+    // Min pan: when left edge of window is at bounds.minX
+    // zoomMin + x = bounds.minX => x = bounds.minX - zoomMin
     const minPanX = bounds.minX - zoomMin;
-    const maxPanX = bounds.maxX - zoomMin - windowSize;
     const minPanY = bounds.minY - zoomMin;
+
+    // Max pan: when right edge of window is at bounds.maxX
+    // zoomMin + x + windowSize = bounds.maxX => x = bounds.maxX - zoomMin - windowSize
+    const maxPanX = bounds.maxX - zoomMin - windowSize;
     const maxPanY = bounds.maxY - zoomMin - windowSize;
 
-    // Handle case where window > bounds (center or align min)
-    const effectiveMaxPanX = Math.max(minPanX, maxPanX);
-    const effectiveMaxPanY = Math.max(minPanY, maxPanY);
-
-    x = Math.max(minPanX, Math.min(effectiveMaxPanX, x));
-    y = Math.max(minPanY, Math.min(effectiveMaxPanY, y));
+    // Clamp pan values
+    x = Math.max(minPanX, Math.min(maxPanX, x));
+    y = Math.max(minPanY, Math.min(maxPanY, y));
 
     return { x, y };
   }, [bounds, zoomMin, windowSize]);
@@ -81,16 +88,18 @@ export function usePan({ data, zoomMin, zoomMax, scale, canvasSize, worldBounds 
     (val: number, axis: "x" | "y") => {
       const offset = axis === "x" ? pan.x : pan.y;
       const effectiveMin = zoomMin + offset;
+      const canvasSize = axis === "x" ? canvasWidth : canvasHeight;
       const scaled = ((val - effectiveMin) / windowSize) * canvasSize * scale;
       // Invert Y axis for SVG (0 is top, but simulation 0 is bottom)
       return axis === "y" ? canvasSize - scaled : scaled;
     },
-    [pan, zoomMin, windowSize, canvasSize, scale]
+    [pan, zoomMin, windowSize, canvasWidth, canvasHeight, scale]
   );
 
   const inverseScaleCoord = (val: number, axis: "x" | "y") => {
     const offset = axis === "x" ? pan.x : pan.y;
     const effectiveMin = zoomMin + offset;
+    const canvasSize = axis === "x" ? canvasWidth : canvasHeight;
     // Invert Y axis back from SVG to World
     const scaled = axis === "y" ? canvasSize - val : val;
     return ((scaled / (canvasSize * scale)) * windowSize + effectiveMin);
@@ -106,6 +115,9 @@ interface RenderArgs {
   scaleCoord: (val: number, axis: "x" | "y") => number;
   /** Optional theme for styling entities. Falls back to default-herd if not provided. */
   theme?: ScenarioTheme;
+  canvasWidth: number;
+  canvasHeight: number;
+  worldBounds?: { minX: number, maxX: number, minY: number, maxY: number };
 }
 
 export function Map(props: RenderArgs) {
@@ -114,7 +126,7 @@ export function Map(props: RenderArgs) {
     return null;
   }
 
-  const { data, obstacles, backgroundImage, scaleCoord, theme: themeProp } = props;
+  const { data, obstacles, backgroundImage, scaleCoord, theme: themeProp, canvasWidth, canvasHeight, worldBounds } = props;
 
   // Use provided theme or fall back to default
   const theme = themeProp ?? getScenarioTheme("default-herd");
@@ -125,14 +137,25 @@ export function Map(props: RenderArgs) {
 
   return (
     <>
-      <image
-        x={scaleCoord(-500, "x")}
-        y={scaleCoord(750, "y")}
-        width={scaleCoord(750, "x") - scaleCoord(-500, "x")}
-        height={scaleCoord(-500, "y") - scaleCoord(750, "y")}
-        href={backgroundImage}
-        preserveAspectRatio="xMidYMid slice"
-      />
+      {worldBounds ? (
+        <image
+          x={scaleCoord(worldBounds.minX, "x")}
+          y={scaleCoord(worldBounds.maxY, "y")}
+          width={scaleCoord(worldBounds.maxX, "x") - scaleCoord(worldBounds.minX, "x")}
+          height={scaleCoord(worldBounds.minY, "y") - scaleCoord(worldBounds.maxY, "y")}
+          href={backgroundImage}
+          preserveAspectRatio="none"
+        />
+      ) : (
+        <image
+          x={0}
+          y={0}
+          width={canvasWidth}
+          height={canvasHeight}
+          href={backgroundImage}
+          preserveAspectRatio="xMidYMid slice"
+        />
+      )}
 
       {
         allObstacles.map((obstacle, i) => (

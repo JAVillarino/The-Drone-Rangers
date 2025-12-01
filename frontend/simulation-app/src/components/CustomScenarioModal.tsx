@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import ObjectMarker from "./MapPlot/ObjectMarker";
 import map_bg from "../../img/King_Ranch_better.jpg";
 import cityMap from "../../img/evacuation-map.jpg";
 import oceanMap from "../../img/ocean-map.jpg";
@@ -71,6 +70,9 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
         });
         fetchScenarioTypes().then(types => {
             setScenarioTypes(types);
+            if (types.length > 0 && !selectedScenarioType) {
+                setSelectedScenarioType(types[0].key);
+            }
         });
     }, []);
 
@@ -122,21 +124,67 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
     // Initialize animal positions when component mounts or numAnimals changes
     useEffect(() => {
         setAnimalPositions((prev) => {
-            const newAnimals = Array.from({ length: numAnimals }, (_, i) => {
-                // Keep existing animal if available, otherwise create a new one within background bounds
-                if (prev[i] !== undefined) return prev[i];
-                // Place animals in a grid pattern within the background image area
-                const cols = Math.ceil(Math.sqrt(numAnimals));
-                const spacing = 50; // Reduced spacing to fit more on screen
-                const startX = 50;
-                const startY = 50;
-                const x = startX + (i % cols) * spacing;
-                const y = startY + Math.floor(i / cols) * spacing;
-                return [x, y] as [number, number];
-            });
-            return newAnimals;
+            // If we have enough previous animals, keep them (or truncate)
+            if (prev.length >= numAnimals) {
+                return prev.slice(0, numAnimals);
+            }
+
+            // Need to add more animals
+            const numToAdd = numAnimals - prev.length;
+            const newAnimals: [number, number][] = [];
+
+            // Randomly cluster them in the center area (similar to simulation)
+            // Use 50px padding from edges to keep them on screen (approximate safe area)
+
+            for (let i = 0; i < numToAdd; i++) {
+                // Random position in a central cluster
+                const x = 300 + (Math.random() - 0.5) * 200;
+                const y = 300 + (Math.random() - 0.5) * 200;
+                newAnimals.push([x, y]);
+            }
+
+            return [...prev, ...newAnimals];
         });
     }, [numAnimals]);
+
+    // Update sliders when preset or scenario type changes
+    useEffect(() => {
+        // 1. Determine which preset is active
+        let presetKey = selectedPreset;
+
+        // If scenario type has a default policy, it might override the selection if we wanted strict syncing,
+        // but user might have manually changed the dropdown. 
+        // Let's just use the currently selected preset to update sliders.
+
+        const preset = policyPresets[presetKey];
+        if (preset) {
+            // Update sliders to match the preset's defaults if they exist
+            // Note: PolicyPreset type might not have these multipliers directly if they are defaults.
+            // But usually they are 1.0 unless specified.
+            // Let's check if we can get them.
+            // Actually, the preset object from API might just be the config dict.
+
+            // Reset to defaults (1.0) or specific values if we knew them.
+            // For now, let's reset to 1.0 when switching presets to indicate "standard" for that preset.
+            setCustomSpeedMultiplier(1.0);
+            setCustomDriveForce(1.0);
+        }
+    }, [selectedPreset, policyPresets]);
+
+    // Update advanced physics sliders when scenario type changes
+    useEffect(() => {
+        if (selectedScenarioType) {
+            const type = scenarioTypes.find(t => t.key === selectedScenarioType);
+            // Cast to any to access default_world_config if it's missing from the type definition
+            if (type && (type as any).default_world_config) {
+                // Extract multipliers if possible, or reset to 1.0 (representing "default for this type")
+                // Since the sliders are multipliers on top of the base config, 1.0 is always the correct starting point.
+                setCustomCohesion(1.0);
+                setCustomSeparation(1.0);
+                setCustomAlignment(1.0);
+            }
+        }
+    }, [selectedScenarioType, scenarioTypes]);
 
     // Cleanup global event listeners on unmount
     useEffect(() => {
@@ -201,8 +249,10 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
         let newX = e.clientX - mapRect.left - dragItem.current.offsetX;
         let newY = e.clientY - mapRect.top - dragItem.current.offsetY;
 
-        // No bounds constraints - entities can be placed anywhere
-        // newX and newY are used directly without clamping
+        // Clamp to map bounds
+        const padding = 10;
+        newX = Math.max(padding, Math.min(mapRect.width - padding, newX));
+        newY = Math.max(padding, Math.min(mapRect.height - padding, newY));
 
         const { type } = dragItem.current;
 
@@ -416,44 +466,9 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                         </div>
                     </div>
 
+
                     {/* Policy Configuration Section */}
                     <div className="modal-config-section">
-                        <div className="config-row">
-                            <div id="input-group">
-                                <label htmlFor="scenario-type">Scenario Type</label>
-                                <select
-                                    id="scenario-type"
-                                    value={selectedScenarioType}
-                                    onChange={(e) => setSelectedScenarioType(e.target.value)}
-                                    className="text-input"
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    <option value="">Custom (Manual Setup)</option>
-                                    {scenarioTypes.map((type) => (
-                                        <option key={type.key} value={type.key}>
-                                            {type.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div id="input-group">
-                                <label htmlFor="policy-preset">Herding Strategy</label>
-                                <select
-                                    id="policy-preset"
-                                    value={selectedPreset}
-                                    onChange={(e) => setSelectedPreset(e.target.value)}
-                                    className="text-input"
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    {Object.entries(policyPresets).map(([key, preset]) => (
-                                        <option key={key} value={key}>
-                                            {preset.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
                         {/* Advanced config toggle */}
                         <button
                             type="button"
@@ -481,6 +496,40 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                                 borderRadius: '8px',
                                 marginTop: '8px'
                             }}>
+                                <div className="config-row" style={{ marginBottom: '16px' }}>
+                                    <div id="input-group">
+                                        <label htmlFor="scenario-type">Scenario Type</label>
+                                        <select
+                                            id="scenario-type"
+                                            value={selectedScenarioType}
+                                            onChange={(e) => setSelectedScenarioType(e.target.value)}
+                                            className="text-input"
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            {scenarioTypes.map((type) => (
+                                                <option key={type.key} value={type.key}>
+                                                    {type.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div id="input-group">
+                                        <label htmlFor="policy-preset">Herding Strategy</label>
+                                        <select
+                                            id="policy-preset"
+                                            value={selectedPreset}
+                                            onChange={(e) => setSelectedPreset(e.target.value)}
+                                            className="text-input"
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            {Object.entries(policyPresets).map(([key, preset]) => (
+                                                <option key={key} value={key}>
+                                                    {preset.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
                                 <div className="slider-group" style={{ marginBottom: '12px' }}>
                                     <label style={{ fontSize: '13px', color: '#4a5568', display: 'flex', justifyContent: 'space-between' }}>
                                         <span>Drone Speed</span>
@@ -567,41 +616,53 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                     onDoubleClick={handleMapDoubleClick}
                     onContextMenu={(e) => e.preventDefault()}
                 >
-                    <image href={getBackgroundImage()} x="0" y="0" width="100%" height="100%" />
-                    {/* Render Animals/People - right-click to remove, drag to move */}
+                    <image href={getBackgroundImage()} x="0" y="0" width="100%" height="100%" preserveAspectRatio="none" />
+                    {/* Render Animals/People - using simple circles for performance */}
                     {animalPositions.map((pos, index) => (
-                        <g
+                        <circle
                             key={`animal-${index}`}
+                            cx={pos[0]}
+                            cy={pos[1]}
+                            r={getIconSet() === "evacuation" ? 4 : 5}
+                            fill={getIconSet() === "evacuation" ? "#4299e1" : "#ffffff"}
+                            stroke="#2d3748"
+                            strokeWidth="1"
                             onMouseDown={(e) => handleMouseDown(e, 'animal', index)}
                             onContextMenu={(e) => handleRightClick(e, 'animal', index)}
                             className="entity-marker"
                             data-entity-type="animal"
                             data-entity-index={index}
                             style={{ cursor: 'grab' }}
-                        >
-                            <ObjectMarker type="animal" x={pos[0]} y={pos[1]} iconSet={getIconSet()} />
-                        </g>
+                        />
                     ))}
                     {/* Render Drone/Guide */}
-                    <g
+                    <circle
+                        cx={dronePosition[0]}
+                        cy={dronePosition[1]}
+                        r={8}
+                        fill="#e53e3e"
+                        stroke="#742a2a"
+                        strokeWidth="2"
                         onMouseDown={(e) => handleMouseDown(e, 'drone')}
                         className="entity-marker"
                         data-entity-type="drone"
                         data-entity-index={null}
                         style={{ cursor: 'grab' }}
-                    >
-                        <ObjectMarker type="drone" x={dronePosition[0]} y={dronePosition[1]} iconSet={getIconSet()} />
-                    </g>
+                    />
                     {/* Render Target/Exit */}
-                    <g
+                    <circle
+                        cx={targetPosition[0]}
+                        cy={targetPosition[1]}
+                        r={10}
+                        fill="rgba(72, 187, 120, 0.5)"
+                        stroke="#2f855a"
+                        strokeWidth="2"
                         onMouseDown={(e) => handleMouseDown(e, 'target')}
                         className="entity-marker"
                         data-entity-type="target"
                         data-entity-index={null}
                         style={{ cursor: 'grab' }}
-                    >
-                        <ObjectMarker type="target" x={targetPosition[0]} y={targetPosition[1]} iconSet={getIconSet()} />
-                    </g>
+                    />
                 </svg>
 
                 {/* Help text for entity manipulation */}
@@ -626,7 +687,7 @@ export function CustomScenarioModal({ onClose, onSubmit, worldMax, worldMin }: C
                         {isSubmitting ? "Creating..." : "Submit Scenario"}
                     </button>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

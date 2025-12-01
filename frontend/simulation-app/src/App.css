@@ -21,19 +21,19 @@
 }
 
 .animal {
+  width: 10px;
+  height: 10px;
+}
+
+.drone {
   width: 16px;
   height: 16px;
 }
 
-.drone {
-  width: 24px;
-  height: 24px;
-}
-
 .target {
-  height: 24px;
-  width: 24px;
-  transform: translate(-12px, -18px);
+  height: 20px;
+  width: 20px;
+  transform: translate(-10px, -15px);
 }
 
 .map {
