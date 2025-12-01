@@ -127,7 +127,19 @@ export default function DroneManagementPage({ data, onBack: _onBack }: DroneMana
       }}
     >
       <div style={{ height: '100%', boxShadow: '4px 0 12px -4px rgba(0,0,0,0.4)', zIndex: 2 }}>
-        <div className="lp">
+        <div
+          style={{
+            minHeight: '100vh',
+            background: 'var(--lp-bg)',
+            color: 'var(--lp-text)',
+            padding: '48px 24px 64px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            position: 'relative',
+            animation: 'fadeInUp 0.6s ease-out',
+          }}
+        >
           <div className="lp-panel" style={{ padding: 16 }}>
             {isLoading ? (
               <div style={{ padding: 24, textAlign: 'center', opacity: 0.8 }}>Loading drones...</div>
