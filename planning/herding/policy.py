@@ -271,7 +271,10 @@ class ShepherdPolicy:
     def _should_apply_repulsion(self, world: state.State, drone_idx: int, gcm: np.ndarray, target: np.ndarray, target_positions: np.ndarray) -> bool:
         """Check if a specific drone should apply repulsion. Returns true if the drone is close to its collect point."""
         # If the drone is close to its collect point, then it should always apply repulsion
-        if np.linalg.norm(target_positions[drone_idx] - world.drones[drone_idx]) < 2:
+
+        # The more cohesive, the more likely we just want to apply repulsion.
+        repulsion_threshold = lerp_clamped(2, 5, 0.8, 1.2, self._cohesiveness(world, gcm))
+        if np.linalg.norm(target_positions[drone_idx] - world.drones[drone_idx]) < repulsion_threshold:
             return True
 
         return False
