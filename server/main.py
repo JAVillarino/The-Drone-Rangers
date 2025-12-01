@@ -788,8 +788,11 @@ if __name__ == "__main__":
         jobs_to_sync = set()  # Use set to avoid duplicate syncs
         with world_lock:
             # Promote any scheduled jobs that should now start
-            now = datetime.now(timezone.utc).timestamp()
+            now = datetime.now().timestamp()
+            #print("now in main loop:", now);
             for j in jobs:
+                #print("j.status in main loop:", j.status);
+                #print("j.start_at in main loop:", j.start_at);
                 if j.status == "scheduled" and j.start_at is not None and j.start_at <= now:
                     # Deactivate all other active jobs first (one active at a time)
                     for other in jobs:
