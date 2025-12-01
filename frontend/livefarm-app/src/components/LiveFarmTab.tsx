@@ -45,6 +45,9 @@ export function LiveFarmTab({
 
   // Stores the job ID that the user is currently choosing a target for.
   const [choosingTarget, setChoosingTarget] = useState<string | null>(null);
+  
+  // Stores the ID of the job whose card is currently open (for highlighting on map)
+  const [openJobId, setOpenJobId] = useState<string | null>(null);
 
 
   // Filter jobs based on time frame
@@ -145,6 +148,7 @@ export function LiveFarmTab({
               onFilterChange={onFilterChange}
               onSetTarget={(jobId, target) => onSetTarget({ jobId, target })}
               onSelectOnMap={(jobId) => setChoosingTarget(jobId)}
+              onOpenJobChange={setOpenJobId}
             />
 
             {choosingTarget && (
@@ -175,7 +179,7 @@ export function LiveFarmTab({
                 style={{ cursor: choosingTarget ? 'crosshair' : 'default' }}
             >
               {/* TODO: Actually take in the obstacles. */}
-              <Map data={filteredData} obstacles={[]} backgroundImage={backgroundImage} scaleCoord={scaleCoord} />
+              <Map data={filteredData} obstacles={[]} backgroundImage={backgroundImage} scaleCoord={scaleCoord} openJobId={openJobId} />
             </svg>
         </div>
     </div>

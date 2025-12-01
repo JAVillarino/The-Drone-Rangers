@@ -4,6 +4,7 @@ import { Target } from '../types.ts';
 interface JobStatusProps {
   jobName: string;
   status: string;
+  calendarStatus?: 'pending' | 'scheduled' | 'active' | 'completed' | 'cancelled';
   target: Target | null;
   droneCount: number;
   isActive: boolean;
@@ -19,6 +20,7 @@ interface JobStatusProps {
 const JobStatus: React.FC<JobStatusProps> = ({
   jobName,
   status,
+  calendarStatus,
   target,
   droneCount,
   isActive,
@@ -114,7 +116,17 @@ const JobStatus: React.FC<JobStatusProps> = ({
         >
           {isFolded ? '▶' : '▼'}
         </button>
-        <h3>Herding {jobName}</h3>
+        <h3>
+          Herding {jobName}
+          {calendarStatus && (
+            <>
+              {' '}
+              <span className={`job-status job-status-${calendarStatus}`}>
+                {calendarStatus}
+              </span>
+            </>
+          )}
+        </h3>
         <div className="kebab-menu-container" ref={kebabRef}>
           <button
             className="kebab-button"

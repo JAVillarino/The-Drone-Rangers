@@ -7,9 +7,10 @@ interface TargetMarkerProps {
   isActive: boolean;
   job: Job;
   immediateJobIndex?: number; // Position in queue for immediate jobs
+  isHighlighted?: boolean; // Whether this target is highlighted (e.g., when job card is open)
 }
 
-export default function TargetMarker({ x, y, isActive, job, immediateJobIndex }: TargetMarkerProps) {
+export default function TargetMarker({ x, y, isActive, job, immediateJobIndex, isHighlighted = false }: TargetMarkerProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   // Determine scheduling status text
@@ -36,6 +37,19 @@ export default function TargetMarker({ x, y, isActive, job, immediateJobIndex }:
 
   return (
     <g>
+      {/* Yellow outline circle when highlighted */}
+      {isHighlighted && (
+        <circle
+          cx={x}
+          cy={y}
+          r={16}
+          fill="none"
+          stroke="#FFD700"
+          strokeWidth="3"
+          strokeDasharray="none"
+          style={{ pointerEvents: 'none' }}
+        />
+      )}
       <image
         href={iconPath}
         x={x - 12}

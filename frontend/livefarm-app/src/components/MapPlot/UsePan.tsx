@@ -103,6 +103,7 @@ interface RenderArgs {
   obstacles: number[][][];
   backgroundImage: string;
   scaleCoord: (val: number, axis: "x" | "y") => number;
+  openJobId?: string | null; // ID of the job whose card is currently open
 }
 
 export function Map(props: RenderArgs) {
@@ -111,7 +112,7 @@ export function Map(props: RenderArgs) {
     return null;
   }
 
-  const { data, obstacles, backgroundImage, scaleCoord } = props;
+  const { data, obstacles, backgroundImage, scaleCoord, openJobId } = props;
   
   // Combine backend obstacles (data.polygons) with locally drawn obstacles
   const allObstacles = [...(data.polygons || []), ...obstacles];
@@ -211,6 +212,7 @@ export function Map(props: RenderArgs) {
                   isActive={isActive}
                   job={job}
                   immediateJobIndex={immediateJobIndex}
+                  isHighlighted={openJobId === job.id}
                 />
               </g>
             );
@@ -245,6 +247,7 @@ export function Map(props: RenderArgs) {
                   isActive={isActive}
                   job={job}
                   immediateJobIndex={immediateJobIndex}
+                  isHighlighted={openJobId === job.id}
                 />
               </g>
             );

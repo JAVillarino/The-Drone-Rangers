@@ -10,6 +10,7 @@ interface JobStatusContainerProps {
   onFilterChange: (value: number | null, unit: 'hours' | 'days' | 'weeks' | 'months') => void;
   onSetTarget: (jobId: string, target: Target) => void;
   onSelectOnMap: (jobId: string) => void;
+  onOpenJobChange?: (jobId: string | null) => void; // Callback when open job changes
 }
 
 const jobStatus = (j: Job) => {
@@ -31,7 +32,8 @@ export default function JobStatusContainer({
   filterUnit,
   onFilterChange,
   onSetTarget,
-  onSelectOnMap
+  onSelectOnMap,
+  onOpenJobChange
 }: JobStatusContainerProps) {
   const [openJobId, setOpenJobId] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -71,7 +73,9 @@ export default function JobStatusContainer({
   };
 
   const handleToggle = (jobId: string) => {
-    setOpenJobId(openJobId === jobId ? null : jobId);
+    const newOpenJobId = openJobId === jobId ? null : jobId;
+    setOpenJobId(newOpenJobId);
+    onOpenJobChange?.(newOpenJobId);
   };
 
   const handleCancel = async (jobId: string) => {
@@ -150,23 +154,39 @@ export default function JobStatusContainer({
         </div>
       </div>
       <div className="job-status-list">
-        {jobs.map((job, index) => (
-          <JobStatus
-            key={`job-${job.id || index}`}
-            jobName={`${index + 1}`}
-            status={jobStatus(job)}
-            target={job.target}
-            droneCount={job.drones}
-            isActive={job.is_active}
-            isOpen={openJobId === job.id}
-            onToggle={() => handleToggle(job.id)}
-            onSelectOnMap={() => onSelectOnMap(job.id)}
-            onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
-            onCancel={() => handleCancel(job.id)}
-            onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
-            onTargetChange={(newTarget: Target) => onSetTarget(job.id, newTarget)}
-          />
-        ))}
+        {jobs.map((job, index) => {
+          // Map Job status to calendar status format
+          // Job.status: "pending" | "scheduled" | "running" | "completed" | "cancelled"
+          // Calendar status: 'pending' | 'scheduled' | 'active' | 'completed' | 'cancelled'
+          // If job is active, show as "active" regardless of status field (matching calendar behavior)
+          let calendarStatus: 'pending' | 'scheduled' | 'active' | 'completed' | 'cancelled';
+          if (job.is_active) {
+            calendarStatus = 'active';
+          } else if (job.status === 'running') {
+            calendarStatus = 'active';
+          } else {
+            calendarStatus = job.status;
+          }
+          
+          return (
+            <JobStatus
+              key={`job-${job.id || index}`}
+              jobName={`${index + 1}`}
+              status={jobStatus(job)}
+              calendarStatus={calendarStatus}
+              target={job.target}
+              droneCount={job.drones}
+              isActive={job.is_active}
+              isOpen={openJobId === job.id}
+              onToggle={() => handleToggle(job.id)}
+              onSelectOnMap={() => onSelectOnMap(job.id)}
+              onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
+              onCancel={() => handleCancel(job.id)}
+              onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
+              onTargetChange={(newTarget: Target) => onSetTarget(job.id, newTarget)}
+            />
+          );
+        })}
       </div>
     </div>
   );
