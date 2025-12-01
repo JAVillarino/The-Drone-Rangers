@@ -50,10 +50,13 @@ export function LiveFarmTab({
   const [openJobId, setOpenJobId] = useState<string | null>(null);
 
 
-  // Filter jobs based on time frame
+  // Filter jobs based on time frame and exclude cancelled jobs
   const filteredJobs = useMemo(() => {
+    // First, filter out cancelled jobs
+    const activeJobs = data.jobs.filter((job: Job) => job.status !== 'cancelled');
+    
     if (filterValue === null || filterValue <= 0) {
-      return data.jobs;
+      return activeJobs;
     }
 
     const now = Date.now();
@@ -76,7 +79,7 @@ export function LiveFarmTab({
 
     const cutoffTime = now + timeFrameMs;
 
-    return data.jobs.filter((job: Job) => {
+    return activeJobs.filter((job: Job) => {
       // Always show immediate jobs (jobs without start_at)
       if (job.start_at === null) {
         return true;

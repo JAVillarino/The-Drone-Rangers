@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Job, Target } from '../types';
+import { Job, Target, State } from '../types';
 import JobStatus from './JobStatus';
 import { setJobActiveState, setJobDroneCount, deleteFarmJob } from '../api/state';
 import { useQueryClient } from '@tanstack/react-query';
@@ -85,19 +85,32 @@ export default function JobStatusContainer({
       return;
     }
     
+    // If the cancelled job was open, close it
+    if (openJobId === jobId) {
+      setOpenJobId(null);
+      onOpenJobChange?.(null);
+    }
+
+    // Optimistically update the cache to immediately remove the job from UI
+    // This works even when SSE is active (which doesn't refetch on invalidation)
+    queryClient.setQueryData<State>(['objects', 'real-farm'], (oldData) => {
+      if (!oldData) return oldData;
+      return {
+        ...oldData,
+        jobs: oldData.jobs.filter(job => job.id !== jobId)
+      };
+    });
+    
     try {
       await deleteFarmJob(jobId);
-      // If the cancelled job was open, close it
-      if (openJobId === jobId) {
-        setOpenJobId(null);
-        onOpenJobChange?.(null);
-      }
-      // Invalidate state query to immediately refresh the job list
+      // Invalidate queries to ensure we get fresh data from backend
+      // This will sync with the server when SSE sends next update or polling refetches
       queryClient.invalidateQueries({ queryKey: ['objects', 'real-farm'] });
-      // Also invalidate farm-jobs query for calendar view
       queryClient.invalidateQueries({ queryKey: ['farm-jobs'] });
     } catch (error) {
       console.error('Failed to delete job:', error);
+      // Revert optimistic update on error by invalidating (will refetch from server)
+      queryClient.invalidateQueries({ queryKey: ['objects', 'real-farm'] });
       alert('Failed to delete job. Please try again.');
     }
   };

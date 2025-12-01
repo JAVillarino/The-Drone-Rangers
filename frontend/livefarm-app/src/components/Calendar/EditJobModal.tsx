@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FarmJob } from '../../types';
+import { FarmJob, State } from '../../types';
 import TargetMapSelector from '../MapPlot/TargetMapSelector';
 import { updateFarmJob, deleteFarmJob } from '../../api/state';
 import { useQueryClient } from '@tanstack/react-query';
@@ -209,9 +209,18 @@ export default function EditJobModal({
     setIsDeleting(true);
     setError(null);
     
+    // Optimistically update the cache to immediately remove the job from UI
+    queryClient.setQueryData<State>(['objects', 'real-farm'], (oldData) => {
+      if (!oldData) return oldData;
+      return {
+        ...oldData,
+        jobs: oldData.jobs.filter(j => j.id !== job.id)
+      };
+    });
+    
     try {
       await deleteFarmJob(job.id);
-      // Invalidate queries to refresh the UI
+      // Invalidate queries to ensure we get fresh data from backend
       queryClient.invalidateQueries({ queryKey: ['objects', 'real-farm'] });
       queryClient.invalidateQueries({ queryKey: ['farm-jobs'] });
       
@@ -221,6 +230,8 @@ export default function EditJobModal({
       
       onClose();
     } catch (err) {
+      // Revert optimistic update on error
+      queryClient.invalidateQueries({ queryKey: ['objects', 'real-farm'] });
       setError(err instanceof Error ? err.message : 'Failed to delete job');
     } finally {
       setIsDeleting(false);

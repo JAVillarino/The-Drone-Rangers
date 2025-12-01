@@ -33,9 +33,9 @@ export default function TargetMapSelector({
                             initialTarget[1] >= worldMin && initialTarget[1] <= worldMax;
 
       if (isWorldCoords) {
-        // Convert world coordinates to SVG coordinates
+        // Convert world coordinates to SVG coordinates (no Y inversion)
         const svgX = ((initialTarget[0] - worldMin) / (worldMax - worldMin)) * svgWidth;
-        const svgY = svgHeight - ((initialTarget[1] - worldMin) / (worldMax - worldMin)) * svgHeight;
+        const svgY = ((initialTarget[1] - worldMin) / (worldMax - worldMin)) * svgHeight;
         setTargetPos([svgX, svgY]);
       } else {
         // Assume it's already in SVG coordinates
@@ -61,10 +61,9 @@ export default function TargetMapSelector({
     const svgHeight = svgRect.height;
     
     // Transform SVG coordinates to world coordinates
-    // Similar to CustomScenarioModal transformation
+    // No Y inversion - match the main map's coordinate system
     const worldX = (cursorpt.x / svgWidth) * (worldMax - worldMin) + worldMin;
-    // Invert Y axis (SVG Y is top-to-bottom, world Y is bottom-to-top)
-    const worldY = ((svgHeight - cursorpt.y) / svgHeight) * (worldMax - worldMin) + worldMin;
+    const worldY = (cursorpt.y / svgHeight) * (worldMax - worldMin) + worldMin;
     
     const worldCoords: [number, number] = [
       parseFloat(worldX.toFixed(2)),

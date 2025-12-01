@@ -46,10 +46,12 @@ export default function RealFarmView({
 
   // SSE connection for real-time updates (only for live-farm tab)
   // Retries every 60 seconds if connection fails
-  const { data: sseData, isConnected, hasError: _hasError } = useSSE({
+  // SSE now updates React Query cache directly, so optimistic updates work
+  const { isConnected, hasError: _hasError } = useSSE({
     url: '/stream/state',  // Vite proxy will route to backend
     enabled: shouldUseSSE,
     retryInterval: 60000, // Retry every 60 seconds
+    queryKey: ['objects', 'real-farm'], // Update React Query cache so optimistic updates work
     onError: (error) => {
       console.error('SSE error, falling back to polling:', error);
     }
@@ -66,8 +68,10 @@ export default function RealFarmView({
     enabled: needsStateData && !actuallyUsingSSE
   });
 
-  // Use SSE data when actually connected, otherwise use polling data
-  const data = actuallyUsingSSE && sseData ? sseData : pollingData;
+  // Use data from React Query cache (which SSE now updates) when SSE is active, otherwise use polling data
+  // This ensures optimistic updates work because we're reading from the cache, not SSE's local state
+  const queryData = queryClient.getQueryData<State>(['objects', 'real-farm']);
+  const data = actuallyUsingSSE && queryData ? queryData : pollingData;
 
   // When state data updates (which includes job status), invalidate jobs query to refresh calendar
   useEffect(() => {

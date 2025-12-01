@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { State } from '../types';
 
 interface UseSSEOptions {
@@ -6,9 +7,10 @@ interface UseSSEOptions {
   enabled: boolean;
   onError?: (error: Event) => void;
   retryInterval?: number; // Retry interval in milliseconds (default: 60000 = 60 seconds)
+  queryKey?: readonly unknown[]; // React Query key to update
 }
 
-export function useSSE({ url, enabled, onError, retryInterval = 60000 }: UseSSEOptions) {
+export function useSSE({ url, enabled, onError, retryInterval = 60000, queryKey }: UseSSEOptions) {
   const [data, setData] = useState<State | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -16,6 +18,7 @@ export function useSSE({ url, enabled, onError, retryInterval = 60000 }: UseSSEO
   const hasAttemptedRef = useRef<boolean>(false);
   const enabledRef = useRef<boolean>(enabled);
   const onErrorRef = useRef<UseSSEOptions['onError']>(onError);
+  const queryClient = useQueryClient();
 
   // Keep refs in sync
   useEffect(() => {
@@ -65,6 +68,10 @@ export function useSSE({ url, enabled, onError, retryInterval = 60000 }: UseSSEO
         try {
           const parsedData: State = JSON.parse(event.data);
           setData(parsedData);
+          // Also update React Query cache if queryKey is provided
+          if (queryKey) {
+            queryClient.setQueryData<State>(queryKey, parsedData);
+          }
         } catch (error) {
           console.error('Failed to parse SSE data:', error);
         }
@@ -75,6 +82,10 @@ export function useSSE({ url, enabled, onError, retryInterval = 60000 }: UseSSEO
         try {
           const parsedData: State = JSON.parse(event.data);
           setData(parsedData);
+          // Also update React Query cache if queryKey is provided
+          if (queryKey) {
+            queryClient.setQueryData<State>(queryKey, parsedData);
+          }
         } catch (error) {
           console.error('Failed to parse SSE message data:', error);
         }
