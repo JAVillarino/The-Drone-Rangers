@@ -61,7 +61,7 @@ export default function AddJobModal({
         target: {
           type: "circle",
           center: targetPosition,
-          radius: 10.0,
+          radius: 30.0,
         },
         drone_count: droneCount
       };

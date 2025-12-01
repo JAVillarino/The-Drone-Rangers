@@ -190,8 +190,9 @@ export default function JobStatusContainer({
           let calendarStatus: 'pending' | 'scheduled' | 'active' | 'completed' | 'cancelled';
           if (job.is_active) {
             calendarStatus = 'active';
-          } else if (job.status === 'running') {
-            calendarStatus = 'active';
+            // For whatever reason the job status is "active" sometimes.
+          } else if (job.status === 'running' || job.status === 'active') {
+            calendarStatus = 'pending';
           } else {
             calendarStatus = job.status;
           }
