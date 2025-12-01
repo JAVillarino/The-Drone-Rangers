@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FarmJob } from '../../types';
 import TargetMapSelector from '../MapPlot/TargetMapSelector';
-import { updateFarmJob } from '../../api/state';
+import { updateFarmJob, deleteFarmJob } from '../../api/state';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface EditJobModalProps {
   isOpen: boolean;
@@ -22,8 +23,10 @@ export default function EditJobModal({
   backgroundImage,
   onJobUpdated
 }: EditJobModalProps) {
+  const queryClient = useQueryClient();
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Form state - initialized from job
@@ -196,6 +199,34 @@ export default function EditJobModal({
     onClose();
   };
 
+  const handleCancelJob = async () => {
+    if (!job) return;
+    
+    if (!confirm('Are you sure you want to delete this job?')) {
+      return;
+    }
+    
+    setIsDeleting(true);
+    setError(null);
+    
+    try {
+      await deleteFarmJob(job.id);
+      // Invalidate queries to refresh the UI
+      queryClient.invalidateQueries({ queryKey: ['objects', 'real-farm'] });
+      queryClient.invalidateQueries({ queryKey: ['farm-jobs'] });
+      
+      if (onJobUpdated) {
+        onJobUpdated();
+      }
+      
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete job');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Format datetime-local input value
   const getDateTimeLocalValue = () => {
     if (!scheduledDateTime) return '';
@@ -346,31 +377,30 @@ export default function EditJobModal({
             </div>
           </div>
 
-          {/* Cancel Job Option (only in edit mode) */}
-          {isEditMode && job.status !== 'cancelled' && job.status !== 'completed' && (
-            <div className="form-section">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={shouldCancel}
-                  onChange={(e) => setShouldCancel(e.target.checked)}
-                />
-                <span>Cancel this job</span>
-              </label>
-            </div>
-          )}
 
           {/* Form Footer */}
           <div className="modal-footer">
-            <button type="button" className="modal-btn cancel-btn" onClick={handleClose} disabled={isSubmitting}>
+            <button type="button" className="modal-btn cancel-btn" onClick={handleClose} disabled={isSubmitting || isDeleting}>
               {isEditMode ? 'Cancel' : 'Close'}
+            </button>
+            <button
+              type="button"
+              className="modal-btn delete-btn"
+              onClick={handleCancelJob}
+              disabled={isSubmitting || isDeleting}
+              style={{
+                backgroundColor: '#dc3545',
+                color: 'white'
+              }}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete Job'}
             </button>
             {!isEditMode ? (
               <button
                 type="button"
                 className="modal-btn submit-btn"
                 onClick={handleEditClick}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isDeleting}
               >
                 Edit
               </button>
@@ -378,7 +408,7 @@ export default function EditJobModal({
               <button
                 type="submit"
                 className="modal-btn submit-btn"
-                disabled={isSubmitting || !hasChanges}
+                disabled={isSubmitting || isDeleting || !hasChanges}
                 style={{
                   opacity: hasChanges ? 1 : 0.5,
                   cursor: hasChanges ? 'pointer' : 'not-allowed'
