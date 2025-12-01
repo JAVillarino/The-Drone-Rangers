@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { State, FarmJob } from '../types.ts';
 import { fetchFarmJobs, createFarmJob, fetchState } from '../api/state.ts';
@@ -36,8 +36,8 @@ export default function RealFarmView({
 
   const queryClient = useQueryClient();
 
-  // Determine if we need state data (for live-farm or drone-management tabs)
-  const needsStateData = activeTab === 'live-farm' || activeTab === 'drone-management';
+  // Determine if we need state data (for live-farm, drone-management, or schedule tabs to check active jobs)
+  const needsStateData = activeTab === 'live-farm' || activeTab === 'drone-management' || activeTab === 'schedule';
   const shouldUseSSE = activeTab === 'live-farm';
 
   // SSE connection for real-time updates (only for live-farm tab)
@@ -65,6 +65,13 @@ export default function RealFarmView({
   // Use SSE data when actually connected, otherwise use polling data
   const data = actuallyUsingSSE && sseData ? sseData : pollingData;
 
+  // When state data updates (which includes job status), invalidate jobs query to refresh calendar
+  useEffect(() => {
+    if (data && activeTab === 'schedule') {
+      queryClient.invalidateQueries({ queryKey: ['farm-jobs'] });
+    }
+  }, [data?.jobs, activeTab, queryClient]);
+
   // Fetch farm jobs (only when schedule tab is active)
   const { data: jobs = [], isLoading: jobsLoading } = useQuery({
     queryKey: ['farm-jobs'],
@@ -72,7 +79,7 @@ export default function RealFarmView({
       const [_key, _params] = queryKey;
       return fetchFarmJobs();
     },
-    refetchInterval: activeTab === 'schedule' ? 30000 : false, // Refresh every 30 seconds only when schedule tab is active
+    refetchInterval: activeTab === 'schedule' ? 5000 : false, // Refresh every 5 seconds when schedule tab is active for dynamic updates
     enabled: activeTab === 'schedule', // Only fetch when schedule tab is active
   });
 
@@ -128,7 +135,17 @@ export default function RealFarmView({
             scheduleView={scheduleView}
             onViewChange={setScheduleView}
             onAddJob={() => setIsAddJobModalOpen(true)}
-            jobs={jobs}
+            jobs={jobs.map(job => {
+              // Enhance job status: if job is active in state data, show as "active" regardless of actual status
+              if (data?.jobs) {
+                const stateJob = data.jobs.find(j => j.id === job.id);
+                if (stateJob && stateJob.is_active) {
+                  // Job is active - show as "active" regardless of its status field
+                  return { ...job, status: 'active' as const };
+                }
+              }
+              return job;
+            })}
             isLoading={jobsLoading}
             onJobClick={handleJobClick}
           />
