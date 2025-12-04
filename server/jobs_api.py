@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 from uuid import uuid4
 import uuid
+import time
 
 import numpy as np
 from flask import Blueprint, jsonify, request
@@ -124,8 +125,20 @@ class JobRepo:
             self._save_jobs([])
             return []
 
-        with open(DB_PATH, "rb") as f:
-            jobs = pickle.load(f)
+        try:
+            with open(DB_PATH, "rb") as f:
+                jobs = pickle.load(f)
+        except (pickle.UnpicklingError, EOFError, AttributeError, ImportError, IndexError) as e:
+            print(f"Warning: Corrupt job database found at {DB_PATH}: {e}")
+            # Backup corrupt file
+            backup_path = f"{DB_PATH}.corrupt.{int(time.time())}"
+            try:
+                import shutil
+                shutil.copy(DB_PATH, backup_path)
+                print(f"Backed up corrupt database to {backup_path}")
+            except Exception:
+                pass
+            return []
         
         # Filter out jobs with invalid targets (must be Circle, Polygon, or None)
         valid_jobs = []
@@ -289,18 +302,17 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
         if is_active and target is None:
             return jsonify({"error": "Cannot activate job without a target"}), 400
 
-        # Create job
-        job = repo.create(
-            target=target,
-            is_active=is_active,
-            drones=drone_count,
-            status=status,
-            start_at=start_at,
-            scenario_id=data.get("scenario_id"),
-        )
-
-        # Add to in-memory cache (ensures single instance per ID)
+        # Create job and add to cache under lock
         with world_lock:
+            job = repo.create(
+                target=target,
+                is_active=is_active,
+                drones=drone_count,
+                status=status,
+                start_at=start_at,
+                scenario_id=data.get("scenario_id"),
+            )
+            
             jobs_cache.add(job)
             
             # If activated immediately, start metrics

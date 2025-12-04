@@ -444,6 +444,9 @@ def create_scenario() -> Response:
     except Exception:
         return jsonify({"error": {"type": "BadRequest", "message": "Invalid JSON"}}), 400
 
+    if not isinstance(body, dict):
+        return jsonify({"error": {"type": "BadRequest", "message": "JSON body must be an object"}}), 400
+
     idem_key = request.headers.get("Idempotency-Key")
     if idem_key:
         sid_existing = REPO.get_idem(idem_key)
