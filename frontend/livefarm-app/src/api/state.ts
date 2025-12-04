@@ -3,7 +3,7 @@
  * Live Farm App - simplified API without simulation features.
  */
 
-import { FarmJob, CreateFarmJobRequest, FarmJobsResponse } from "../types";
+import { FarmJob, CreateFarmJobRequest, FarmJobsResponse, JobStatus } from "../types";
 import { Target } from "../types";
 
 // Use relative URLs - Vite proxy will route to backend on port 5001
@@ -125,21 +125,9 @@ export async function fetchFarmJobs(_params?: {
         const data: FarmJobsResponse = await response.json();
         // Convert backend response to FarmJob type
         const jobs: FarmJob[] = data.jobs.map(job => {
+            // TODO(Riley): Get rid of this `job as any` business.
             const backendJob = job as any;
-            const backendStatus = backendJob.status as string;
-            // Map backend status 'running' to frontend 'active', keep 'scheduled' as-is
-            let frontendStatus: 'pending' | 'scheduled' | 'active' | 'completed' | 'cancelled' = 'pending';
-            if (backendStatus === 'running') {
-                frontendStatus = 'active';
-            } else if (backendStatus === 'scheduled') {
-                frontendStatus = 'scheduled';
-            } else if (backendStatus === 'completed') {
-                frontendStatus = 'completed';
-            } else if (backendStatus === 'cancelled') {
-                frontendStatus = 'cancelled';
-            } else if (backendStatus === 'pending') {
-                frontendStatus = 'pending';
-            }
+            const backendStatus = backendJob.status;
             
             // Infer job_type based on start_at field
             const hasStartAt = backendJob.start_at !== null && backendJob.start_at !== undefined;
@@ -153,7 +141,7 @@ export async function fetchFarmJobs(_params?: {
                 target: backendJob.target,
                 drone_count: backendJob.drones ?? 1,
                 drones: backendJob.drones ?? 1,
-                status: frontendStatus,
+                status: backendStatus,
                 created_at: backendJob.created_at,
                 updated_at: backendJob.updated_at,
             };
@@ -199,19 +187,17 @@ export async function updateFarmJob(
     updates: Partial<{
         target: Target;
         drone_count: number;
-        status: 'pending' | 'scheduled' | 'active' | 'completed' | 'cancelled';
+        status: JobStatus;
         scheduled_time: string;
         is_active: boolean;
     }>
 ): Promise<FarmJob> {
     // Map frontend field names to backend field names
     const backendUpdates: any = {};
+    // TODO(Riley): I don't think we need this; it's redundant.
     if (updates.target !== undefined) backendUpdates.target = updates.target;
     if (updates.drone_count !== undefined) backendUpdates.drones = updates.drone_count;
-    if (updates.status !== undefined) {
-        // Map frontend 'active' to backend 'running'
-        backendUpdates.status = updates.status === 'active' ? 'running' : updates.status;
-    }
+    if (updates.status !== undefined) backendUpdates.status = updates.status;
     if (updates.scheduled_time !== undefined) backendUpdates.start_at = updates.scheduled_time;
     if (updates.is_active !== undefined) backendUpdates.is_active = updates.is_active;
 

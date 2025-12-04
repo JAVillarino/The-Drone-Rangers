@@ -183,15 +183,11 @@ export default function JobStatusContainer({
       )}
       <div className="job-status-list">
         {jobs.map((job, index) => {
-          // Map Job status to calendar status format
-          // Job.status: "pending" | "scheduled" | "running" | "completed" | "cancelled"
-          // Calendar status: 'pending' | 'scheduled' | 'active' | 'completed' | 'cancelled'
-          // If job is active, show as "active" regardless of status field (matching calendar behavior)
-          let calendarStatus: 'pending' | 'scheduled' | 'active' | 'completed' | 'cancelled';
+          // If job is active, show as "running" regardless of status field (matching calendar behavior)
+          let calendarStatus: 'pending' | 'scheduled' | 'running' | 'completed' | 'cancelled';
           if (job.is_active) {
-            calendarStatus = 'active';
-            // For whatever reason the job status is "active" sometimes.
-          } else if (job.status === 'running' || job.status === 'active') {
+            calendarStatus = 'running';
+          } else if (job.status === 'running') { // If the job boolean says that it isn't active, but for some reason the job status is running.
             calendarStatus = 'pending';
           } else {
             calendarStatus = job.status;

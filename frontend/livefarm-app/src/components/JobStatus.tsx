@@ -4,7 +4,7 @@ import { Target } from '../types.ts';
 interface JobStatusProps {
   jobName: string;
   status: string;
-  calendarStatus?: 'pending' | 'scheduled' | 'active' | 'completed' | 'cancelled';
+  calendarStatus?: 'pending' | 'scheduled' | 'running' | 'completed' | 'cancelled';
   target: Target | null;
   droneCount: number;
   isActive: boolean;

@@ -356,20 +356,6 @@ export async function fetchFarmJobs(_params?: {
         return data.jobs.map(job => {
             const backendJob = job as any;
             // Backend may return 'drones' field, map it to both 'drone_count' and 'drones'
-            const backendStatus = backendJob.status as string;
-            // Map backend status 'running' to frontend 'active', keep 'scheduled' as-is
-            let frontendStatus: 'pending' | 'scheduled' | 'active' | 'completed' | 'cancelled' = 'pending';
-            if (backendStatus === 'running') {
-                frontendStatus = 'active';
-            } else if (backendStatus === 'scheduled') {
-                frontendStatus = 'scheduled';
-            } else if (backendStatus === 'completed') {
-                frontendStatus = 'completed';
-            } else if (backendStatus === 'cancelled') {
-                frontendStatus = 'cancelled';
-            } else if (backendStatus === 'pending') {
-                frontendStatus = 'pending';
-            }
 
             // Infer job_type based on start_at field
             const hasStartAt = backendJob.start_at !== null && backendJob.start_at !== undefined;
@@ -383,7 +369,7 @@ export async function fetchFarmJobs(_params?: {
                 target: backendJob.target,
                 drone_count: backendJob.drones ?? 1,
                 drones: backendJob.drones ?? 1,
-                status: frontendStatus,
+                status: backendJob.status,
                 created_at: backendJob.created_at,
                 updated_at: backendJob.updated_at,
             };

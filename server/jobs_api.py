@@ -94,10 +94,6 @@ def _normalize_drone_count(data: dict) -> Tuple[int, Optional[str]]:
 
 def _normalize_status(status: str) -> Tuple[JobStatus, Optional[str]]:
     """Normalize status from frontend format to internal format."""
-    # Map frontend "active" to backend "running"
-    if status == "active":
-        status = "running"
-
     if status not in VALID_STATUSES:
         return "pending", f"Invalid status: {status}. Must be one of: {', '.join(VALID_STATUSES)}"
 

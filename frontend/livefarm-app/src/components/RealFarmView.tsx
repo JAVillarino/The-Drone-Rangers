@@ -146,12 +146,11 @@ export default function RealFarmView({
             onViewChange={setScheduleView}
             onAddJob={() => setIsAddJobModalOpen(true)}
             jobs={jobs.map(job => {
-              // Enhance job status: if job is active in state data, show as "active" regardless of actual status
               if (data?.jobs) {
                 const stateJob = data.jobs.find(j => j.id === job.id);
                 if (stateJob && stateJob.is_active) {
-                  // Job is active - show as "active" regardless of its status field
-                  return { ...job, status: 'active' as const };
+                  // Job is active - show as "running" regardless of its status field
+                  return { ...job, status: 'running' as const };
                 }
               }
               return job;

@@ -1,3 +1,6 @@
+// TODO(Riley): We don't need to have separate types for the different frontends.
+
+export type JobStatus = "pending" | "scheduled" | "running" | "completed" | "cancelled";
 
 export type LocData = [number, number]; // [latitude, longitude]
 
@@ -20,7 +23,7 @@ export interface Job {
   remaining_time: number | null;
   is_active: boolean;
   drones: number;
-  status: "pending" | "scheduled" | "running" | "completed" | "cancelled";
+  status: JobStatus;
   start_at: string | null;
   completed_at: string | null;
   scenario_id: string | null;
@@ -86,9 +89,10 @@ export interface FarmJob {
   scheduled_time?: string; // ISO 8601 datetime, only for scheduled jobs
   is_recurring: boolean;
   target: Target;
+  // TODO(Riley): We should not have both drone_count and drones.
   drone_count: number;
   drones?: number; // Number of drones currently being used (from backend)
-  status: 'pending' | 'scheduled' | 'active' | 'completed' | 'cancelled';
+  status: JobStatus;
   created_at: string;
   updated_at: string;
   duration?: number; // Estimated duration in seconds

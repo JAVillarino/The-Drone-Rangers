@@ -3,6 +3,8 @@ export type Target =
   | { type: "circle"; center: [number, number]; radius?: number }
   | { type: "polygon"; points: [number, number][] };
 
+export type JobStatus = "pending" | "scheduled" | "running" | "completed" | "cancelled";
+
 // Job type - represents a herding/mission job
 export interface Job {
   id: string;
@@ -10,7 +12,7 @@ export interface Job {
   is_active: boolean;
   drones: number;
   remaining_time: number | null;
-  status: "pending" | "scheduled" | "running" | "completed" | "cancelled";
+  status: JobStatus;
   start_at: number | null;
   created_at: string;
   updated_at: string;
@@ -34,7 +36,7 @@ export interface FarmJob {
   target: Target;
   drone_count: number;
   drones?: number;
-  status: 'pending' | 'scheduled' | 'active' | 'completed' | 'cancelled';
+  status: JobStatus;
   created_at: string;
   updated_at: string;
   duration?: number;

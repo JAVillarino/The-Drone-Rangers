@@ -260,12 +260,6 @@ def stream_state():
                         state_dict = state.to_dict()
                         state_dict["paused"] = backend_adapter.paused
 
-                        # Transform job status from "running" to "active" for frontend compatibility
-                        if "jobs" in state_dict:
-                            for job in state_dict["jobs"]:
-                                if job.get("status") == "running":
-                                    job["status"] = "active"
-
                     # Format as SSE event
                     event_data = f"data: {json.dumps(state_dict)}\n\n"
                     yield event_data
@@ -883,7 +877,7 @@ if __name__ == "__main__":
             # Sync target from active job to world, and auto-unpause if there's an active job with a target
             active_job = None
             for job in jobs:
-                if job.is_active and job.status in ("running", "active"):
+                if job.is_active and job.status == "running":
                     active_job = job
                     break
             
