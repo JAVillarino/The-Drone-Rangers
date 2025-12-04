@@ -769,3 +769,206 @@ def stop_metrics_collection():
         "run_id": run.run_id,
         "summary": run.summary,
     }), 200
+
+
+def run_flask():
+    app.run(debug=True, use_reloader=False, port=5001, host='127.0.0.1')
+
+
+if __name__ == "__main__":
+    import signal
+    import sys
+    
+    def signal_handler(sig, frame):
+        print("\nCaught Ctrl+C, shutting down...")
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
+
+    # Start Flask in a background thread.
+    threading.Thread(target=run_flask, daemon=True).start()
+    
+    # Throttle remaining_time DB writes (once per second)
+    last_rem_sync_ts = 0.0
+    
+    while True:
+        # Get current jobs from cache
+        jobs = jobs_cache.list
+        
+        # TODO: This sleep should be within the loop of frames.
+        time.sleep(0.05)  # 20 FPS update rate for simulation loop (original speed)
+        # Update job statuses and remaining times
+        jobs_to_sync = set()  # Use set to avoid duplicate syncs
+        with world_lock:
+            # Promote any scheduled jobs that should now start
+            now = datetime.now().timestamp()
+            for j in jobs:
+                if j.status == "scheduled" and j.start_at is not None and j.start_at <= now:
+                    # Check if there's currently an active job
+                    has_active_job = any(other.is_active and other.status == "running" 
+                                        for other in jobs if other.id != j.id)
+                    
+                    if not has_active_job:
+                        # No active job - promote to running and activate immediately
+                        j.status = "running"
+                        j.is_active = True
+                        jobs_to_sync.add(j.id)
+                    else:
+                        # There's an active job - add this scheduled job to the queue as pending
+                        j.status = "pending"
+                        jobs_to_sync.add(j.id)
+            
+            # Check goal satisfaction and update remaining_time
+            for job in jobs:
+                if job.target is None:
+                    job.remaining_time = None
+                elif job.status == "completed" or job.status == "cancelled":
+                    # Don't update completed/cancelled jobs
+                    pass
+                elif job.status == "running" and job.is_active:
+                    # Only check goal for running+active jobs
+                    if herding.policy.is_goal_satisfied(backend_adapter.get_state(), job.target):
+                        job.remaining_time = 0
+                        # Double-check status before marking completed (race protection)
+                        if job.status == "running" and job.is_active:
+                            job.status = "completed"
+                            job.is_active = False
+                            job.completed_at = datetime.now(timezone.utc).timestamp()
+                            jobs_to_sync.add(job.id)
+                            
+                            # Activate the next pending job in the queue
+                            # Order: scheduled jobs by start_at, then regular pending jobs by created_at
+                            pending_jobs = [j for j in jobs 
+                                           if j.status == "pending" and j.target is not None]
+                            if pending_jobs:
+                                # Sort: scheduled jobs (with start_at) first by start_at, 
+                                # then regular pending jobs by created_at
+                                pending_jobs.sort(key=lambda j: (
+                                    j.start_at if j.start_at is not None else float('inf'),
+                                    j.created_at
+                                ))
+                                next_job = pending_jobs[0]
+                                next_job.status = "running"
+                                next_job.is_active = True
+                                jobs_to_sync.add(next_job.id)
+                    else:
+                        job.remaining_time = None
+                else:
+                    job.remaining_time = None
+        
+        # Persist status changes to database (outside lock to avoid blocking)
+        if jobs_to_sync:
+            for job_id in jobs_to_sync:
+                job_obj = jobs_cache.get(job_id)  # O(1) lookup instead of linear search
+                if job_obj:
+                    try:
+                        jobs_api.sync_job_status_to_db(job_obj)
+                    except Exception as e:
+                        # Don't crash - DB sync failure shouldn't stop simulation
+                        print(f"Warning: Failed to sync job {job_id} to DB: {e}")
+        
+        # Throttled remaining_time sync (once per second for running jobs)
+        current_time = time.time()
+        if current_time - last_rem_sync_ts >= 1.0:
+            for job in jobs:
+                if job.status == "running" and job.remaining_time is not None:
+                    try:
+                        jobs_api.sync_job_status_to_db(job)
+                    except Exception as e:
+                        print(f"Warning: Failed to sync remaining_time for job {job.id}: {e}")
+            last_rem_sync_ts = current_time
+        
+        # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
+        with world_lock:
+            # Sync target from active job to world, and auto-unpause if there's an active job with a target
+            active_job = None
+            for job in jobs:
+                if job.is_active and job.status in ("running", "active"):
+                    active_job = job
+                    break
+            
+            if active_job and active_job.target is not None:
+                # Sync job target to world target
+                # Extract center coordinates from Circle/Polygon for the World (which expects numpy array)
+                if isinstance(active_job.target, state.Circle):
+                    backend_adapter.target = active_job.target.center
+                elif isinstance(active_job.target, state.Polygon):
+                    # For polygon, use centroid as target
+                    backend_adapter.target = active_job.target.points.mean(axis=0)
+                else:
+                    raise TypeError(f"Job target must be Circle or Polygon, got {type(active_job.target)}")
+                
+                # Sync drone count from job to world
+                if active_job.drones != backend_adapter.num_controllers:
+                    backend_adapter.set_drone_count(active_job.drones)
+                
+                # Auto-unpause if paused
+                if backend_adapter.paused:
+                    backend_adapter.paused = False
+            elif active_job and active_job.target is None:
+                # Active job but no target yet - keep running for visualization (sheep will graze)
+                # Also sync drone count
+                if active_job.drones != backend_adapter.num_controllers:
+                    backend_adapter.set_drone_count(active_job.drones)
+                if backend_adapter.paused:
+                    backend_adapter.paused = False
+                backend_adapter.target = None
+            else:
+                # No active job - allow simulation to run for live monitoring
+                if backend_adapter.paused:
+                    backend_adapter.paused = False
+                
+                # If we have a pending job with a target, use it for the world target
+                # This ensures the policy (and visualization) knows where to go even if the job isn't "started"
+                pending_target_job = None
+                for job in jobs:
+                    if job.status == "pending" and job.target is not None:
+                        pending_target_job = job
+                        break
+                
+                if pending_target_job:
+                    # Sync pending job target to world target
+                    if isinstance(pending_target_job.target, state.Circle):
+                        backend_adapter.target = pending_target_job.target.center
+                    elif isinstance(pending_target_job.target, state.Polygon):
+                        backend_adapter.target = pending_target_job.target.points.mean(axis=0)
+                else:
+                    # Only clear target if we really have no target source
+                    backend_adapter.target = None
+            
+            for job in list(jobs):  # Copy to avoid modifying list while iterating
+                if job.completed_at is not None:
+                    jobs_cache.remove(job.id)
+            
+            
+            for _ in range(15):
+                plan = policy.plan(backend_adapter.get_state(), jobs, backend_adapter.dt)
+                backend_adapter.step(plan)
+            
+            # Record metrics if collection is active
+            from server.metrics import get_collector
+            collector = get_collector()
+            if collector.get_current_run() is not None:
+                world_state = backend_adapter.get_state()
+                
+                # Determine target for metrics
+                target = None
+                if active_job and active_job.target:
+                    target = active_job.target
+                else:
+                    # Try to find a pending job with a target
+                    for job in jobs:
+                        if job.status == "pending" and job.target:
+                            target = job.target
+                            break
+                    
+                    # Fallback to world target if still no job target found
+                    if target is None and backend_adapter.target is not None:
+                        from planning import state
+                        radius = policy.fN if hasattr(policy, 'fN') else 10.0
+                        target = state.Circle(center=backend_adapter.target, radius=radius)
+                
+                t = backend_adapter.t if hasattr(backend_adapter, 't') else 0.0
+                fN = policy.fN if hasattr(policy, 'fN') else 50.0
+                
+                collector.record_step(world_state, target, t, fN)
