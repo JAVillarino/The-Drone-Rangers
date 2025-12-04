@@ -1,16 +1,32 @@
-from dataclasses import dataclass, field
-from typing import List, Optional, Literal, Union
-from itertools import count
-from datetime import datetime, timezone
+"""
+Simulation State Definitions
+
+This module defines the core data structures representing the state of the simulation,
+including the flock, drones, obstacles, and active jobs. It serves as the data contract
+between the simulation engine, the planner, and the API.
+"""
 import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import List, Literal, Optional, Union
 
 import numpy as np
+
+# -----------------------------------------------------------------------------
+# Constants & Types
+# -----------------------------------------------------------------------------
 
 JobStatus = Literal["pending", "scheduled", "running", "completed", "cancelled"]
 MaintainUntil = Union[Literal["target_is_reached"], float]  # "target_is_reached" or UNIX timestamp
 
+
+# -----------------------------------------------------------------------------
+# Geometry Primitives
+# -----------------------------------------------------------------------------
+
 @dataclass
 class Circle:
+    """Represents a circular target or zone."""
     center: np.ndarray
     radius: Optional[float]
 
@@ -21,8 +37,10 @@ class Circle:
             "type": "circle",
         }
 
+
 @dataclass
 class Polygon:
+    """Represents a polygonal target or zone (e.g., a pen)."""
     points: np.ndarray
 
     def to_dict(self) -> dict:
@@ -31,49 +49,57 @@ class Polygon:
             "type": "polygon",
         }
 
+
 Target = Union[Circle, Polygon]
+
+
+# -----------------------------------------------------------------------------
+# Job State
+# -----------------------------------------------------------------------------
 
 @dataclass
 class Job:
-    """State of a given herding job."""
+    """
+    Represents a high-level task for the herding system (e.g., "move flock to X").
+    Tracks lifecycle, scheduling, and progress.
+    """
+    # Core configuration
     target: Optional[Target]
-    # Estimate of the remaining time in seconds required before the job will finish.
-    remaining_time: Optional[float]
-    
-    # If the user pauses a job, this becomes false.
-    is_active: bool
-    
     drones: int
-
-    # Lifecycle and scheduling fields
-    status: JobStatus  # "pending", "scheduled", "running", "completed", "cancelled"
-    start_at: Optional[float]  # UNIX timestamp for when to start; None = immediate
-    completed_at: Optional[float]  # UNIX timestamp when completed; None = not completed
     scenario_id: Optional[str]  # UUID pointing to a scenario
+
+    # Status & Progress
+    status: JobStatus  # "pending", "scheduled", "running", "completed", "cancelled"
+    is_active: bool    # If the user pauses a job, this becomes false.
+    remaining_time: Optional[float] # Estimate of seconds remaining
+
+    # Scheduling
+    start_at: Optional[float]      # UNIX timestamp; None = immediate
+    completed_at: Optional[float]  # UNIX timestamp; None = not completed
     
-    # When to stop maintaining the target:
+    # Termination condition:
     # - "target_is_reached": maintain until target condition is satisfied
     # - float: maintain until this UNIX timestamp
     maintain_until: MaintainUntil
     
+    # Metadata
     created_at: float  # UNIX timestamp
     updated_at: float  # UNIX timestamp
-
-    # UUID.
     id: uuid.UUID = field(default_factory=uuid.uuid4)
     
     def to_dict(self) -> dict:
+        """Convert job state to a dictionary for API response."""
+        
         def ts_to_iso(ts: Optional[float]) -> Optional[str]:
             if ts is None:
                 return None
             return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat().replace("+00:00", "Z")
         
         def maintain_until_to_dict(mu: MaintainUntil) -> str:
-            """Convert maintain_until to dict representation."""
             if mu == "target_is_reached":
                 return "target_is_reached"
             else:
-                # mu is a float timestamp here, so ts_to_iso will return a string (not None)
+                # mu is a float timestamp here
                 result = ts_to_iso(mu)
                 return result if result is not None else ""
         
@@ -92,26 +118,34 @@ class Job:
             "updated_at": ts_to_iso(self.updated_at),
         }
 
-# State coming from the world.
+
+# -----------------------------------------------------------------------------
+# World State
+# -----------------------------------------------------------------------------
+
 @dataclass
 class State:
-    # n-by-2 of the positions of all of the animals in the flock.
+    """
+    Snapshot of the entire simulation state at a specific time step.
+    Includes agent positions, drone positions, obstacles, and active jobs.
+    """
+    # n-by-2 array of sheep positions
     flock: np.ndarray
     
-    # n-by-2 of the position of the drones.
+    # n-by-2 array of drone positions
     drones: np.ndarray
     
-    # List of polygon obstacles, each polygon is (m,2) array of vertices.
+    # List of polygon obstacles, each is an (m,2) array of vertices
     polygons: List[np.ndarray]
     
+    # Active jobs
     jobs: List[Job]
     
     def to_dict(self) -> dict:
+        """Convert world state to a dictionary for API response."""
         return {
             "flock": self.flock.tolist(),
             "drones": self.drones.tolist(),
             "jobs": [j.to_dict() for j in self.jobs],
             "polygons": [poly.tolist() for poly in self.polygons],
         }
-
-    
