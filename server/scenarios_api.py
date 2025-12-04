@@ -1,71 +1,50 @@
-"""
-Scenarios API
-
-This module handles the creation, listing, retrieval, and persistence of scenarios.
-It supports both preset scenarios (in-memory) and custom scenarios (persisted to disk).
-"""
+# server/scenarios_api.py
 from __future__ import annotations
-
-import hashlib
-import json
-import pickle
-import threading
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, asdict, field
+from typing import Optional, Literal, List, Tuple, Dict
+from uuid import uuid4, UUID
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Tuple
-from uuid import UUID, uuid4
+import threading
+import json
+import hashlib
+import pickle
 
 import numpy as np
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, request, jsonify, Response
 
+# Reuse your spawn helpers from simulation/scenarios.py
 from simulation.scenarios import (
-    spawn_circle,
+    spawn_uniform,
     spawn_clusters,
     spawn_corners,
     spawn_line,
-    spawn_uniform,
+    spawn_circle,
 )
 
-# -----------------------------------------------------------------------------
-# Constants & Configuration
-# -----------------------------------------------------------------------------
-
+# Persistent storage path for scenarios
 DB_PATH = Path(__file__).parent / "tmp" / "scenarios.pkl"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 Vec2 = Tuple[float, float]
 Visibility = Literal["private", "public", "preset"]
 
-
-# -----------------------------------------------------------------------------
-# Data Structures
-# -----------------------------------------------------------------------------
-
 @dataclass
 class Scenario:
-    """
-    Represents a simulation scenario configuration.
-    Contains all necessary data to initialize a world state.
-    """
-    # Identity & Metadata
     id: UUID
     name: str
     description: Optional[str]
     tags: List[str]
     visibility: Visibility
     seed: Optional[int]
-    
-    # Resolved Entities (Positions)
+    # resolved entities
     sheep: List[Vec2]
     drones: List[Vec2]
     targets: List[Vec2]
-    
-    # Passthrough fields (not strictly enforced here but used by simulation)
+    # passthrough fields for future use (not enforced here)
     obstacles: List[dict] = field(default_factory=list)
     goals: List[dict] = field(default_factory=list)
-    
-    # World Parameters
+    # world-ish params to remember
     boundary: Literal["none", "wrap", "reflect"] = "none"
     bounds: Tuple[float, float, float, float] = (0.0, 250.0, 0.0, 250.0)
     
@@ -86,20 +65,15 @@ class Scenario:
     # Environment (farm, city, ocean)
     environment: str = "farm"
 
-    # Versioning
     version: int = 1
     schema_version: int = 1
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
-
-# -----------------------------------------------------------------------------
-# Repository
-# -----------------------------------------------------------------------------
+# ---------------- persistent, thread-safe repo ----------------
 
 class ScenarioRepo:
-    """
-    Repository for persisting and retrieving scenarios from PKL.
+    """Repository for persisting and retrieving scenarios from PKL.
     
     Every mutating method loads from disk, modifies, and saves back.
     Preset scenarios are kept in memory and merged with custom scenarios from disk.
@@ -181,8 +155,7 @@ class ScenarioRepo:
         sort: str,
         limit: int,
         offset: int,
-    ) -> Tuple[List[Scenario], int]:
-        """List scenarios with filtering and pagination."""
+    ) -> tuple[list, int]:
         with self._lock:
             # Combine presets and custom scenarios
             items = list(self._presets.values()) + self._load_custom_scenarios()
@@ -239,16 +212,12 @@ class ScenarioRepo:
         with self._lock:
             return self._idem.get(key)
 
-# Global Repository Instance
 REPO = ScenarioRepo()
 
-
-# -----------------------------------------------------------------------------
-# Preset Seeding
-# -----------------------------------------------------------------------------
+# ---------------- Seed preset scenarios ----------------
 
 def _seed_presets():
-    """Add default preset scenarios on startup."""
+    """Add default preset scenarios on startup (based on existing backend_adapter config)."""
     presets = [
         # City evacuation scenario with urban intersection background
         Scenario(
@@ -361,10 +330,7 @@ _seed_presets()
 _custom_count = len(REPO._load_custom_scenarios())
 print(f"Scenarios API ready with {len(REPO._presets)} presets + {_custom_count} custom scenarios")
 
-
-# -----------------------------------------------------------------------------
-# Utilities
-# -----------------------------------------------------------------------------
+# ---------------- utilities ----------------
 
 def _finite_pair(p) -> Vec2:
     if not isinstance(p, (list, tuple)) or len(p) != 2:
@@ -374,21 +340,18 @@ def _finite_pair(p) -> Vec2:
         raise ValueError("coordinate must be finite")
     return (x, y)
 
-def _normalize_points(pts) -> List[Vec2]:
+def _normalize_points(pts) -> list[Vec2]:
     return [_finite_pair(p) for p in (pts or [])]
 
 def _hash_body(d: dict) -> str:
     return hashlib.sha256(json.dumps(d, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
-def _round_pts(pts: List[Vec2], nd=9) -> List[Vec2]:
+def _round_pts(pts: list[Vec2], nd=9) -> list[Vec2]:
     return [(round(float(x), nd), round(float(y), nd)) for x, y in pts]
 
+# ---------------- spawn dispatcher ----------------
 
-# -----------------------------------------------------------------------------
-# Spawn Dispatcher
-# -----------------------------------------------------------------------------
-
-def _spawn_entities(body: dict) -> Tuple[List[Vec2], List[Vec2], List[Vec2]]:
+def _spawn_entities(body: dict) -> tuple[list[Vec2], list[Vec2], list[Vec2]]:
     """
     Returns (sheep, drones, targets) using simulation/scenarios.py helpers.
     Accepts either 'entities' directly or a 'spawn' block:
@@ -449,7 +412,7 @@ def _spawn_entities(body: dict) -> Tuple[List[Vec2], List[Vec2], List[Vec2]]:
 
     # Drones
     drones_in = spawn.get("drones") or []
-    drones: List[Vec2] = []
+    drones: list[Vec2] = []
     for d in drones_in:
         if "position" in d:
             drones.append(_finite_pair(d["position"]))
@@ -470,10 +433,7 @@ def _spawn_entities(body: dict) -> Tuple[List[Vec2], List[Vec2], List[Vec2]]:
 
     return _round_pts(sheep), _round_pts(drones), _round_pts(targets)
 
-
-# -----------------------------------------------------------------------------
-# Blueprint
-# -----------------------------------------------------------------------------
+# ---------------- Blueprint ----------------
 
 scenarios_bp = Blueprint("scenarios", __name__, url_prefix="/scenarios")
 
@@ -585,3 +545,4 @@ def get_scenario(sid: UUID) -> Response:
     if not s:
         return jsonify({"error": {"type": "NotFound", "message": "scenario not found"}}), 404
     return jsonify(asdict(s)), 200
+

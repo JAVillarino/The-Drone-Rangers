@@ -1,84 +1,57 @@
 """
-Policy Evaluation Script
-
 Runs the given policy on a variety of scenarios, aggregating:
-- Whether the scenario could be completed.
-- Completion time for successfully completed scenarios.
-- Performance over n different random seeds for a scenario.
+- whether the scenario could be completed.
+- completion time for successfully completed scenarios
+over n different random seeds for a scenario.
 """
-import os
-import time
-from datetime import datetime
-from itertools import product
-from typing import Any, Dict, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from planning.herding import policy
-from planning.run_demo import Renderer
 from simulation import world
-from simulation.scenarios import (
-    spawn_circle,
-    spawn_clusters,
-    spawn_corners,
-    spawn_line,
-    spawn_uniform,
-)
+from planning.herding import policy
+# Assumes spawn functions are in this module
+from simulation.scenarios import spawn_circle, spawn_uniform, spawn_clusters, spawn_corners, spawn_line
+from datetime import datetime
+import os
+import time
+from itertools import product
+from planning.run_demo import Renderer
 
-# -----------------------------------------------------------------------------
-# Constants & Configuration
-# -----------------------------------------------------------------------------
+import matplotlib.pyplot as plt
 
-BASE_CONFIG = {
+base_config = {
     "max_steps": 2000,
     "boundary": "none",
     "clusters": 3,
 }
 
-SPAWN_BOUNDS = (0.0, 250.0, 0.0, 250.0)
-TARGET_POS = np.array([240, 240])
-RESULTS_DIR = "./planning/results"
 
-
-# -----------------------------------------------------------------------------
-# Evaluation Logic
-# -----------------------------------------------------------------------------
-
-def run_one_trial(
-    config: Dict[str, Any],
-    spawn_type: str,
-    seed: int,
-    current_trial: int,
-    total_trials: int,
-    visualize: bool = False
-) -> Tuple[bool, int]:
+def run_one_trial(config, spawn_type, seed, current_trial, total_trials, visualize=False):
     """
     Initializes and runs a single simulation trial for one scenario and seed.
     Returns a tuple: (was_successful, steps_taken).
     """
+    # Define world geometry
+    spawn_bounds = (0.0, 250.0, 0.0, 250.0)
+
     # Spawn sheep based on the specified scenario
     if spawn_type == "circle":
         sheep_xy = spawn_circle(config["N"], center=(0, 0), radius=5.0, seed=seed)
     elif spawn_type == "uniform":
-        sheep_xy = spawn_uniform(config["N"], SPAWN_BOUNDS, seed=seed)
+        sheep_xy = spawn_uniform(config["N"], spawn_bounds, seed=seed)
     elif spawn_type == "clusters":
-        sheep_xy = spawn_clusters(config["N"], config["clusters"], SPAWN_BOUNDS, spread=4.0, seed=seed)
+        sheep_xy = spawn_clusters(config["N"], config["clusters"], spawn_bounds, spread=4.0, seed=seed)
     elif spawn_type == "corners":
-        sheep_xy = spawn_corners(config["N"], SPAWN_BOUNDS, jitter=2.0, seed=seed)
+        sheep_xy = spawn_corners(config["N"], spawn_bounds, jitter=2.0, seed=seed)
     else:  # line
-        sheep_xy = spawn_line(config["N"], SPAWN_BOUNDS, seed=seed)
+        sheep_xy = spawn_line(config["N"], spawn_bounds, seed=seed)
 
     dog_xy = config["dog_xy"]
-    target_xy = TARGET_POS
+    target_xy = np.array([240, 240])
 
     # Build world with simulation parameters
-    # Note: Disabling obstacles for evaluation by default (w_obs=0, etc.)
     world_kwargs = {
-        **config,
-        "bounds": SPAWN_BOUNDS,
-        "seed": seed,
+        **config, "bounds": spawn_bounds, "seed": seed,
     }
     W = world.World(
         sheep_xy, 
@@ -91,24 +64,23 @@ def run_one_trial(
         wall_follow_boost=0,
         stuck_speed_ratio=0,
         near_wall_ratio=0,
-        **world_kwargs
-    )
+        **world_kwargs)
 
     # Initialize the herding policy
     total_area = 0.5 * W.N * (W.ra ** 2)
+    # area = pi * r^2 => r = sqrt(area / pi) (but pi's cancel.)
     collected_herd_radius = np.sqrt(total_area)
-    
     shepherd_policy = policy.ShepherdPolicy(
-        fN=collected_herd_radius,
-        umax=W.umax,
-        too_close=1.5 * W.ra,
-        collect_standoff=1.0 * W.ra,
+        fN = collected_herd_radius,
+        umax = W.umax,
+        # TODO: Initialize these from the config.
+        too_close = 1.5 * W.ra,
+        collect_standoff = 1.0 * W.ra,
         conditionally_apply_repulsion=config["conditionally_apply_repulsion"],
     )
     
-    renderer = None
     if visualize:
-        renderer = Renderer(W, bounds=SPAWN_BOUNDS)
+        renderer = Renderer(W, bounds=(0, 250, 0, 250))
 
     # Main simulation loop for this trial
     for t in range(config["max_steps"]):
@@ -120,12 +92,9 @@ def run_one_trial(
         farthest = np.max(np.linalg.norm(state.flock - state.target, axis=1))
 
         if farthest < config["success_radius"]:
-            if visualize and renderer:
-                plt.ioff()
-                plt.show()
             return True, t  # Success!
         
-        if visualize and renderer:
+        if visualize:
             renderer.render_world(W, plan, t)
             plt.pause(0.05)
             
@@ -137,45 +106,30 @@ def run_one_trial(
         )
         print(progress_str, end='\r', flush=True)
     
-    if visualize:
-        plt.ioff()
-        plt.show()
+    plt.ioff()
+    plt.show()
 
     return False, config["max_steps"]  # Failure due to timeout
 
 
-# -----------------------------------------------------------------------------
-# Main Execution
-# -----------------------------------------------------------------------------
-
 if __name__ == "__main__":
-    os.makedirs(RESULTS_DIR, exist_ok=True)
+    out_dir = "./planning/results"
+    os.makedirs(out_dir, exist_ok=True)
 
-    date_str = datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
+    date = datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
 
-    # Define evaluation parameters
+    # Run the evaluation and collect trial-by-trial data
     Ns = list(range(120, 130))
     n_values = list(range(1, 129))
     spawn_types = ["uniform"]
     seeds = range(3)
     flyovers = [False]
-    dog_xy_configs = [
+    dog_xy = [
         np.array([[0, 0]]),
     ]
-    
-    # Generate scenarios
     scenarios_to_run = [
-        {
-            **BASE_CONFIG,
-            "dog_xy": d_xy,
-            "k_nn": n_nb,
-            "conditionally_apply_repulsion": flyover,
-            "N": N,
-            "spawn_type": pattern,
-            "seed": seed,
-            "success_radius": N ** (1/2) * 4
-        }
-        for seed, N, pattern, flyover, n_nb, d_xy in product(seeds, Ns, spawn_types, flyovers, n_values, dog_xy_configs)
+        {**base_config, "dog_xy": dog_xy, "k_nn": n_nb, "conditionally_apply_repulsion": flyover, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (1/2) * 4 }
+        for seed, N, pattern, flyover, n_nb, dog_xy in product(seeds, Ns, spawn_types, flyovers, n_values, dog_xy)
         if n_nb < N
     ]
 
@@ -187,14 +141,7 @@ if __name__ == "__main__":
     for s_idx, config in enumerate(scenarios_to_run):
         # Time the execution of a single trial
         start_time = time.perf_counter()
-        success, completion_steps = run_one_trial(
-            config, 
-            config["spawn_type"], 
-            config["seed"], 
-            s_idx, 
-            len(scenarios_to_run), 
-            visualize=False
-        )
+        success, completion_steps = run_one_trial(config, config["spawn_type"], config["seed"], s_idx, len(scenarios_to_run), visualize=False)
         end_time = time.perf_counter()
         trial_duration = end_time - start_time
 
@@ -208,29 +155,27 @@ if __name__ == "__main__":
 
     # Create and save the detailed, trial-by-trial DataFrame
     trials_df = pd.DataFrame(trial_results_list)
-    output_csv_file = f"{RESULTS_DIR}/{date_str}--evaluation_trials.csv"
+    output_csv_file = f"{out_dir}/{date}--evaluation_trials.csv"
     trials_df.to_csv(output_csv_file, index=False)
     print(f"\nTrial-by-trial results saved to '{output_csv_file}'")
 
-    # Generate and print the aggregate summary
-    if not trials_df.empty:
-        summary_df = trials_df.groupby('spawn_type').agg(
-            Trials=('seed', 'count'),
-            Successes=('Success', 'sum'),
-            Avg_Steps=('Completion Steps', 'mean'),
-            Avg_Wall_Time=('Wall Time (s)', 'mean')
-        ).reset_index()
+    # Generate and print the aggregate summary from the detailed DataFrame
+    summary_df = trials_df.groupby('spawn_type').agg(
+        Trials=('seed', 'count'),
+        Successes=('Success', 'sum'),
+        Avg_Steps=('Completion Steps', 'mean'),
+        Avg_Wall_Time=('Wall Time (s)', 'mean')
+    ).reset_index()
 
-        # Format for printing
-        summary_df['Success Rate'] = (summary_df['Successes'] / summary_df['Trials'])
-        summary_df['Successes'] = summary_df.apply(lambda row: f"{row['Successes']}/{row['Trials']}", axis=1)
-        summary_df = summary_df[['spawn_type', 'Successes', 'Success Rate', 'Avg_Steps', 'Avg_Wall_Time']]
-        summary_df.rename(columns={'Avg_Steps': 'Avg Steps', 'Avg_Wall_Time': 'Avg Time (s)'}, inplace=True)
+    # Format for printing
+    summary_df['Success Rate'] = (summary_df['Successes'] / summary_df['Trials'])
+    summary_df['Successes'] = summary_df.apply(lambda row: f"{row['Successes']}/{row['Trials']}", axis=1)
+    summary_df = summary_df[['spawn_type', 'Successes', 'Success Rate', 'Avg_Steps', 'Avg_Wall_Time']]
+    summary_df.rename(columns={'Avg_Steps': 'Avg Steps', 'Avg_Wall_Time': 'Avg Time (s)'}, inplace=True)
 
-        print("\n" + "="*85)
-        print(" " * 32 + "EVALUATION SUMMARY")
-        print("="*85)
-        print(summary_df.to_string(index=False, float_format="%.2f"))
-        print("="*85)
-    else:
-        print("\nNo results to summarize.")
+    print("\n" + "="*85)
+    print(" " * 32 + "EVALUATION SUMMARY")
+    print("="*85)
+    print(summary_df.to_string(index=False, float_format="%.2f"))
+    print("="*85)
+

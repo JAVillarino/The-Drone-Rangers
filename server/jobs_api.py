@@ -1,18 +1,9 @@
-"""
-Jobs API
-
-This module handles the creation, management, and persistence of simulation jobs.
-It provides a REST API for the frontend to interact with jobs and a repository
-layer for data persistence.
-"""
 from __future__ import annotations
 
 import pickle
-import traceback
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 from uuid import uuid4
 import uuid
 import time
@@ -23,19 +14,9 @@ from flask import Blueprint, jsonify, request
 from planning import state
 from planning.state import Job, JobStatus
 
-# -----------------------------------------------------------------------------
-# Constants & Configuration
-# -----------------------------------------------------------------------------
 
 DB_PATH = Path(__file__).parent / "tmp" / "jobs.pkl"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-VALID_STATUSES = {"pending", "scheduled", "running", "completed", "cancelled"}
-
-
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
 
 def _parse_iso_timestamp(s: Optional[str]) -> Optional[float]:
     """Parse ISO 8601 timestamp string to UNIX timestamp."""
@@ -59,30 +40,27 @@ def _normalize_target(data: dict) -> Tuple[Optional[state.Target], Optional[str]
     if "target" not in data or data["target"] is None:
         return None, "Target not provided"
 
+    print("target", data["target"])
     target = data["target"]
     if target["type"] == "circle":
-        radius = float(target["radius"]) if target["radius"] is not None else None
-        return state.Circle(
-            center=np.asarray(target["center"], dtype=float).reshape(2),
-            radius=radius
-        ), None
+        return state.Circle(center=np.asarray(target["center"], dtype=float).reshape(2), radius=float(target["radius"]) if target["radius"] is not None else None), None
     elif target["type"] == "polygon":
-        return state.Polygon(
-            points=np.asarray(target["points"], dtype=float).reshape(2, -1)
-        ), None
+        return state.Polygon(points=np.asarray(target["points"], dtype=float).reshape(2, -1)), None
     else:
         return None, "Invalid target type"
-
+    
 
 def _normalize_drone_count(data: dict) -> Tuple[int, Optional[str]]:
     """
     Extract drone count from request, handling both 'drones' and 'drone_count' fields.
+    
     Defaults to 1 if neither field is provided.
     """
+    # Explicitly check for None to handle 0 as a valid key
     drone_count = data.get("drone_count") if "drone_count" in data else data.get("drones")
     if drone_count is None:
         return 1, None  # Default: 1 drone
-
+    
     try:
         count = int(drone_count)
         if count < 1:
@@ -92,30 +70,31 @@ def _normalize_drone_count(data: dict) -> Tuple[int, Optional[str]]:
         return 0, "drone count must be an integer"
 
 
+VALID_STATUSES = {"pending", "scheduled", "running", "completed", "cancelled"}
+
+
 def _normalize_status(status: str) -> Tuple[JobStatus, Optional[str]]:
     """Normalize status from frontend format to internal format."""
     # Map frontend "active" to backend "running"
     if status == "active":
         status = "running"
-
+    
     if status not in VALID_STATUSES:
-        return "pending", f"Invalid status: {status}. Must be one of: {', '.join(VALID_STATUSES)}"
-
+        return "pending", f"Invalid status: {status}. Must be one of: scheduled, pending, running, completed, cancelled"
+    
     return status, None
 
 
-def decide_initial_status(
-    start_at_ts: Optional[float],
-    activate_immediately: bool,
-    has_target: bool,
-    now_ts: float
-) -> Tuple[JobStatus, bool]:
+def decide_initial_status(start_at_ts: Optional[float], activate_immediately: bool, 
+                         has_target: bool, now_ts: float) -> Tuple[JobStatus, bool]:
     """
     Centralized logic to determine initial status and is_active for a new job.
+    
     Returns: (status, is_active)
     """
     if start_at_ts is not None and start_at_ts > now_ts:
         # Future scheduled job - should NOT be active until start_at time arrives
+        # The main loop will promote it to running when start_at <= now
         return "scheduled", False
     if activate_immediately:
         # Immediate activation
@@ -131,16 +110,12 @@ def _sync_remaining_time_from_memory(db_job: Job, jobs_cache) -> None:
         db_job.remaining_time = mem_job.remaining_time
 
 
-# -----------------------------------------------------------------------------
-# Job Repository
-# -----------------------------------------------------------------------------
+# -------- Job Repository --------
 
 class JobRepo:
-    """
-    Repository for persisting and retrieving jobs from PKL.
+    """Repository for persisting and retrieving jobs from PKL.
     
-    Every method starts by loading the jobs from the database and ends by saving
-    the jobs back to the database if they've been modified.
+    Every method starts by loading the jobs from the database and ends by saving the jobs back to the database if they've been modified.
     """
 
     def _load_jobs(self) -> List[Job]:
@@ -164,6 +139,7 @@ class JobRepo:
             except Exception:
                 pass
             return []
+        
         # Filter out jobs with invalid targets (must be Circle, Polygon, or None)
         valid_jobs = []
         invalid_count = 0
@@ -173,12 +149,12 @@ class JobRepo:
             else:
                 print(f"Warning: Removing job {job.id} with invalid target type: {type(job.target)}")
                 invalid_count += 1
-
+        
         # If we removed any invalid jobs, save the cleaned list back to disk
         if invalid_count > 0:
             print(f"Cleaned up {invalid_count} jobs with invalid targets from database")
             self._save_jobs(valid_jobs)
-
+        
         return valid_jobs
 
     def _save_jobs(self, jobs: List[Job]):
@@ -197,11 +173,12 @@ class JobRepo:
         scenario_id: Optional[str],
     ) -> Job:
         """Create a new job in the database."""
+
         jobs = self._load_jobs()
+
         now = datetime.now(timezone.utc).timestamp()
-        
         new_job = Job(
-            id=uuid.uuid4(),
+            id=uuid4(),
             target=target,
             remaining_time=None,
             is_active=is_active,
@@ -217,11 +194,13 @@ class JobRepo:
 
         jobs.append(new_job)
         self._save_jobs(jobs)
+
         return new_job
 
     def get(self, job_id: uuid.UUID) -> Optional[Job]:
         """Retrieve a job by ID."""
         jobs = self._load_jobs()
+
         for job in jobs:
             if job.id == job_id:
                 return job
@@ -232,10 +211,14 @@ class JobRepo:
         jobs = self._load_jobs()
         if status:
             return [j for j in jobs if j.status == status]
-        return jobs
+        else:
+            return jobs
 
     def update_fields(self, job_id: uuid.UUID, **fields) -> Optional[Job]:
         """Update specific fields of a job."""
+
+        print("Updating fields:", fields)
+
         if not fields:
             return self.get(job_id)
 
@@ -245,68 +228,27 @@ class JobRepo:
             if j.id == job_id:
                 job = j
                 break
-        
         if job is None:
             return None
 
         for k, v in fields.items():
             setattr(job, k, v)
-        
         job.updated_at = datetime.now(timezone.utc).timestamp()
         self._save_jobs(jobs)
+
         return job
 
     def delete(self, job_id: uuid.UUID):
         """
         Delete a job from the database.
+        
         Returns True if job was deleted, False if job was not found.
         """
         jobs = self._load_jobs()
-        original_count = len(jobs)
         jobs = [j for j in jobs if j.id != job_id]
-        
-        if len(jobs) < original_count:
-            self._save_jobs(jobs)
-            return True
-        return False
+        self._save_jobs(jobs)
 
-
-# -----------------------------------------------------------------------------
-# Global Repository Instance
-# -----------------------------------------------------------------------------
-
-_repo_instance: Optional[JobRepo] = None
-
-
-def get_repo() -> JobRepo:
-    """Get the global JobRepo instance, creating if needed."""
-    global _repo_instance
-    if _repo_instance is None:
-        _repo_instance = JobRepo()
-    return _repo_instance
-
-
-def sync_job_status_to_db(job: Job) -> None:
-    """
-    Sync a job's status, is_active, completed_at, and remaining_time to the database.
-    
-    This is called from the main loop when jobs are promoted or completed.
-    It updates status-related fields and remaining_time for recovery.
-    """
-    repo = get_repo()
-    updates = {
-        "status": job.status,
-        "is_active": 1 if job.is_active else 0,
-        "remaining_time": job.remaining_time,
-    }
-    if job.completed_at is not None:
-        updates["completed_at"] = job.completed_at
-    repo.update_fields(job.id, **updates)
-
-
-# -----------------------------------------------------------------------------
-# API Blueprint Factory
-# -----------------------------------------------------------------------------
+# -------- API Blueprint Factory --------
 
 def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Blueprint:
     """
@@ -317,7 +259,7 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
         jobs_cache: In-memory job cache
         get_backend_adapter: Callable that returns the current backend_adapter (World)
     """
-    repo = get_repo()
+    repo = get_repo()  # Use shared singleton instance
     bp = Blueprint("api_jobs", __name__, url_prefix="/api")
 
     @bp.route("/jobs", methods=["POST"])
@@ -338,7 +280,6 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
         job_type = data.get("job_type", "immediate")
         scheduled_time = data.get("scheduled_time") or data.get("start_at")
         activate_immediately = job_type == "immediate"
-        
         # Parse scheduled_time if provided
         start_at = None
         if job_type == "scheduled" or scheduled_time:
@@ -347,6 +288,8 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
                 return jsonify({"error": "scheduled_time must be provided for scheduled jobs"}), 400
 
         # Determine status and activation using centralized logic
+        # Jobs are NOT activated immediately by default - user must click "Start Job"
+        # Only activate immediately if explicitly requested via activate_immediately=true
         now = datetime.now(timezone.utc).timestamp()
         status, is_active = decide_initial_status(
             start_at_ts=start_at,
@@ -375,7 +318,7 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
             # If activated immediately, start metrics
             if is_active:
                 from server.metrics import start_metrics_run, get_collector
-                # Stop existing if any
+                # Stop existing if any (though decide_initial_status checks shouldn't happen)
                 if get_collector().get_current_run() is not None:
                     from server.metrics import end_metrics_run
                     end_metrics_run()
@@ -400,8 +343,10 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
                 return jsonify({"error": status_error}), 400
 
         db_jobs = repo.list(status=normalized_status)
+        print("db_jobs in list_jobs:", db_jobs);
 
         # Filter by date range if provided
+        # For calendar views, filter by scheduled time (start_at), fallback to created_at for immediate jobs
         if start_date or end_date:
             start_ts = _parse_iso_timestamp(start_date) if start_date else None
             end_ts = _parse_iso_timestamp(end_date) if end_date else None
@@ -421,6 +366,7 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
         with world_lock:
             for db_job in db_jobs:
                 _sync_remaining_time_from_memory(db_job, jobs_cache)
+
 
         return jsonify({
             "jobs": [j.to_dict() for j in db_jobs],
@@ -549,10 +495,19 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
                         # Use the World's built-in method to resize drone array safely
                         if hasattr(backend_adapter, 'set_drone_count'):
                             backend_adapter.set_drone_count(new_count)
+                        
+                        # Also update num_controllers property if it exists (for some adapters)
+                        if hasattr(backend_adapter, 'num_controllers') and not isinstance(backend_adapter.num_controllers, int):
+                             # If it's a property, it might be read-only, so we skip setting it
+                             # The World.num_controllers is a property, so we don't set it directly
+                             pass
                             
                     except Exception as e:
                         print(f"Error updating drone count in world: {e}")
+                        import traceback
                         traceback.print_exc()
+                        # Don't fail the request, just log the error
+                        pass
                 
                 # --- Metrics Management ---
                 # If job is becoming active/running, start metrics
@@ -568,6 +523,8 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
                     if get_collector().get_current_run() is not None:
                         end_metrics_run()
                         print(f"Stopped metrics collection for job {job_id_uuid}")
+                        
+                return jsonify(job_mem.to_dict()), 200
                         
                 return jsonify(job_mem.to_dict()), 200
             
@@ -601,3 +558,34 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
         return jsonify(job_to_return.to_dict()), 200
 
     return bp
+
+
+# -------- Main Loop Status Sync --------
+
+_repo_instance: Optional[JobRepo] = None
+
+
+def get_repo() -> JobRepo:
+    """Get the global JobRepo instance, creating if needed."""
+    global _repo_instance
+    if _repo_instance is None:
+        _repo_instance = JobRepo()
+    return _repo_instance
+
+
+def sync_job_status_to_db(job: Job) -> None:
+    """
+    Sync a job's status, is_active, completed_at, and remaining_time to the database.
+    
+    This is called from the main loop when jobs are promoted or completed.
+    It updates status-related fields and remaining_time for recovery.
+    """
+    repo = get_repo()
+    updates = {
+        "status": job.status,
+        "is_active": 1 if job.is_active else 0,
+        "remaining_time": job.remaining_time,
+    }
+    if job.completed_at is not None:
+        updates["completed_at"] = job.completed_at
+    repo.update_fields(job.id, **updates)
