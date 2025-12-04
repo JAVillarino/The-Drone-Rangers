@@ -1,4 +1,10 @@
-from .policy import ShepherdPolicy
-from . import utils
+"""
+Herding Planning Module
 
-__all__ = ["Sheep", "ShepherdPolicy", "utils"]
+This package contains the core logic for the herding policy, including the
+`ShepherdPolicy` class and utility functions for vector math and force calculations.
+"""
+from . import utils
+from .policy import ShepherdPolicy
+
+__all__ = ["ShepherdPolicy", "utils"]

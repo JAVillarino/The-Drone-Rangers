@@ -1,18 +1,54 @@
+"""
+Simulation Demo Runner
+
+This script runs a visual demonstration of the herding simulation with the configured
+policy and scenario. It uses Matplotlib for real-time rendering of the agents,
+obstacles, and targets.
+"""
 import argparse
 import time
-import numpy as np
-import matplotlib as mpl
+from typing import List, Optional, Tuple
+
 import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon
-from simulation import world
-from planning.herding import policy
-from planning import state as state_module
-from planning.state import Job
-from simulation.scenarios import *
+import numpy as np
+from matplotlib.patches import Polygon as MplPolygon
+
 from planning import plan_type
+from planning import state as state_module
+from planning.herding import policy
+from planning.state import Job
+from simulation import world
+from simulation.scenarios import (
+    spawn_circle,
+    spawn_clusters,
+    spawn_corners,
+    spawn_line,
+    spawn_uniform,
+)
+
+# -----------------------------------------------------------------------------
+# Constants & Configuration
+# -----------------------------------------------------------------------------
+
+DEFAULT_BOUNDS = (0.0, 500.0, 0.0, 500.0)
+SPAWN_BOUNDS = (0.0, 250.0, 0.0, 250.0)
+TARGET_XY = np.array([240.0, 240.0])
+DEFAULT_DRONE_POS = np.array([[-20, -36]])
+
+
+# -----------------------------------------------------------------------------
+# Renderer Class
+# -----------------------------------------------------------------------------
 
 class Renderer:
-    def __init__(self, world, bounds=(0.0, 500.0, 0.0, 500.0), obstacles_polygons=None):
+    """Handles the visualization of the simulation state using Matplotlib."""
+    
+    def __init__(
+        self, 
+        world_instance: world.World, 
+        bounds: Tuple[float, float, float, float] = DEFAULT_BOUNDS, 
+        obstacles_polygons: Optional[List[np.ndarray]] = None
+    ):
         """Initialize figure, axes, and scatter plots."""
         xmin, xmax, ymin, ymax = bounds
 
@@ -36,43 +72,52 @@ class Renderer:
             for poly in obstacles_polygons:
                 # Close the polygon by adding the first vertex at the end
                 closed_poly = np.vstack([poly, poly[0]])
-                patch = Polygon(closed_poly[:-1], facecolor='red', alpha=0.3, edgecolor='red')
+                patch = MplPolygon(closed_poly[:-1], facecolor='red', alpha=0.3, edgecolor='red')
                 self.ax.add_patch(patch)
                 self.polygon_patches.append(patch)
 
         # Initial state
-        state = world.get_state()
+        state = world_instance.get_state()
         self.sheep_sc = self.ax.scatter(state.flock[:, 0], state.flock[:, 1], s=20)
         self.dog_sc   = self.ax.scatter([state.drones[:, 0]], [state.drones[:, 1]], marker='x')
         self.target = None
         self.prev_target = None
         
+        # Debug circle for GCM/Cohesion
         self.circle = plt.Circle((0, 0), 0, color='b', fill=False)
         self.ax.add_patch(self.circle)
 
 
-    def render_world(self, world, plan: plan_type.Plan, step_number, target: state_module.Target, debug=False):
+    def render_world(
+        self, 
+        world_instance: world.World, 
+        plan: plan_type.Plan, 
+        step_number: int, 
+        target: Optional[state_module.Target], 
+        debug: bool = False
+    ):
         """Update the scatter plots for the current state of the world."""
-        state = world.get_state()
+        state = world_instance.get_state()
 
         # Update sheep positions
         self.sheep_sc.set_offsets(state.flock)
 
         if debug:
-            match plan:
-                case plan_type.DoNothing():
-                    pass
-                case plan_type.DronePositions(positions=pos, apply_repulsion=apply, target_sheep_indices=_, gcm=gcm, radius=r):
-                    # Highlight target sheep if specified
-                    colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue
-                    for i in plan.target_sheep_indices:
+            if isinstance(plan, plan_type.DronePositions):
+                # Highlight target sheep if specified
+                colors = [(0.0, 0.0, 1.0, 1.0)] * len(state.flock)  # all blue
+                for i in plan.target_sheep_indices:
+                    if 0 <= i < len(colors):
                         colors[i] = (1.0, 0.0, 0.0, 1.0)  # target sheep red
-                    self.sheep_sc.set_facecolor(colors)
-                    
-                    self.circle.center = gcm
-                    self.circle.radius = r
-                case _ as unexpected_plan:
-                    raise Exception("Unexpected plan type", unexpected_plan)
+                self.sheep_sc.set_facecolor(colors)
+                
+                self.circle.center = plan.gcm
+                self.circle.radius = plan.radius
+            elif isinstance(plan, plan_type.DoNothing):
+                pass
+            else:
+                # Should not happen with current types
+                pass
 
         # Update dog and target markers
         self.dog_sc.set_offsets(state.drones)
@@ -89,7 +134,7 @@ class Renderer:
                 self.target.radius = target.radius
                 self.ax.add_patch(self.target)
             elif isinstance(target, state_module.Polygon):
-                self.target = Polygon(target.points, facecolor='g', alpha=0.3, edgecolor='g')
+                self.target = MplPolygon(target.points, facecolor='g', alpha=0.3, edgecolor='g')
                 self.ax.add_patch(self.target)
             self.prev_target = target
 
@@ -99,37 +144,40 @@ class Renderer:
         # Redraw
         self.fig.canvas.draw_idle()
 
-# ---------- main ----------
+
+# -----------------------------------------------------------------------------
+# Main Execution
+# -----------------------------------------------------------------------------
+
 if __name__ == "__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument("--N", type=int, default=100)
+    p = argparse.ArgumentParser(description="Run herding simulation demo.")
+    p.add_argument("--N", type=int, default=100, help="Number of sheep")
     p.add_argument("--spawn", choices=["circle","uniform","clusters","corners","line"],
-                   default="uniform", help="initial sheep distribution")
-    p.add_argument("--clusters", type=int, default=3, help="#clusters for spawn=clusters")
-    p.add_argument("--seed", type=int, default=3)
-    p.add_argument("--steps", type=int, default=10000)
-    p.add_argument("--obstacles", action="store_true", default=True, help="enable obstacles (default: True)")
-    p.add_argument("--no-obstacles", dest="obstacles", action="store_false", help="disable obstacles")
+                   default="uniform", help="Initial sheep distribution")
+    p.add_argument("--clusters", type=int, default=3, help="# clusters for spawn=clusters")
+    p.add_argument("--seed", type=int, default=3, help="Random seed")
+    p.add_argument("--steps", type=int, default=10000, help="Max simulation steps")
+    p.add_argument("--obstacles", action="store_true", default=True, help="Enable obstacles (default: True)")
+    p.add_argument("--no-obstacles", dest="obstacles", action="store_false", help="Disable obstacles")
     args = p.parse_args()
 
     # Bounds (match World defaults so plotting aligns)
-    spawn_bounds = (0.0, 250.0, 0.0, 250.0) 
-    xmin, xmax, ymin, ymax = spawn_bounds
+    xmin, xmax, ymin, ymax = SPAWN_BOUNDS
 
-    # --- choose spawn pattern ---
+    # --- Choose spawn pattern ---
     if args.spawn == "circle":
         sheep_xy = spawn_circle(args.N, center=(100,100), radius=5.0, seed=args.seed)
     elif args.spawn == "uniform":
-        sheep_xy = spawn_uniform(args.N, spawn_bounds, seed=args.seed)
+        sheep_xy = spawn_uniform(args.N, SPAWN_BOUNDS, seed=args.seed)
     elif args.spawn == "clusters":
-        sheep_xy = spawn_clusters(args.N, args.clusters, spawn_bounds, spread=4.0, seed=args.seed)
+        sheep_xy = spawn_clusters(args.N, args.clusters, SPAWN_BOUNDS, spread=4.0, seed=args.seed)
     elif args.spawn == "corners":
-        sheep_xy = spawn_corners(args.N, spawn_bounds, jitter=2.0, seed=args.seed)
+        sheep_xy = spawn_corners(args.N, SPAWN_BOUNDS, jitter=2.0, seed=args.seed)
     else:  # line
-        sheep_xy = spawn_line(args.N, spawn_bounds, seed=args.seed)
+        sheep_xy = spawn_line(args.N, SPAWN_BOUNDS, seed=args.seed)
 
-    dog_xy = np.array(np.array([[-20, -36]]),)
-    target_xy = np.array([240.0, 240.0])
+    dog_xy = DEFAULT_DRONE_POS
+    target_xy = TARGET_XY
 
     # Create example polygon obstacles
     obstacles_polygons = None
@@ -142,14 +190,14 @@ if __name__ == "__main__":
             [100.0, 100.0],
         ])
         
-        # Triangle
+        # Triangle (unused in current list but available)
         triangle = np.array([
             [150.0, 50.0],
             [180.0, 50.0],
             [165.0, 80.0]
         ])
         
-        # L-shape
+        # L-shape (unused in current list but available)
         l_shape = np.array([
             [50.0, 150.0],
             [90.0, 150.0],
@@ -161,6 +209,7 @@ if __name__ == "__main__":
         
         obstacles_polygons = [rect]
 
+    # Initialize World
     W = world.World(
         sheep_xy, dog_xy, target_xy, 
         seed=args.seed,
@@ -177,14 +226,15 @@ if __name__ == "__main__":
         dt=1,
     )
 
+    # Initialize Policy
     total_area = 0.5 * W.N * (W.ra ** 2)
-    # area = pi * r^2 => r = sqrt(area / pi) (but pi's cancel.)
     collected_herd_radius = np.sqrt(total_area)
+    
     shepherd_policy = policy.ShepherdPolicy(
-        fN = collected_herd_radius,   # cohesion radius
-        umax = W.umax,                    # keep in sync with world
-        too_close = 1.5 * W.ra,             # safety stop
-        collect_standoff = 1.0 * W.ra,    # paper: r_a behind the stray
+        fN=collected_herd_radius,   # cohesion radius
+        umax=W.umax,                # keep in sync with world
+        too_close=1.5 * W.ra,       # safety stop
+        collect_standoff=1.0 * W.ra,# paper: r_a behind the stray
         conditionally_apply_repulsion=True,
     )
 
@@ -192,12 +242,10 @@ if __name__ == "__main__":
     num_drones = s0.drones.shape[0]
 
     current_time = time.time()
-    from planning.state import Circle
-    target = Circle(center=target_xy.copy(), radius=10.0)
-    # target = state_module.Polygon(points=np.array([[0.0, 180.0],
-    #                    [0.0, 260.0],
-    #                    [260.0, 260.0],
-    #                    [260.0, 180.0]]))
+    
+    # Setup Job and Target
+    target = state_module.Circle(center=target_xy.copy(), radius=10.0)
+    
     jobs = [Job(
         target=target,
         remaining_time=None,
@@ -212,8 +260,9 @@ if __name__ == "__main__":
         updated_at=current_time,
     )]
     
-    renderer = Renderer(W, bounds=(0.0, 500.0, 0.0, 500.0), obstacles_polygons=obstacles_polygons)
+    renderer = Renderer(W, bounds=DEFAULT_BOUNDS, obstacles_polygons=obstacles_polygons)
 
+    # Main Loop
     for t in range(args.steps):
         plan = shepherd_policy.plan(W.get_state(), jobs, W.dt)
         W.step(plan)
