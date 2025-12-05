@@ -135,25 +135,25 @@ def test_world_initialization():
     # Ensure N > k_nn (default 8)
     N = 20
     sheep_xy = np.zeros((N, 2))
-    dog_xy = np.zeros((1, 2))
+    drone_xy = np.zeros((1, 2))
     target_xy = np.array([100.0, 100.0])
     
-    w = world.World(sheep_xy, dog_xy, target_xy, seed=42)
+    w = world.World(sheep_xy, drone_xy, target_xy, seed=42)
     
     assert w.N == N
-    assert w.dogs.shape[0] == 1
+    assert w.drones.shape[0] == 1
     assert np.array_equal(w.target, target_xy)
     assert w.P.shape == (N, 2)
 
 def test_world_step():
     """Test World stepping logic (basic physics check)."""
-    # Setup: 20 sheep (N > k_nn), 1 dog far away
+    # Setup: 20 sheep (N > k_nn), 1 drone far away
     N = 20
     sheep_xy = np.full((N, 2), 50.0)
-    dog_xy = np.array([[0.0, 0.0]]) # Far away
+    drone_xy = np.array([[0.0, 0.0]]) # Far away
     target_xy = np.array([100.0, 100.0])
     
-    w = world.World(sheep_xy, dog_xy, target_xy, seed=42)
+    w = world.World(sheep_xy, drone_xy, target_xy, seed=42)
     
     # Step with no action
     plan = plan_type.DoNothing()
@@ -166,25 +166,25 @@ def test_world_step():
     assert np.isfinite(new_pos).all()
 
 def test_world_repulsion():
-    """Test that sheep are repelled by dogs."""
-    # Setup: 20 sheep, 1 dog very close
+    """Test that sheep are repelled by drones."""
+    # Setup: 20 sheep, 1 drone very close
     N = 20
     sheep_xy = np.full((N, 2), 50.0)
-    dog_xy = np.array([[50.5, 50.0]]) # Very close, to the right
+    drone_xy = np.array([[50.5, 50.0]]) # Very close, to the right
     target_xy = np.array([100.0, 100.0])
     
-    w = world.World(sheep_xy, dog_xy, target_xy, seed=42)
+    w = world.World(sheep_xy, drone_xy, target_xy, seed=42)
     
     # Capture initial state from the world itself
     initial_pos = w.get_state().flock.copy()
     mean_x_before = np.mean(initial_pos[:, 0])
     
-    # Force dog position update via plan
-    # apply_repulsion must be an array matching number of dogs
+    # Force drone position update via plan
+    # apply_repulsion must be an array matching number of drones
     apply_repulsion = np.ones(1, dtype=bool)
     
     plan = plan_type.DronePositions(
-        positions=dog_xy, 
+        positions=drone_xy, 
         apply_repulsion=apply_repulsion,
         target_sheep_indices=[],
         gcm=np.array([0,0]),
@@ -192,12 +192,12 @@ def test_world_repulsion():
     )
     w.step(plan)
     
-    # Sheep should move AWAY from dog (to the left)
+    # Sheep should move AWAY from drone (to the left)
     # Check mean position shift
     new_pos = w.get_state().flock
     mean_x_after = np.mean(new_pos[:, 0])
     
-    # Since dog is at 50.5 (right) and sheep at 50.0, they should move left (< 50.0)
+    # Since drone is at 50.5 (right) and sheep at 50.0, they should move left (< 50.0)
     assert mean_x_after < mean_x_before
 
 # -----------------------------------------------------------------------------

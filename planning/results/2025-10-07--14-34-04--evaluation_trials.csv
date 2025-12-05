@@ -1,4 +1,4 @@
-Success,Completion Steps,Wall Time (s),max_steps,boundary,clusters,dog_xy,conditionally_apply_repulsion,N,spawn_type,seed,success_radius
+Success,Completion Steps,Wall Time (s),max_steps,boundary,clusters,drone_xy,conditionally_apply_repulsion,N,spawn_type,seed,success_radius
 True,305.0,22.856631500006188,2000,none,3,"[[-20 -35]
  [-20 -35]]",False,100,circle,0,40.0
 True,594.0,45.96781619999092,2000,none,3,"[[-20 -35]

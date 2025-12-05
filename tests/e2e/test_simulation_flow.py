@@ -21,7 +21,7 @@ def test_full_simulation_flow():
     sheep_xy = scenarios.spawn_circle(N, center=(50, 50), radius=10.0, seed=seed)
     
     # Spawn drone near sheep
-    dog_xy = np.array([[40.0, 40.0]])
+    drone_xy = np.array([[40.0, 40.0]])
     
     # Target in top-right
     target_pos = np.array([150.0, 150.0])
@@ -29,7 +29,7 @@ def test_full_simulation_flow():
     
     # Initialize World
     w = world.World(
-        sheep_xy, dog_xy, target_xy=target_pos, 
+        sheep_xy, drone_xy, target_xy=target_pos, 
         bounds=bounds, seed=seed, k_nn=10
     )
     
@@ -95,7 +95,7 @@ def test_obstacle_avoidance_flow():
     
     # Sheep at (50, 100)
     sheep_xy = scenarios.spawn_circle(N, center=(50, 100), radius=5.0, seed=seed)
-    dog_xy = np.array([[40.0, 100.0]])
+    drone_xy = np.array([[40.0, 100.0]])
     
     # Target at (150, 100)
     target_pos = np.array([150.0, 100.0])
@@ -105,7 +105,7 @@ def test_obstacle_avoidance_flow():
     obs = np.array([[90, 80], [110, 80], [110, 120], [90, 120]])
     
     w = world.World(
-        sheep_xy, dog_xy, target_xy=target_pos, 
+        sheep_xy, drone_xy, target_xy=target_pos, 
         bounds=bounds, 
         obstacles_polygons=[obs],
         seed=seed, 

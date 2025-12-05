@@ -55,12 +55,12 @@ def test_simulation_loop():
         N = 50
         bounds = (0.0, 250.0, 0.0, 250.0)
         sheep_xy = spawn_uniform(N, bounds, seed=seed)
-        dog_xy = np.array([[125.0, 125.0]])
+        drone_xy = np.array([[125.0, 125.0]])
         target_xy = np.array([200.0, 200.0])
         
         # Initialize World
         w = World(
-            sheep_xy, dog_xy, target_xy,
+            sheep_xy, drone_xy, target_xy,
             bounds=bounds,
             seed=seed,
             dt=0.1

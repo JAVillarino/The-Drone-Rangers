@@ -70,7 +70,7 @@ def run_one_trial(
     else:  # line
         sheep_xy = spawn_line(config["N"], SPAWN_BOUNDS, seed=seed)
 
-    dog_xy = config["dog_xy"]
+    drone_xy = config["drone_xy"]
     target_xy = TARGET_POS
 
     # Build world with simulation parameters
@@ -82,7 +82,7 @@ def run_one_trial(
     }
     W = world.World(
         sheep_xy, 
-        dog_xy, 
+        drone_xy, 
         target_xy, 
         w_obs=0,
         w_tan=0,
@@ -159,7 +159,7 @@ if __name__ == "__main__":
     spawn_types = ["uniform"]
     seeds = range(3)
     flyovers = [False]
-    dog_xy_configs = [
+    drone_xy_configs = [
         np.array([[0, 0]]),
     ]
     
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     scenarios_to_run = [
         {
             **BASE_CONFIG,
-            "dog_xy": d_xy,
+            "drone_xy": d_xy,
             "k_nn": n_nb,
             "conditionally_apply_repulsion": flyover,
             "N": N,
@@ -175,7 +175,7 @@ if __name__ == "__main__":
             "seed": seed,
             "success_radius": N ** (1/2) * 4
         }
-        for seed, N, pattern, flyover, n_nb, d_xy in product(seeds, Ns, spawn_types, flyovers, n_values, dog_xy_configs)
+        for seed, N, pattern, flyover, n_nb, d_xy in product(seeds, Ns, spawn_types, flyovers, n_values, drone_xy_configs)
         if n_nb < N
     ]
 
@@ -202,7 +202,7 @@ if __name__ == "__main__":
             "Success": success,
             "Completion Steps": completion_steps if success else np.nan,
             "Wall Time (s)": trial_duration,
-            "Drone Count": config["dog_xy"].shape[0],
+            "Drone Count": config["drone_xy"].shape[0],
             **config
         })
 

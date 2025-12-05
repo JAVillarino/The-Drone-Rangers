@@ -8,10 +8,10 @@ from planning import state
 def benchmark_simulation_step(N, steps=100):
     """Benchmark simulation stepping for N agents."""
     sheep_xy = scenarios.spawn_uniform(N, (0, 200, 0, 200), seed=42)
-    dog_xy = np.array([[0.0, 0.0]])
+    drone_xy = np.array([[0.0, 0.0]])
     target_xy = np.array([100.0, 100.0])
     
-    w = world.World(sheep_xy, dog_xy, target_xy, seed=42, k_nn=5)
+    w = world.World(sheep_xy, drone_xy, target_xy, seed=42, k_nn=5)
     pol = policy.ShepherdPolicy(fN=20.0, umax=w.umax, too_close=10.0, collect_standoff=5.0)
     
     # Create a dummy job

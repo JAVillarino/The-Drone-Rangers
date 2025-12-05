@@ -12,12 +12,12 @@ class MockWorldAdapter:
         self.polys = []
         self.N = 10
         self.P = np.zeros((10, 2))
-        self.dogs = np.zeros((1, 2))
+        self.drones = np.zeros((1, 2))
     
     def get_state(self):
         return state.State(
             flock=self.P,
-            drones=self.dogs,
+            drones=self.drones,
             polygons=self.polys,
             jobs=[]
         )
