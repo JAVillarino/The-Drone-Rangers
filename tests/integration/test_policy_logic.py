@@ -12,7 +12,7 @@ def test_policy_plan_structure():
     # Setup job
     target = state.Circle(center=np.array([100.0, 100.0]), radius=10.0)
     job = state.Job(
-        target=target, drones=1, status="running", is_active=True,
+        target=target, drone_count=1, status="running", is_active=True,
         remaining_time=None, start_at=None, completed_at=None,
         scenario_id=None, maintain_until="target_is_reached",
         created_at=0, updated_at=0
@@ -56,7 +56,7 @@ def test_multi_drone_assignment():
     
     target = state.Circle(center=np.array([100.0, 100.0]), radius=10.0)
     job = state.Job(
-        target=target, drones=2, status="running", is_active=True,
+        target=target, drone_count=2, status="running", is_active=True,
         remaining_time=None, start_at=None, completed_at=None,
         scenario_id=None, maintain_until="target_is_reached",
         created_at=0, updated_at=0
@@ -88,7 +88,7 @@ def test_polygon_target():
     target = state.Polygon(points=poly_pts)
     
     job = state.Job(
-        target=target, drones=1, status="running", is_active=True,
+        target=target, drone_count=1, status="running", is_active=True,
         remaining_time=None, start_at=None, completed_at=None,
         scenario_id=None, maintain_until="target_is_reached",
         created_at=0, updated_at=0

@@ -81,7 +81,7 @@ def test_simulation_loop():
         # Create a dummy job
         job = Job(
             target=Circle(center=target_xy, radius=10.0),
-            drones=1,
+            drone_count=1,
             status="running",
             is_active=True,
             remaining_time=None,

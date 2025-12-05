@@ -46,7 +46,7 @@ def test_full_simulation_flow():
     # Create Job
     job = state.Job(
         target=target,
-        drones=1,
+        drone_count=1,
         status="running",
         is_active=True,
         remaining_time=None,
@@ -117,7 +117,7 @@ def test_obstacle_avoidance_flow():
     )
     
     job = state.Job(
-        target=target, drones=1, status="running", is_active=True,
+        target=target, drone_count=1, status="running", is_active=True,
         remaining_time=None, start_at=None, completed_at=None,
         scenario_id="obs-test", maintain_until="target_is_reached",
         created_at=0, updated_at=0

@@ -23,7 +23,7 @@ def test_job_serialization():
     target = state.Circle(center=np.array([0,0]), radius=10)
     job = state.Job(
         target=target,
-        drones=2,
+        drone_count=2,
         status="pending",
         is_active=True,
         remaining_time=120.0,

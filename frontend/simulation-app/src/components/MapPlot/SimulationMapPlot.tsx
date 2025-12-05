@@ -217,7 +217,7 @@ export function SimulationMapPlot({ data, onPlayPause, onRestart, onBack, select
                     jobName={`Job ${index + 1}`}
                     status={jobStatus(job)}
                     target={job.target}
-                    droneCount={job.drones ?? 1}
+                    droneCount={job.drone_count ?? 1}
                     isActive={job.is_active}
                     onSelectOnMap={() => setChoosingTargetJobId(job.id)}
                     onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}

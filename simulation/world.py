@@ -272,9 +272,12 @@ class World:
             # Add more drones - spawn them near existing drones
             new_drones = []
             for i in range(count - current_count):
-                # Pick a random existing drone to spawn near
-                ref_idx = i % current_count
-                ref_pos = self.dogs[ref_idx]
+                if current_count == 0:
+                    ref_pos = np.array([0, 0])
+                else:
+                    # Pick a random existing drone to spawn near
+                    ref_idx = i % current_count
+                    ref_pos = self.dogs[ref_idx]
                 # Offset by small random amount
                 offset = self.rng.uniform(-10, 10, size=2)
                 new_pos = ref_pos + offset

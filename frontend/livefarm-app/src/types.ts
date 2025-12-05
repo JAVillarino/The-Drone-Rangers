@@ -10,7 +10,7 @@ export interface Job {
   id: string;
   target: Target | null;
   is_active: boolean;
-  drones: number;
+  drone_count: number;
   remaining_time: number | null;
   status: JobStatus;
   start_at: number | null;
@@ -35,7 +35,6 @@ export interface FarmJob {
   is_recurring: boolean;
   target: Target;
   drone_count: number;
-  drones?: number;
   status: JobStatus;
   created_at: string;
   updated_at: string;

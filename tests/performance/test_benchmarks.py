@@ -17,7 +17,7 @@ def benchmark_simulation_step(N, steps=100):
     # Create a dummy job
     target = state.Circle(center=target_xy, radius=10.0)
     job = state.Job(
-        target=target, drones=1, status="running", is_active=True,
+        target=target, drone_count=1, status="running", is_active=True,
         remaining_time=None, start_at=None, completed_at=None,
         scenario_id="bench", maintain_until="target_is_reached",
         created_at=0, updated_at=0

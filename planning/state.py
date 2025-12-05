@@ -65,7 +65,7 @@ class Job:
     """
     # Core configuration
     target: Optional[Target]
-    drones: int
+    drone_count: int
     scenario_id: Optional[str]  # UUID pointing to a scenario
 
     # Status & Progress
@@ -108,7 +108,7 @@ class Job:
             "target": self.target.to_dict() if self.target is not None else None,
             "remaining_time": self.remaining_time,
             "is_active": self.is_active,
-            "drones": self.drones,
+            "drone_count": self.drone_count,
             "status": self.status,
             "start_at": ts_to_iso(self.start_at),
             "completed_at": ts_to_iso(self.completed_at),

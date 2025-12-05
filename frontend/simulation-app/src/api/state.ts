@@ -355,8 +355,6 @@ export async function fetchFarmJobs(_params?: {
         // Convert backend job format to frontend FarmJob format
         return data.jobs.map(job => {
             const backendJob = job as any;
-            // Backend may return 'drones' field, map it to both 'drone_count' and 'drones'
-
             // Infer job_type based on start_at field
             const hasStartAt = backendJob.start_at !== null && backendJob.start_at !== undefined;
             const jobType: 'immediate' | 'scheduled' = hasStartAt ? 'scheduled' : 'immediate';
@@ -367,8 +365,7 @@ export async function fetchFarmJobs(_params?: {
                 scheduled_time: hasStartAt ? backendJob.start_at : undefined,
                 is_recurring: false, // Backend doesn't support recurring yet
                 target: backendJob.target,
-                drone_count: backendJob.drones ?? 1,
-                drones: backendJob.drones ?? 1,
+                drone_count: backendJob.drone_count ?? 1,
                 status: backendJob.status,
                 created_at: backendJob.created_at,
                 updated_at: backendJob.updated_at,

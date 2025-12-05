@@ -239,7 +239,7 @@ if __name__ == "__main__":
     )
 
     s0 = W.get_state()
-    num_drones = s0.drones.shape[0]
+    drone_count = s0.drones.shape[0]
 
     current_time = time.time()
     
@@ -250,7 +250,7 @@ if __name__ == "__main__":
         target=target,
         remaining_time=None,
         is_active=True,
-        drones=num_drones,
+        drone_count=drone_count,
         status="running",
         start_at=None,
         completed_at=None,

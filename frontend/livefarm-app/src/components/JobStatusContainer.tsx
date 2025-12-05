@@ -200,7 +200,7 @@ export default function JobStatusContainer({
               status={jobStatus(job)}
               calendarStatus={calendarStatus}
               target={job.target}
-              droneCount={job.drones}
+              droneCount={job.drone_count}
               isActive={job.is_active}
               isOpen={openJobId === job.id}
               onToggle={() => handleToggle(job.id)}

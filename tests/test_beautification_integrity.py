@@ -65,7 +65,7 @@ def test_state_dataclasses():
     # Job
     job = state.Job(
         target=c,
-        drones=2,
+        drone_count=2,
         status="pending",
         is_active=True,
         remaining_time=100.0,
@@ -213,7 +213,7 @@ def test_policy_plan():
     # Setup job
     target = state.Circle(center=np.array([100.0, 100.0]), radius=10.0)
     job = state.Job(
-        target=target, drones=1, status="running", is_active=True,
+        target=target, drone_count=1, status="running", is_active=True,
         remaining_time=None, start_at=None, completed_at=None,
         scenario_id=None, maintain_until="target_is_reached",
         created_at=0, updated_at=0

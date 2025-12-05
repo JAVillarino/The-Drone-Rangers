@@ -62,11 +62,10 @@ export default function EditJobModal({
           targetRadius = 10.0; // Default radius
         }
       }
-      const drones = job.drone_count;
 
       setScheduledDateTime(scheduledTime);
       setTargetPosition(targetPos);
-      setDroneCount(drones);
+      setDroneCount(job.drone_count);
       setOriginalTargetRadius(targetRadius);
       setShouldCancel(false);
 
@@ -74,7 +73,7 @@ export default function EditJobModal({
       setOriginalValues({
         scheduledDateTime: scheduledTime,
         targetPosition: targetPos,
-        droneCount: drones
+        droneCount: job.drone_count
       });
 
       // Reset edit mode when job changes
@@ -371,11 +370,11 @@ export default function EditJobModal({
           </div>
 
           {/* Drones Currently in Use (read-only, from backend) */}
-          {job.drones !== undefined && (
+          {job.drone_count !== undefined && (
             <div className="form-section">
               <label className="form-label">Drones Currently in Use</label>
               <div className="read-only-value">
-                {job.drones} drone{job.drones !== 1 ? 's' : ''}
+                {job.drone_count} drone{job.drone_count !== 1 ? 's' : ''}
               </div>
             </div>
           )}
