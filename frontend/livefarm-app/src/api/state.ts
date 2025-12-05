@@ -136,7 +136,7 @@ export async function fetchFarmJobs(_params?: {
             const converted: FarmJob = {
                 id: backendJob.id,
                 job_type: jobType,
-                scheduled_time: hasStartAt ? backendJob.start_at : undefined,
+                start_at: backendJob.start_at,
                 is_recurring: false,
                 target: backendJob.target,
                 drone_count: backendJob.drone_count ?? 1,

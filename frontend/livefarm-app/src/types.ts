@@ -31,7 +31,7 @@ export interface State {
 export interface FarmJob {
   id: string;
   job_type: 'immediate' | 'scheduled';
-  scheduled_time?: string;
+  start_at?: string;
   is_recurring: boolean;
   target: Target;
   drone_count: number;
