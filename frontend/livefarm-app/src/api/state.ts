@@ -124,25 +124,16 @@ export async function fetchFarmJobs(_params?: {
 
         const data: FarmJobsResponse = await response.json();
         // Convert backend response to FarmJob type
-        const jobs: FarmJob[] = data.jobs.map(job => {
-            // TODO(Riley): Get rid of this `job as any` business.
-            const backendJob = job as any;
-            const backendStatus = backendJob.status;
-            
-            // Infer job_type based on start_at field
-            const hasStartAt = backendJob.start_at !== null && backendJob.start_at !== undefined;
-            const jobType: 'immediate' | 'scheduled' = hasStartAt ? 'scheduled' : 'immediate';
-            
+        const jobs: FarmJob[] = data.jobs.map(job => {                        
             const converted: FarmJob = {
-                id: backendJob.id,
-                job_type: jobType,
-                start_at: backendJob.start_at,
+                id: job.id,
+                start_at: job.start_at,
                 is_recurring: false,
-                target: backendJob.target,
-                drone_count: backendJob.drone_count ?? 1,
-                status: backendStatus,
-                created_at: backendJob.created_at,
-                updated_at: backendJob.updated_at,
+                target: job.target,
+                drone_count: job.drone_count ?? 1,
+                status: job.status,
+                created_at: job.created_at,
+                updated_at: job.updated_at,
             };
             return converted;
         });
@@ -166,7 +157,8 @@ export async function createFarmJob(data: CreateFarmJobRequest): Promise<FarmJob
         body: JSON.stringify({
             target: data.target,
             drone_count: data.drone_count,
-            status: data.job_type === 'immediate' ? 'pending' : 'scheduled',
+            // TODO(Riley): We don't need to send this status field to the backend either.
+            status: data.scheduled_time ? 'pending' : 'scheduled',
             start_at: data.scheduled_time,
         }),
     });

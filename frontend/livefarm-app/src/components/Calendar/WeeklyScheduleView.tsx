@@ -31,8 +31,8 @@ export default function WeeklyScheduleView({ jobs, onJobClick }: WeeklyScheduleV
         return;
       }
 
-      const jobDate = job.job_type === 'scheduled' && job.scheduled_time
-        ? new Date(job.scheduled_time)
+      const jobDate = job.start_at
+        ? new Date(job.start_at)
         : new Date(job.created_at);
       
       // Check if job is within this week
@@ -41,7 +41,7 @@ export default function WeeklyScheduleView({ jobs, onJobClick }: WeeklyScheduleV
         if (dailyJobs[dayIndex]) {
           dailyJobs[dayIndex].push(job);
         }
-      } else if (job.job_type === 'immediate') {
+      } else if (!job.start_at) {
         // Immediate jobs go to today
         const todayIndex = now.getDay();
         if (dailyJobs[todayIndex]) {
@@ -82,8 +82,8 @@ export default function WeeklyScheduleView({ jobs, onJobClick }: WeeklyScheduleV
                 >
                   <span className={`job-status job-status-${job.status}`}>{job.status}</span>
                   <span className="job-time">
-                    {job.scheduled_time
-                      ? new Date(job.scheduled_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                    {job.start_at
+                      ? new Date(job.start_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
                       : 'Immediate'}
                   </span>
                   <span className="job-details">

@@ -27,9 +27,7 @@ export default function MonthlyScheduleView({ jobs, onJobClick }: MonthlySchedul
         return;
       }
 
-      const jobDate = job.job_type === 'scheduled' && job.scheduled_time
-        ? new Date(job.scheduled_time)
-        : new Date(job.created_at);
+      const jobDate = job.start_at ? new Date(job.start_at) : new Date(job.created_at);
       
       // Check if job is within this month
       if (jobDate.getMonth() === month && jobDate.getFullYear() === year) {
@@ -38,7 +36,7 @@ export default function MonthlyScheduleView({ jobs, onJobClick }: MonthlySchedul
           dateJobs[dateKey] = [];
         }
         dateJobs[dateKey].push(job);
-      } else if (job.job_type === 'immediate' && jobDate.getMonth() === month && jobDate.getFullYear() === year) {
+      } else if (job.start_at === undefined && jobDate.getMonth() === month && jobDate.getFullYear() === year) {
         // Immediate jobs in current month
         const dateKey = `${jobDate.getFullYear()}-${jobDate.getMonth()}-${jobDate.getDate()}`;
         if (!dateJobs[dateKey]) {

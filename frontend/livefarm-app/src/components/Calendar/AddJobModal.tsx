@@ -54,7 +54,6 @@ export default function AddJobModal({
 
     try {
       const jobData: CreateFarmJobRequest = {
-        job_type: jobType,
         scheduled_time: jobType === 'scheduled' && scheduledDateTime ? getDateTimeLocalValue() : undefined,
         is_recurring: isRecurring,
         target: {

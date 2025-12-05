@@ -30,7 +30,7 @@ export interface State {
 // Farm job for calendar/scheduling display
 export interface FarmJob {
   id: string;
-  job_type: 'immediate' | 'scheduled';
+  // If undefined, the job is immediate.
   start_at?: string;
   is_recurring: boolean;
   target: Target;
@@ -49,7 +49,6 @@ export interface FarmJobsResponse {
 
 // Request types
 export interface CreateFarmJobRequest {
-  job_type: 'immediate' | 'scheduled';
   scheduled_time?: string;
   is_recurring?: boolean;
   recurrence_pattern?: string;
