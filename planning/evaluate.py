@@ -1,39 +1,25 @@
 """
 Policy Evaluation Script
 
-<<<<<<< Updated upstream
 Runs the given policy on a variety of scenarios, aggregating:
 - Whether the scenario could be completed.
 - Completion time for successfully completed scenarios.
 - Performance over n different random seeds for a scenario.
 """
-=======
-import numpy as np
-import pandas as pd
-from simulation import world
-from planning.herding import policy
-from planning.herding.policy import is_goal_satisfied
-# Assumes spawn functions are in this module
-from simulation.scenarios import spawn_circle, spawn_uniform, spawn_clusters, spawn_corners, spawn_line
-from datetime import datetime
->>>>>>> Stashed changes
 import os
 import time
 from datetime import datetime
 from itertools import product
-<<<<<<< Updated upstream
 from typing import Any, Dict, Tuple
-=======
-from planning.run_demo import Renderer
-from planning.state import Job, Circle
->>>>>>> Stashed changes
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 from planning.herding import policy
+from planning.herding.policy import is_goal_satisfied
 from planning.run_demo import Renderer
+from planning.state import Job, Circle
 from simulation import world
 from simulation.scenarios import (
     spawn_circle,
@@ -86,13 +72,8 @@ def run_one_trial(
     else:  # line
         sheep_xy = spawn_line(config["N"], SPAWN_BOUNDS, seed=seed)
 
-<<<<<<< Updated upstream
     drone_xy = config["drone_xy"]
     target_xy = TARGET_POS
-=======
-    shepherd_xy = config["dog_xy"]
-    target_xy = np.array([240, 240])
->>>>>>> Stashed changes
 
     # Build world with simulation parameters
     # Note: Disabling obstacles for evaluation by default (w_obs=0, etc.)
@@ -103,11 +84,7 @@ def run_one_trial(
     }
     W = world.World(
         sheep_xy, 
-<<<<<<< Updated upstream
         drone_xy, 
-=======
-        shepherd_xy, 
->>>>>>> Stashed changes
         target_xy, 
         w_obs=0,
         w_tan=0,
@@ -131,19 +108,16 @@ def run_one_trial(
         conditionally_apply_repulsion=config["conditionally_apply_repulsion"],
     )
     
-<<<<<<< Updated upstream
-    renderer = None
-=======
     # Create a Job with a Circle target
     success_radius = config["success_radius"]
     target = Circle(center=target_xy.copy(), radius=success_radius)
     current_time = time.time()
-    num_drones = shepherd_xy.shape[0]
+    num_drones = drone_xy.shape[0]
     jobs = [Job(
         target=target,
         remaining_time=None,
         is_active=True,
-        drones=num_drones,
+        drone_count=num_drones,
         status="running",
         start_at=None,
         completed_at=None,
@@ -153,7 +127,7 @@ def run_one_trial(
         updated_at=current_time,
     )]
     
->>>>>>> Stashed changes
+    renderer = None
     if visualize:
         renderer = Renderer(W, bounds=SPAWN_BOUNDS)
 
@@ -164,25 +138,11 @@ def run_one_trial(
         W.step(plan)
 
         # Check for success condition using is_goal_satisfied
-        state = W.get_state()
-<<<<<<< Updated upstream
-        farthest = np.max(np.linalg.norm(state.flock - state.target, axis=1))
-
-        if farthest < config["success_radius"]:
-            if visualize and renderer:
-                plt.ioff()
-                plt.show()
-            return True, t  # Success!
-        
-        if visualize and renderer:
-            renderer.render_world(W, plan, t)
-=======
         if is_goal_satisfied(state, target):
             return True, t  # Success!
         
         if visualize:
             renderer.render_world(W, plan, t, target, debug=False)
->>>>>>> Stashed changes
             plt.pause(0.05)
             
         # Print the progress on a single line
@@ -211,7 +171,6 @@ if __name__ == "__main__":
 
     date_str = datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
 
-<<<<<<< Updated upstream
     # Define evaluation parameters
     Ns = list(range(120, 130))
     n_values = list(range(1, 129))
@@ -220,22 +179,10 @@ if __name__ == "__main__":
     flyovers = [False]
     drone_xy_configs = [
         np.array([[0, 0]]),
-=======
-    # Run the evaluation and collect trial-by-trial data
-    # Using step size to reduce resolution and runtime
-    Ns = list(range(2, 150, 5))
-    n_values = list(range(1, 149, 2))
-    spawn_types = ["uniform"]
-    seeds = range(3)
-    flyovers = [True]
-    dog_xy = [
-        np.array([[0, 0], [0, 50], [50, 0]]),
->>>>>>> Stashed changes
     ]
     
     # Generate scenarios
     scenarios_to_run = [
-<<<<<<< Updated upstream
         {
             **BASE_CONFIG,
             "drone_xy": d_xy,
@@ -248,11 +195,6 @@ if __name__ == "__main__":
         }
         for seed, N, pattern, flyover, n_nb, d_xy in product(seeds, Ns, spawn_types, flyovers, n_values, drone_xy_configs)
         if n_nb < N
-=======
-        {**base_config, "dog_xy": dog_xy, "k_nn": n_nb, "conditionally_apply_repulsion": flyover, "N": N, "spawn_type": pattern, "seed": seed, "success_radius": N ** (1/2) * 4 }
-        for seed, N, pattern, flyover, n_nb, dog_xy in product(seeds, Ns, spawn_types, flyovers, n_values, dog_xy)
-        if n_nb < N and n_nb < 0.53 * N
->>>>>>> Stashed changes
     ]
 
     trial_results_list = []

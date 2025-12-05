@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-<<<<<<< Updated upstream
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
@@ -23,18 +22,6 @@ import pandas as pd
 # Can be populated manually or via glob patterns.
 CSV_PATHS = [
     "./planning/results/paper_result.csv"
-=======
-# === CONFIG ===
-# EITHER: list csvs manually
-csv_paths = [
-    # "./planning/results/2025-10-20--23-30-56--evaluation_trials.csv",
-    # "./planning/results/2025-10-21--12-49-50--evaluation_trials.csv",
-    # "./planning/results/2025-10-21--14-41-09--evaluation_trials.csv",
-    # "./planning/results/2025-10-21--14-55-11--evaluation_trials.csv",
-    # "./planning/results/paper_result.csv",
-    # "./planning/results/2025-12-01--02-24-59--evaluation_trials.csv",
-    "./planning/results/2025-12-04--18-30-33--evaluation_trials.csv"
->>>>>>> Stashed changes
 ]
 
 # Plot settings
@@ -116,24 +103,11 @@ def plot_results(df: pd.DataFrame):
     grid = (agg.pivot(index="k_nn", columns="N", values="success_rate")
                .reindex(index=ks, columns=Ns))
 
-<<<<<<< Updated upstream
     # Fill upper triangle (where k > N, which is impossible/trivial) with 1.0 (or NaN)
     # Here we set to 1.0 to match original logic, though technically k < N is required.
     G = grid.values.copy()
     upper_mask = (ks[:, None] >= Ns[None, :])   # rows are k, cols are N
     G[upper_mask] = 1.0 
-=======
-# === PLOT ===
-fig, ax = plt.subplots(figsize=(10, 5.5))
-im = ax.imshow(
-    np.ma.masked_invalid(G),
-    origin="lower",
-    aspect="auto",
-    extent=[Ns.min(), Ns.max(), ks.min(), ks.max()],
-    vmin=0.0, vmax=1.0,
-    cmap="Greens"
-)
->>>>>>> Stashed changes
 
     # Create Plot
     fig, ax = plt.subplots(figsize=FIG_SIZE)
