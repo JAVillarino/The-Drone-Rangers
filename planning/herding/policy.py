@@ -284,25 +284,65 @@ class ShepherdPolicy:
         
         intrinsic_score = gcm_weight * dG + goal_weight * dGoal
 
-        # Assign drones to sheep based on scores
-        target_sheep_indices = []
+        # Build score matrix: (N_sheep, N_drones)
+        # Each entry [j, i] is the score for assigning sheep j to drone i
+        N_sheep = P.shape[0]
+        score_matrix = np.zeros((N_sheep, N_drones))
+        
+        # Compute scores for each drone-sheep pair
         for i in range(N_drones):
             # If there are more drones, the closeness will get accounted for by the min_distance_other stuff.
             current_closeness_weight = closeness_weight * (1 / N_drones)
             
-            # Make the score worse the farther away that sheep is.
+            # Make the score worse the farther away that sheep is from this drone.
             score = intrinsic_score - current_closeness_weight * dD_all[:, i]
             
-            # Compute how close the other drones are to this sheep.
+            # Compute how close the other drones are to each sheep.
             d_other_drones = np.hstack((dD_all[:, :i], dD_all[:, i+1:]))
-            
             if N_drones > 1:
                 min_distance_other = np.min(d_other_drones, axis=1)
-                # Give a bonus if this drone is the closest.
+                # Give a bonus if this drone is the closest to the sheep.
                 score += 30 * (dD_all[:, i] < min_distance_other)
             
-            # Favor being close to this drone, Far from other drones
-            target_sheep_indices.append(int(np.argmax(score)))
+            # Store scores for this drone in the matrix
+            score_matrix[:, i] = score
+
+        # Iteratively assign drones to sheep using greedy selection
+        # Each drone must pick a different sheep
+        # Assumes there are at least N_drones sheep in the flock
+        target_sheep_indices = [None] * N_drones
+        assigned_sheep = set()
+        
+        # TODO: idk why this isn't done using a numpy function.
+        for _ in range(N_drones):
+            # Find the absolute maximum score in the entire matrix
+            # Ignore already assigned sheep
+            max_score = -np.inf
+            best_sheep_idx = None
+            best_drone_idx = None
+            
+            for sheep_idx in range(N_sheep):
+                if sheep_idx in assigned_sheep:
+                    continue  # Skip already assigned sheep
+                for drone_idx in range(N_drones):
+                    if target_sheep_indices[drone_idx] is not None:
+                        continue  # Skip already assigned drones
+                    if score_matrix[sheep_idx, drone_idx] > max_score:
+                        max_score = score_matrix[sheep_idx, drone_idx]
+                        best_sheep_idx = sheep_idx
+                        best_drone_idx = drone_idx
+            
+            # Assign this sheep-drone pair
+            if best_sheep_idx is not None and best_drone_idx is not None:
+                target_sheep_indices[best_drone_idx] = best_sheep_idx
+                assigned_sheep.add(best_sheep_idx)
+                
+                # Set this sheep's score to -inf for all drones (so no other drone can pick it)
+                for remaining_drone_idx in range(N_drones):
+                    score_matrix[best_sheep_idx, remaining_drone_idx] = -np.inf
+            else:
+                # No valid assignment found (shouldn't happen if there are enough sheep), but when collection has finished this may trigger.
+                break
         
         # Calculate the standoff point for each assigned sheep
         collect_points = np.full((N_drones, 2), np.nan)
