@@ -22,7 +22,7 @@ export interface Job {
   target: Target;
   remaining_time: number | null;
   is_active: boolean;
-  drones: number;
+  drone_count: number;
   status: JobStatus;
   start_at: string | null;
   completed_at: string | null;
@@ -89,9 +89,7 @@ export interface FarmJob {
   scheduled_time?: string; // ISO 8601 datetime, only for scheduled jobs
   is_recurring: boolean;
   target: Target;
-  // TODO(Riley): We should not have both drone_count and drones.
   drone_count: number;
-  drones?: number; // Number of drones currently being used (from backend)
   status: JobStatus;
   created_at: string;
   updated_at: string;

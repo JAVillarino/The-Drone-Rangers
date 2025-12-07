@@ -15,7 +15,7 @@ class MockWorldAdapter:
         self.polys = []
         self.N = 10
         self.P = np.zeros((10, 2))
-        self.dogs = np.zeros((1, 2))
+        self.drones = np.zeros((1, 2))
         self._lock = threading.Lock()
     
     def get_state(self):
@@ -24,7 +24,7 @@ class MockWorldAdapter:
             time.sleep(0.001)
             return state.State(
                 flock=self.P,
-                drones=self.dogs,
+                drones=self.drones,
                 polygons=self.polys,
                 jobs=[]
             )

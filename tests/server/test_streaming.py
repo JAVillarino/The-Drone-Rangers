@@ -13,7 +13,7 @@ class MockStreamWorld:
         self.paused = False
         self.N = 10
         self.P = np.zeros((10, 2))
-        self.dogs = np.zeros((1, 2))
+        self.drones = np.zeros((1, 2))
         self.polys = []
         self._lock = threading.Lock()
         
@@ -21,7 +21,7 @@ class MockStreamWorld:
         with self._lock:
             return state.State(
                 flock=self.P,
-                drones=self.dogs,
+                drones=self.drones,
                 polygons=self.polys,
                 jobs=[]
             )

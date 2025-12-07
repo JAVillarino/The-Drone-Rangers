@@ -9,10 +9,10 @@ from simulation import world, scenarios
 def app_with_real_world():
     # Initialize a real World for E2E testing
     sheep_xy = scenarios.spawn_circle(20, (50, 50), 10.0, seed=42)
-    dog_xy = np.array([[0.0, 0.0]])
+    drone_xy = np.array([[0.0, 0.0]])
     target_xy = np.array([100.0, 100.0])
     
-    w = world.World(sheep_xy, dog_xy, target_xy, seed=42, k_nn=5)
+    w = world.World(sheep_xy, drone_xy, target_xy, seed=42, k_nn=5)
     
     # Inject into main
     original_adapter = main.backend_adapter

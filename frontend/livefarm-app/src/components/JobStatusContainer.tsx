@@ -180,25 +180,25 @@ export default function JobStatusContainer({
               calendarStatus = job.status;
             }
 
-            return (
-              <JobStatus
-                key={`job-${job.id || index}`}
-                jobName={`${index + 1}`}
-                status={jobStatus(job)}
-                calendarStatus={calendarStatus}
-                target={job.target}
-                droneCount={job.drones}
-                isActive={job.is_active}
-                isOpen={openJobId === job.id}
-                onToggle={() => handleToggle(job.id)}
-                onSelectOnMap={() => onSelectOnMap(job.id)}
-                onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
-                onCancel={() => handleCancel(job.id)}
-                onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
-                onTargetChange={(newTarget: Target) => onSetTarget(job.id, newTarget)}
-              />
-            );
-          })}
+          return (
+            <JobStatus
+              key={`job-${job.id || index}`}
+              jobName={`${index + 1}`}
+              status={jobStatus(job)}
+              calendarStatus={calendarStatus}
+              target={job.target}
+              droneCount={job.drone_count}
+              isActive={job.is_active}
+              isOpen={openJobId === job.id}
+              onToggle={() => handleToggle(job.id)}
+              onSelectOnMap={() => onSelectOnMap(job.id)}
+              onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
+              onCancel={() => handleCancel(job.id)}
+              onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
+              onTargetChange={(newTarget: Target) => onSetTarget(job.id, newTarget)}
+            />
+          );
+        })}
       </div>
     </div>
   );

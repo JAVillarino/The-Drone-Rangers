@@ -17,7 +17,9 @@ import numpy as np
 import pandas as pd
 
 from planning.herding import policy
+from planning.herding.policy import is_goal_satisfied
 from planning.run_demo import Renderer
+from planning.state import Job, Circle
 from simulation import world
 from simulation.scenarios import (
     spawn_circle,
@@ -70,7 +72,7 @@ def run_one_trial(
     else:  # line
         sheep_xy = spawn_line(config["N"], SPAWN_BOUNDS, seed=seed)
 
-    dog_xy = config["dog_xy"]
+    drone_xy = config["drone_xy"]
     target_xy = TARGET_POS
 
     # Build world with simulation parameters
@@ -82,7 +84,7 @@ def run_one_trial(
     }
     W = world.World(
         sheep_xy, 
-        dog_xy, 
+        drone_xy, 
         target_xy, 
         w_obs=0,
         w_tan=0,
@@ -106,34 +108,50 @@ def run_one_trial(
         conditionally_apply_repulsion=config["conditionally_apply_repulsion"],
     )
     
+    # Create a Job with a Circle target
+    success_radius = config["success_radius"]
+    target = Circle(center=target_xy.copy(), radius=success_radius)
+    current_time = time.time()
+    num_drones = drone_xy.shape[0]
+    jobs = [Job(
+        target=target,
+        remaining_time=None,
+        is_active=True,
+        drone_count=num_drones,
+        status="running",
+        start_at=None,
+        completed_at=None,
+        scenario_id=None,
+        maintain_until="target_is_reached",
+        created_at=current_time,
+        updated_at=current_time,
+    )]
+    
     renderer = None
     if visualize:
         renderer = Renderer(W, bounds=SPAWN_BOUNDS)
 
     # Main simulation loop for this trial
     for t in range(config["max_steps"]):
-        plan = shepherd_policy.plan(W.get_state(), W.dt)
+        state = W.get_state()
+        plan = shepherd_policy.plan(state, jobs, W.dt)
         W.step(plan)
 
-        # Check for success condition
-        state = W.get_state()
-        farthest = np.max(np.linalg.norm(state.flock - state.target, axis=1))
-
-        if farthest < config["success_radius"]:
-            if visualize and renderer:
-                plt.ioff()
-                plt.show()
+        # Check for success condition using is_goal_satisfied
+        if is_goal_satisfied(state, target):
             return True, t  # Success!
         
-        if visualize and renderer:
-            renderer.render_world(W, plan, t)
+        if visualize:
+            renderer.render_world(W, plan, t, target, debug=False)
             plt.pause(0.05)
             
         # Print the progress on a single line
+        # Calculate farthest distance for display
+        farthest = np.max(np.linalg.norm(state.flock - target.center, axis=1))
         progress_str = (
             f"  Trial {current_trial + 1:>2}/{total_trials} | "
             f"Step: {t + 1:<5}/{config['max_steps']}, "
-            f"Flock Distance: {farthest:.0f}/{config['success_radius']:.0f}      "
+            f"Flock Distance: {farthest:.0f}/{success_radius:.0f}      "
         )
         print(progress_str, end='\r', flush=True)
     
@@ -159,7 +177,7 @@ if __name__ == "__main__":
     spawn_types = ["uniform"]
     seeds = range(3)
     flyovers = [False]
-    dog_xy_configs = [
+    drone_xy_configs = [
         np.array([[0, 0]]),
     ]
     
@@ -167,7 +185,7 @@ if __name__ == "__main__":
     scenarios_to_run = [
         {
             **BASE_CONFIG,
-            "dog_xy": d_xy,
+            "drone_xy": d_xy,
             "k_nn": n_nb,
             "conditionally_apply_repulsion": flyover,
             "N": N,
@@ -175,7 +193,7 @@ if __name__ == "__main__":
             "seed": seed,
             "success_radius": N ** (1/2) * 4
         }
-        for seed, N, pattern, flyover, n_nb, d_xy in product(seeds, Ns, spawn_types, flyovers, n_values, dog_xy_configs)
+        for seed, N, pattern, flyover, n_nb, d_xy in product(seeds, Ns, spawn_types, flyovers, n_values, drone_xy_configs)
         if n_nb < N
     ]
 
@@ -202,7 +220,7 @@ if __name__ == "__main__":
             "Success": success,
             "Completion Steps": completion_steps if success else np.nan,
             "Wall Time (s)": trial_duration,
-            "Drone Count": config["dog_xy"].shape[0],
+            "Drone Count": config["drone_xy"].shape[0],
             **config
         })
 

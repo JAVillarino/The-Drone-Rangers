@@ -124,26 +124,16 @@ export async function fetchFarmJobs(_params?: {
 
         const data: FarmJobsResponse = await response.json();
         // Convert backend response to FarmJob type
-        const jobs: FarmJob[] = data.jobs.map(job => {
-            // TODO(Riley): Get rid of this `job as any` business.
-            const backendJob = job as any;
-            const backendStatus = backendJob.status;
-            
-            // Infer job_type based on start_at field
-            const hasStartAt = backendJob.start_at !== null && backendJob.start_at !== undefined;
-            const jobType: 'immediate' | 'scheduled' = hasStartAt ? 'scheduled' : 'immediate';
-            
+        const jobs: FarmJob[] = data.jobs.map(job => {                        
             const converted: FarmJob = {
-                id: backendJob.id,
-                job_type: jobType,
-                scheduled_time: hasStartAt ? backendJob.start_at : undefined,
+                id: job.id,
+                start_at: job.start_at,
                 is_recurring: false,
-                target: backendJob.target,
-                drone_count: backendJob.drones ?? 1,
-                drones: backendJob.drones ?? 1,
-                status: backendStatus,
-                created_at: backendJob.created_at,
-                updated_at: backendJob.updated_at,
+                target: job.target,
+                drone_count: job.drone_count ?? 1,
+                status: job.status,
+                created_at: job.created_at,
+                updated_at: job.updated_at,
             };
             return converted;
         });
@@ -166,8 +156,9 @@ export async function createFarmJob(data: CreateFarmJobRequest): Promise<FarmJob
         },
         body: JSON.stringify({
             target: data.target,
-            drones: data.drone_count,
-            status: data.job_type === 'immediate' ? 'pending' : 'scheduled',
+            drone_count: data.drone_count,
+            // TODO(Riley): We don't need to send this status field to the backend either.
+            status: data.scheduled_time ? 'pending' : 'scheduled',
             start_at: data.scheduled_time,
         }),
     });
@@ -196,7 +187,7 @@ export async function updateFarmJob(
     const backendUpdates: any = {};
     // TODO(Riley): I don't think we need this; it's redundant.
     if (updates.target !== undefined) backendUpdates.target = updates.target;
-    if (updates.drone_count !== undefined) backendUpdates.drones = updates.drone_count;
+    if (updates.drone_count !== undefined) backendUpdates.drone_count = updates.drone_count;
     if (updates.status !== undefined) backendUpdates.status = updates.status;
     if (updates.scheduled_time !== undefined) backendUpdates.start_at = updates.scheduled_time;
     if (updates.is_active !== undefined) backendUpdates.is_active = updates.is_active;
@@ -255,7 +246,7 @@ export async function setJobDroneCount(jobId: string, droneCount: number): Promi
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ drones: droneCount }),
+        body: JSON.stringify({ drone_count: droneCount }),
     });
 
     if (!response.ok) {

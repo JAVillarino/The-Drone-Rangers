@@ -12,9 +12,9 @@ import traceback
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 from uuid import uuid4
-import uuid
+
 import time
 
 import numpy as np
@@ -79,7 +79,7 @@ def _normalize_drone_count(data: dict) -> Tuple[int, Optional[str]]:
     Extract drone count from request, handling both 'drones' and 'drone_count' fields.
     Defaults to 1 if neither field is provided.
     """
-    drone_count = data.get("drone_count") if "drone_count" in data else data.get("drones")
+    drone_count = data.get("drone_count")
     if drone_count is None:
         return 1, None  # Default: 1 drone
 
@@ -187,7 +187,7 @@ class JobRepo:
         *,
         target: Optional[state.Target],
         is_active: bool,
-        drones: int,
+        drone_count: int,
         status: JobStatus,
         start_at: Optional[float],
         scenario_id: Optional[str],
@@ -201,7 +201,7 @@ class JobRepo:
             target=target,
             remaining_time=None,
             is_active=is_active,
-            drones=drones,
+            drone_count=drone_count,
             status=status,
             start_at=start_at,
             completed_at=None,
@@ -360,7 +360,7 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
             job = repo.create(
                 target=target,
                 is_active=is_active,
-                drones=drone_count,
+                drone_count=drone_count,
                 status=status,
                 start_at=start_at,
                 scenario_id=data.get("scenario_id"),
@@ -455,6 +455,7 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
             return jsonify({"error": f"Invalid job ID: {e}"}), 400
 
         data = request.get_json(silent=True) or {}
+        print(data)
         updates_db = {}
         updates_mem = {}
 
@@ -466,13 +467,13 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
             updates_db["target"] = target
             updates_mem["target"] = target
 
-        # Handle drone count (both field names)
-        if "drone_count" in data or "drones" in data:
+        # Handle drone count
+        if "drone_count" in data:
             drone_count, drone_error = _normalize_drone_count(data)
             if drone_error:
                 return jsonify({"error": drone_error}), 400
-            updates_db["drones"] = drone_count
-            updates_mem["drones"] = drone_count
+            updates_db["drone_count"] = drone_count
+            updates_mem["drone_count"] = drone_count
 
         # Handle is_active
         if "is_active" in data:
@@ -536,9 +537,9 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
                 job_mem.updated_at = datetime.now(timezone.utc).timestamp()
                 
                 # --- CRITICAL: Sync drone count with world if this is the active job ---
-                if "drones" in updates_mem:
+                if "drone_count" in updates_mem:
                     try:
-                        new_count = int(updates_mem["drones"])
+                        new_count = int(updates_mem["drone_count"])
                         # Get current backend_adapter using the getter
                         backend_adapter = get_backend_adapter()
                         

@@ -79,7 +79,7 @@ class Renderer:
         # Initial state
         state = world_instance.get_state()
         self.sheep_sc = self.ax.scatter(state.flock[:, 0], state.flock[:, 1], s=20)
-        self.dog_sc   = self.ax.scatter([state.drones[:, 0]], [state.drones[:, 1]], marker='x')
+        self.drone_sc   = self.ax.scatter([state.drones[:, 0]], [state.drones[:, 1]], marker='x')
         self.target = None
         self.prev_target = None
         
@@ -119,8 +119,8 @@ class Renderer:
                 # Should not happen with current types
                 pass
 
-        # Update dog and target markers
-        self.dog_sc.set_offsets(state.drones)
+        # Update drone and target markers
+        self.drone_sc.set_offsets(state.drones)
 
         # Render the target, but only if it's different from the last time.
         if self.prev_target != target:
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     else:  # line
         sheep_xy = spawn_line(args.N, SPAWN_BOUNDS, seed=args.seed)
 
-    dog_xy = DEFAULT_DRONE_POS
+    drone_xy = DEFAULT_DRONE_POS
     target_xy = TARGET_XY
 
     # Create example polygon obstacles
@@ -211,7 +211,7 @@ if __name__ == "__main__":
 
     # Initialize World
     W = world.World(
-        sheep_xy, dog_xy, target_xy, 
+        sheep_xy, drone_xy, target_xy, 
         seed=args.seed,
         obstacles_polygons=obstacles_polygons,
         obstacle_influence=30.0,
@@ -239,7 +239,7 @@ if __name__ == "__main__":
     )
 
     s0 = W.get_state()
-    num_drones = s0.drones.shape[0]
+    drone_count = s0.drones.shape[0]
 
     current_time = time.time()
     
@@ -250,7 +250,7 @@ if __name__ == "__main__":
         target=target,
         remaining_time=None,
         is_active=True,
-        drones=num_drones,
+        drone_count=drone_count,
         status="running",
         start_at=None,
         completed_at=None,

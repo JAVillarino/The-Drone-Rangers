@@ -309,6 +309,7 @@ def stream_state():
 def patch_state():
     """Update simulation state (polygons, target, pause)."""
     data = request.get_json(silent=True) or {}
+    print(data)
 
     with world_lock:
         # 1) Clear polygons
@@ -493,7 +494,7 @@ def load_scenario(scenario_id):
                 target=target,
                 remaining_time=None,
                 is_active=False,  # Inactive until user clicks "Start Job"
-                drones=len(scenario.drones),
+                drone_count=len(scenario.drones),
                 status="pending",  # Pending until user starts the job
                 start_at=None,
                 completed_at=None,
@@ -518,7 +519,7 @@ def load_scenario(scenario_id):
             "loaded_scenario_id": str(scenario_id),
             "scenario_name": scenario.name,
             "num_sheep": len(scenario.sheep),
-            "num_drones": len(scenario.drones),
+            "drone_count": len(scenario.drones),
             "boundary": scenario.boundary,
             "has_target": len(scenario.targets) > 0 if scenario.targets else False,
             "world_config_applied": scenario.world_config is not None,
@@ -535,7 +536,7 @@ def load_scenario(scenario_id):
             "scenario_data": {
                 "name": scenario.name if scenario else None,
                 "sheep_count": len(scenario.sheep) if scenario and scenario.sheep else 0,
-                "drones_count": len(scenario.drones) if scenario and scenario.drones else 0,
+                "drone_count": len(scenario.drones) if scenario and scenario.drones else 0,
                 "targets_count": len(scenario.targets) if scenario and scenario.targets else 0,
                 "boundary": scenario.boundary if scenario else None,
                 "bounds": scenario.bounds if scenario else None,
@@ -575,7 +576,7 @@ def get_current_scenario():
         "scenario_id": str(scenario.id),
         "scenario_name": scenario.name,
         "num_sheep": len(scenario.sheep),
-        "num_drones": len(scenario.drones),
+        "drone_count": len(scenario.drones),
     }), 200
 
 
@@ -902,8 +903,8 @@ if __name__ == "__main__":
                     raise TypeError(f"Job target must be Circle or Polygon, got {type(active_job.target)}")
                 
                 # Sync drone count from job to world
-                if active_job.drones != backend_adapter.num_controllers:
-                    backend_adapter.set_drone_count(active_job.drones)
+                if active_job.drone_count != backend_adapter.num_controllers:
+                    backend_adapter.set_drone_count(active_job.drone_count)
                 
                 # Auto-unpause if paused
                 if backend_adapter.paused:
@@ -911,8 +912,8 @@ if __name__ == "__main__":
             elif active_job and active_job.target is None:
                 # Active job but no target yet - keep running for visualization (sheep will graze)
                 # Also sync drone count
-                if active_job.drones != backend_adapter.num_controllers:
-                    backend_adapter.set_drone_count(active_job.drones)
+                if active_job.drone_count != backend_adapter.num_controllers:
+                    backend_adapter.set_drone_count(active_job.drone_count)
                 if backend_adapter.paused:
                     backend_adapter.paused = False
                 backend_adapter.target = None

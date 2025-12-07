@@ -25,9 +25,7 @@ export default function DailyScheduleView({ jobs, onJobClick }: DailyScheduleVie
         return;
       }
 
-      const jobDate = job.job_type === 'scheduled' && job.scheduled_time
-        ? new Date(job.scheduled_time)
-        : new Date(job.created_at);
+      const jobDate = job.start_at ? new Date(job.start_at) : new Date(job.created_at);
       
       // Check if job is for today
       const jobDay = new Date(jobDate);
@@ -38,7 +36,7 @@ export default function DailyScheduleView({ jobs, onJobClick }: DailyScheduleVie
         if (hourlyJobs[hour]) {
           hourlyJobs[hour].push(job);
         }
-      } else if (job.job_type === 'immediate') {
+      } else if (!job.start_at) {
         // Immediate jobs go to current hour
         const currentHour = new Date().getHours();
         if (hourlyJobs[currentHour]) {

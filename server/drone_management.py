@@ -9,7 +9,7 @@ import os
 import pathlib
 import re
 import sqlite3
-from typing import Any, Dict, List, Tuple
+
 
 import numpy as np
 from flask import Blueprint, jsonify, request
@@ -76,7 +76,7 @@ def create_drones_blueprint(W: world.World) -> Blueprint:
         # Sync world state with database: initialize drone positions
         rows = conn.execute("SELECT id FROM drones").fetchall()
         # Random positions for existing drones
-        W.dogs = np.random.rand(len(rows), 2) * 5
+        W.drones = np.random.rand(len(rows), 2) * 5
     finally:
         conn.close()
         
@@ -114,9 +114,9 @@ def create_drones_blueprint(W: world.World) -> Blueprint:
             conn.commit()
             
             # Sync with simulation: Add a new drone
-            # TODO: Do something a little bit smarter with tracking the ID dog-by-dog.
+            # TODO: Do something a little bit smarter with tracking the ID drone-by-drone.
             # Currently just appending a random position
-            W.dogs = np.concatenate([W.dogs, np.random.randint(0, 6, size=(1, 2))])
+            W.drones = np.concatenate([W.drones, np.random.randint(0, 6, size=(1, 2))])
             
             return jsonify({"id": drone_id, "make": make, "model": model}), 201
         finally:
@@ -133,10 +133,10 @@ def create_drones_blueprint(W: world.World) -> Blueprint:
                 return jsonify({"error": "drone not found"}), 404
 
             # Sync with simulation: Remove the last drone
-            # TODO: Do something a little bit smarter with tracking the ID dog-by-dog.
+            # TODO: Do something a little bit smarter with tracking the ID drone-by-drone.
             # Currently just removing the last one
-            if len(W.dogs) > 0:
-                W.dogs = W.dogs[:-1]
+            if len(W.drones) > 0:
+                W.drones = W.drones[:-1]
 
             return ("", 204)
         finally:

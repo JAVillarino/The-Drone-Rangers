@@ -108,11 +108,11 @@ class World:
         self.V = np.zeros((self.N, 2), dtype=np.float64, order='C')  # shape (N, 2)
         
         # Internal storage for drones (controllers)
-        # Note: 'dogs' is used historically; aliased as 'shepherd_xy' via property
-        self.dogs = shepherd_xy
+        # Note: 'drones' is used historically; aliased as 'shepherd_xy' via property
+        self.drones = shepherd_xy
         
         # Initialize apply_repulsion array (all drones apply repulsion by default)
-        self.apply_repulsion = np.ones(self.dogs.shape[0], dtype=bool)
+        self.apply_repulsion = np.ones(self.drones.shape[0], dtype=bool)
         
         self.target = np.asarray(target_xy, float) if target_xy is not None else None
         self.paused = False
@@ -242,7 +242,7 @@ class World:
     @property
     def shepherd_xy(self) -> np.ndarray:
         """Get shepherd/drone positions (herding-specific accessor)."""
-        return self.dogs
+        return self.drones
     
     @property
     def num_agents(self) -> int:
@@ -252,7 +252,7 @@ class World:
     @property
     def num_controllers(self) -> int:
         """Get number of controllers."""
-        return self.dogs.shape[0]
+        return self.drones.shape[0]
 
     def set_drone_count(self, count: int) -> None:
         """
@@ -261,7 +261,7 @@ class World:
         If increasing, new drones are spawned near existing drones.
         If decreasing, extra drones are removed.
         """
-        current_count = self.dogs.shape[0]
+        current_count = self.drones.shape[0]
         if count == current_count:
             return
         
@@ -272,9 +272,12 @@ class World:
             # Add more drones - spawn them near existing drones
             new_drones = []
             for i in range(count - current_count):
-                # Pick a random existing drone to spawn near
-                ref_idx = i % current_count
-                ref_pos = self.dogs[ref_idx]
+                if current_count == 0:
+                    ref_pos = np.array([0, 0])
+                else:
+                    # Pick a random existing drone to spawn near
+                    ref_idx = i % current_count
+                    ref_pos = self.drones[ref_idx]
                 # Offset by small random amount
                 offset = self.rng.uniform(-10, 10, size=2)
                 new_pos = ref_pos + offset
@@ -282,12 +285,12 @@ class World:
                 new_pos[0] = np.clip(new_pos[0], self.xmin + 5, self.xmax - 5)
                 new_pos[1] = np.clip(new_pos[1], self.ymin + 5, self.ymax - 5)
                 new_drones.append(new_pos)
-            self.dogs = np.vstack([self.dogs, new_drones])
+            self.drones = np.vstack([self.drones, new_drones])
             # Extend apply_repulsion array
-            self.apply_repulsion = np.ones(self.dogs.shape[0], dtype=bool)
+            self.apply_repulsion = np.ones(self.drones.shape[0], dtype=bool)
         else:
             # Remove drones (keep the first 'count' drones)
-            self.dogs = self.dogs[:count]
+            self.drones = self.drones[:count]
             self.apply_repulsion = self.apply_repulsion[:count]
 
     # -------------------------------------------------------------------------
@@ -741,9 +744,9 @@ class World:
         """Vectorized global center of mass calculation."""
         return np.mean(self.P, axis=0)
     
-    def _should_ignore_dog_repulsion(self, near_indices: np.ndarray, G: np.ndarray, tol: float = 0.0) -> bool:
+    def _should_ignore_drone_repulsion(self, near_indices: np.ndarray, G: np.ndarray, tol: float = 0.0) -> bool:
         """
-        Return True if the summed local intent (wr*R + wa*A) of sheep near the dog
+        Return True if the summed local intent (wr*R + wa*A) of sheep near the drone
         points radially outward from the global COM G.
         """
         radial_sum = 0.0
@@ -764,15 +767,15 @@ class World:
         """Optimized sheep step using vectorized operations where possible."""
         G = self._gcm_vec()
         
-        # Vectorized: compute all sheep-to-dog squared distances at once
-        diff = self.P[:, None, :] - self.dogs[None, :, :]
-        dog_distances_sq = np.sum(diff**2, axis=2)
+        # Vectorized: compute all sheep-to-drone squared distances at once
+        diff = self.P[:, None, :] - self.drones[None, :, :]
+        drone_distances_sq = np.sum(diff**2, axis=2)
 
         # If a given drone isn't applying repulsion, make it seem far away
-        dog_distances_sq[:, self.apply_repulsion == 0] = LARGE_DISTANCE
+        drone_distances_sq[:, self.apply_repulsion == 0] = LARGE_DISTANCE
 
         # Continuous flock factor update
-        d_all = np.sqrt(np.maximum(dog_distances_sq, 0.0))
+        d_all = np.sqrt(np.maximum(drone_distances_sq, 0.0))
         push_all = smooth_push(d_all, self.rs)
 
         # Combine multiple drones as union probability of "being pushed"
@@ -787,7 +790,7 @@ class World:
         self.flock = np.clip(self.flock, 0.0, 1.0)
                 
         v_far = self._handle_far_sheep(G)
-        v_near = self._handle_near_sheep(G, dog_distances_sq)
+        v_near = self._handle_near_sheep(G, drone_distances_sq)
 
         # Blend near and far behaviors based on flocking factor
         v_new = v_near * self.flock[:, np.newaxis] + (1.0 - self.flock[:, np.newaxis]) * v_far
@@ -807,7 +810,7 @@ class World:
             self.V[bad] = 0.0
     
     def _handle_far_sheep(self, G: np.ndarray) -> np.ndarray:
-        """Handle sheep that are far from the dog (grazing behavior)."""
+        """Handle sheep that are far from the drone (grazing behavior)."""
         decay = 0.80
 
         V_new = np.zeros((self.N, 2))
@@ -861,7 +864,7 @@ class World:
 
         return V_new
     
-    def _handle_near_sheep(self, G: np.ndarray, dog_distances_sq: np.ndarray) -> np.ndarray:
+    def _handle_near_sheep(self, G: np.ndarray, drone_distances_sq: np.ndarray) -> np.ndarray:
         """Handle sheep that are near a drone (flocking behavior)."""
 
         if self.polys:
@@ -876,9 +879,9 @@ class World:
         # Drone Repulsion: SUM over all drones
         S_total = np.zeros((self.N, 2))
 
-        for j in range(self.dogs.shape[0]):
-            D = self.dogs[j]
-            d_sq = dog_distances_sq[:, j]
+        for j in range(self.drones.shape[0]):
+            D = self.drones[j]
+            d_sq = drone_distances_sq[:, j]
             d = np.sqrt(d_sq)
             
             push = smooth_push(d, self.rs)
@@ -960,23 +963,23 @@ class World:
 
         # Apply planner output
         if isinstance(plan, DoNothing):
-            self.apply_repulsion = np.zeros(self.dogs.shape[0])
+            self.apply_repulsion = np.zeros(self.drones.shape[0])
         elif isinstance(plan, DronePositions):
             pos = plan.positions
             apply = plan.apply_repulsion
             
-            dog_count = self.dogs.shape[0]
-            if pos.shape[0] != dog_count or apply.size != dog_count:
-                raise ValueError(f"DronePositions plan must have {dog_count} positions and repulsion flags.")
+            drone_count = self.drones.shape[0]
+            if pos.shape[0] != drone_count or apply.size != drone_count:
+                raise ValueError(f"DronePositions plan must have {drone_count} positions and repulsion flags.")
             
             # Apply bounds to all drone positions
-            new_dogs_pos = self._apply_bounds_point(pos)
-            self.dogs = new_dogs_pos
+            new_drones_pos = self._apply_bounds_point(pos)
+            self.drones = new_drones_pos
             self.apply_repulsion = apply.copy()
         else:
             raise Exception("Unexpected plan type", plan)
 
-        # Then move sheep using the new dog pos + flag
+        # Then move sheep using the new drone pos + flag
         self._sheep_step()
         
         # Advance time
@@ -986,7 +989,7 @@ class World:
         """Get the current simulation state."""
         return state.State(
             flock=self.P.copy(),
-            drones=self.dogs.copy(),
+            drones=self.drones.copy(),
             polygons=[p.copy() for p in self.polys],
             jobs=[],
         )

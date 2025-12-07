@@ -11,7 +11,7 @@ from simulation import world
 # Mock World class
 class MockWorld:
     def __init__(self):
-        self.dogs = np.zeros((0, 2))
+        self.drones = np.zeros((0, 2))
 
 @pytest.fixture
 def app_and_db():
@@ -62,13 +62,13 @@ def test_create_drone(app_and_db):
     assert data["id"] == "DR-001"
     
     # Check World updated
-    assert w.dogs.shape[0] == 1
+    assert w.drones.shape[0] == 1
     
     # Create another
     response = client.post("/drones", json=payload)
     assert response.status_code == 201
     assert response.get_json()["id"] == "DR-002"
-    assert w.dogs.shape[0] == 2
+    assert w.drones.shape[0] == 2
 
 def test_create_drone_invalid(app_and_db):
     app, _, _ = app_and_db
@@ -87,14 +87,14 @@ def test_delete_drone(app_and_db):
     
     # Create drone first
     client.post("/drones", json={"make": "DJI", "model": "Phantom"})
-    assert w.dogs.shape[0] == 1
+    assert w.drones.shape[0] == 1
     
     # Delete it
     response = client.delete("/drones/DR-001")
     assert response.status_code == 204
     
     # Check World updated
-    assert w.dogs.shape[0] == 0
+    assert w.drones.shape[0] == 0
     
     # Verify DB empty
     response = client.get("/drones")

@@ -30,7 +30,7 @@ export default function EditJobModal({
   const [error, setError] = useState<string | null>(null);
 
   // Form state - initialized from job
-  // Note: job_type, is_recurring, and target_radius are read-only
+  // Note: is_recurring and target_radius are read-only
   const [scheduledDateTime, setScheduledDateTime] = useState<string>('');
   const [targetPosition, setTargetPosition] = useState<[number, number] | null>(null);
   const [droneCount, setDroneCount] = useState<number>(1);
@@ -47,7 +47,7 @@ export default function EditJobModal({
   // Initialize form when job changes
   useEffect(() => {
     if (job) {
-      const scheduledTime = job.scheduled_time || '';
+      const scheduledTime = job.start_at || '';
       // Extract target coordinates - handle both CircleTarget and simple [number, number]
       let targetPos: [number, number] | null = null;
       let targetRadius: number | null = 10.0; // Default radius
@@ -62,11 +62,10 @@ export default function EditJobModal({
           targetRadius = 10.0; // Default radius
         }
       }
-      const drones = job.drone_count;
 
       setScheduledDateTime(scheduledTime);
       setTargetPosition(targetPos);
-      setDroneCount(drones);
+      setDroneCount(job.drone_count);
       setOriginalTargetRadius(targetRadius);
       setShouldCancel(false);
 
@@ -74,7 +73,7 @@ export default function EditJobModal({
       setOriginalValues({
         scheduledDateTime: scheduledTime,
         targetPosition: targetPos,
-        droneCount: drones
+        droneCount: job.drone_count
       });
 
       // Reset edit mode when job changes
@@ -87,7 +86,7 @@ export default function EditJobModal({
 
   // Check if any values have changed (only editable fields)
   const hasChanges = originalValues && (
-    (job.job_type === 'scheduled' && scheduledDateTime !== originalValues.scheduledDateTime) ||
+    (job.start_at && scheduledDateTime !== originalValues.scheduledDateTime) ||
     (targetPosition && originalValues.targetPosition ? (
       Math.abs(targetPosition[0] - originalValues.targetPosition[0]) > 0.01 ||
       Math.abs(targetPosition[1] - originalValues.targetPosition[1]) > 0.01
@@ -112,7 +111,8 @@ export default function EditJobModal({
       return;
     }
 
-    if (isEditMode && job.job_type === 'scheduled' && !scheduledDateTime) {
+    // The job.start_at check would have to change if we were to allow users to cchange the type of the job. 
+    if (isEditMode && job.start_at && !scheduledDateTime) {
       setError('Please select a scheduled date and time');
       return;
     }
@@ -139,10 +139,8 @@ export default function EditJobModal({
       } = {};
 
       // Only include scheduled_time if job is scheduled
-      if (job.job_type === 'scheduled') {
-        //if (scheduledDateTime !== originalValues?.scheduledDateTime) {
-          updates.scheduled_time = getDateTimeLocalValue();
-        //}
+      if (job.start_at) {
+        updates.scheduled_time = getDateTimeLocalValue();
       }
 
       // Include target if changed - convert to CircleTarget format
@@ -277,12 +275,12 @@ export default function EditJobModal({
           <div className="form-section">
             <label className="form-label">Job Type</label>
             <div className="read-only-value">
-              {job.job_type === 'immediate' ? 'Immediate Job' : 'Scheduled Job'}
+              {job.start_at ? 'Scheduled Job' : 'Immediate Job' }
             </div>
           </div>
 
           {/* Schedule Section (only for scheduled jobs) */}
-          {job.job_type === 'scheduled' && (
+          {job.start_at && (
             <div className="form-section">
               <label htmlFor="scheduled-datetime" className="form-label">
                 Schedule Date & Time
@@ -294,7 +292,7 @@ export default function EditJobModal({
                   value={getDateTimeLocalValue()}
                   onChange={handleDateTimeChange}
                   className="form-input"
-                  required={job.job_type === 'scheduled'}
+                  required={job.start_at != undefined}
                 />
               ) : (
                 <div className="read-only-value">
@@ -371,11 +369,11 @@ export default function EditJobModal({
           </div>
 
           {/* Drones Currently in Use (read-only, from backend) */}
-          {job.drones !== undefined && (
+          {job.drone_count !== undefined && (
             <div className="form-section">
               <label className="form-label">Drones Currently in Use</label>
               <div className="read-only-value">
-                {job.drones} drone{job.drones !== 1 ? 's' : ''}
+                {job.drone_count} drone{job.drone_count !== 1 ? 's' : ''}
               </div>
             </div>
           )}
