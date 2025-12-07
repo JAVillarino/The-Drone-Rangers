@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Job, Target, State } from '../types';
+import { Job, Target } from '../types';
 import JobStatus from './JobStatus';
 import { setJobActiveState, setJobDroneCount, deleteFarmJob } from '../api/state';
 import { useQueryClient } from '@tanstack/react-query';
@@ -97,25 +97,12 @@ export default function JobStatusContainer({
       onOpenJobChange?.(null);
     }
 
-    // Optimistically update the cache to immediately remove the job from UI
-    // This works even when SSE is active (which doesn't refetch on invalidation)
-    queryClient.setQueryData<State>(['objects', 'real-farm'], (oldData) => {
-      if (!oldData) return oldData;
-      return {
-        ...oldData,
-        jobs: oldData.jobs.filter(job => job.id !== jobId)
-      };
-    });
-
     try {
       await deleteFarmJob(jobId);
-      // Invalidate queries to ensure we get fresh data from backend
-      // This will sync with the server when SSE sends next update or polling refetches
       queryClient.invalidateQueries({ queryKey: ['objects', 'real-farm'] });
       queryClient.invalidateQueries({ queryKey: ['farm-jobs'] });
     } catch (error) {
       console.error('Failed to delete job:', error);
-      // Revert optimistic update on error by invalidating (will refetch from server)
       queryClient.invalidateQueries({ queryKey: ['objects', 'real-farm'] });
       alert('Failed to delete job. Please try again.');
     }
@@ -183,35 +170,35 @@ export default function JobStatusContainer({
       )}
       <div className="job-status-list">
         {jobs.map((job, index) => {
-          // If job is active, show as "running" regardless of status field (matching calendar behavior)
-          let calendarStatus: 'pending' | 'scheduled' | 'running' | 'completed' | 'cancelled';
-          if (job.is_active) {
-            calendarStatus = 'running';
-          } else if (job.status === 'running') { // If the job boolean says that it isn't active, but for some reason the job status is running.
-            calendarStatus = 'pending';
-          } else {
-            calendarStatus = job.status;
-          }
+            // If job is active, show as "running" regardless of status field (matching calendar behavior)
+            let calendarStatus: 'pending' | 'scheduled' | 'running' | 'completed' | 'cancelled';
+            if (job.is_active) {
+              calendarStatus = 'running';
+            } else if (job.status === 'running') { // If the job boolean says that it isn't active, but for some reason the job status is running.
+              calendarStatus = 'pending';
+            } else {
+              calendarStatus = job.status;
+            }
 
-          return (
-            <JobStatus
-              key={`job-${job.id || index}`}
-              jobName={`${index + 1}`}
-              status={jobStatus(job)}
-              calendarStatus={calendarStatus}
-              target={job.target}
-              droneCount={job.drones}
-              isActive={job.is_active}
-              isOpen={openJobId === job.id}
-              onToggle={() => handleToggle(job.id)}
-              onSelectOnMap={() => onSelectOnMap(job.id)}
-              onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
-              onCancel={() => handleCancel(job.id)}
-              onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
-              onTargetChange={(newTarget: Target) => onSetTarget(job.id, newTarget)}
-            />
-          );
-        })}
+            return (
+              <JobStatus
+                key={`job-${job.id || index}`}
+                jobName={`${index + 1}`}
+                status={jobStatus(job)}
+                calendarStatus={calendarStatus}
+                target={job.target}
+                droneCount={job.drones}
+                isActive={job.is_active}
+                isOpen={openJobId === job.id}
+                onToggle={() => handleToggle(job.id)}
+                onSelectOnMap={() => onSelectOnMap(job.id)}
+                onPauseToggle={() => setJobActiveState(job.id, !job.is_active)}
+                onCancel={() => handleCancel(job.id)}
+                onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
+                onTargetChange={(newTarget: Target) => onSetTarget(job.id, newTarget)}
+              />
+            );
+          })}
       </div>
     </div>
   );

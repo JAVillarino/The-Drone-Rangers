@@ -63,17 +63,19 @@ export default function RealFarmView({
   const actuallyUsingSSE = shouldUseSSE && isConnected;
 
   // Fetch state data (only when needed)
-  const { data: pollingData, isLoading: stateLoading, error: stateError } = useQuery<State>({
+  // Always use useQuery to subscribe to cache updates (needed for optimistic updates to trigger re-renders)
+  // When SSE is active, SSE updates the cache and useQuery will re-render with the new data
+  // When SSE is not active, useQuery will poll for updates
+  const { data, isLoading: stateLoading, error: stateError } = useQuery<State>({
     queryKey: ["objects", "real-farm"],
     queryFn: fetchState,
     refetchInterval: needsStateData && !actuallyUsingSSE ? 25 : false,
-    enabled: needsStateData && !actuallyUsingSSE
+    enabled: needsStateData,
+    // When SSE is active, we don't want to refetch on mount/window focus since SSE handles updates
+    // But we still want to subscribe to cache updates for optimistic updates
+    refetchOnMount: !actuallyUsingSSE,
+    refetchOnWindowFocus: !actuallyUsingSSE,
   });
-
-  // Use data from React Query cache (which SSE now updates) when SSE is active, otherwise use polling data
-  // This ensures optimistic updates work because we're reading from the cache, not SSE's local state
-  const queryData = queryClient.getQueryData<State>(['objects', 'real-farm']);
-  const data = actuallyUsingSSE && queryData ? queryData : pollingData;
 
   // When state data updates (which includes job status), invalidate jobs query to refresh calendar
   useEffect(() => {

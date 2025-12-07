@@ -3,15 +3,28 @@
 To run the app, start up the frontend and the backend.
 
 ## Frontend
-To run it, execute
+
+There are two frontend applications:
+
+### Live Farm App
+To run the live farm management app, execute:
 
 ```
-cd ./frontend
+cd ./frontend/livefarm-app
 npm install
 npm run dev
 ```
 
-Then you should be able to visit the app at `http://localhost:5173/`.
+### Simulation App
+To run the simulation app, execute:
+
+```
+cd ./frontend/simulation-app
+npm install
+npm run dev
+```
+
+Both apps will be available at `http://localhost:5173/` when running.
 
 ## Backend
 

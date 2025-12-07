@@ -593,7 +593,6 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
             repo.delete(job_id_uuid)
             # Delete from memory
             jobs_cache.remove(job_id_uuid)
-
         return jsonify(job_to_return.to_dict()), 200
 
     return bp

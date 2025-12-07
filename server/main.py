@@ -8,6 +8,15 @@ It handles:
 - Real-time state streaming via SSE
 - CORS configuration
 """
+import os
+import sys
+from pathlib import Path
+
+# Add project root to Python path so imports work
+project_root = Path(__file__).parent.parent.resolve()
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 import json
 import random
 import threading
@@ -51,7 +60,6 @@ ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
 world_lock = threading.RLock()
 current_scenario_id: Optional[str] = None  # Track what scenario is currently loaded
 
-
 # -----------------------------------------------------------------------------
 # Utilities
 # -----------------------------------------------------------------------------
@@ -79,13 +87,17 @@ class JobCache:
 
     def remove(self, job_id: Any) -> Optional[state.Job]:
         """Remove job by ID."""
+        # Remove from map first
         j = self.map.pop(job_id, None)
+        
         if j is not None:
-            # Remove in-place to maintain list reference
-            try:
-                self.list.remove(j)
-            except ValueError:
-                pass  # Job not in list (already removed)
+            # Remove from list by finding the index using ID comparison (not object comparison)
+            # This avoids issues with numpy array comparisons in job objects
+            for i, job in enumerate(self.list):
+                if job.id == job_id:
+                    del self.list[i]
+                    break
+        
         return j
 
     def clear(self):
@@ -250,33 +262,30 @@ def stream_state():
         return Response(status=200)
 
     def generate():
-        try:
-            while True:
-                try:
-                    # Acquire lock for thread-safe state access
-                    with world_lock:
-                        state = backend_adapter.get_state()
-                        state.jobs = jobs_cache.list
-                        state_dict = state.to_dict()
-                        state_dict["paused"] = backend_adapter.paused
+        while True:
+            try:
+                # Acquire lock for thread-safe state access
+                with world_lock:
+                    state = backend_adapter.get_state()
+                    state.jobs = jobs_cache.list
+                    state_dict = state.to_dict()
+                    state_dict["paused"] = backend_adapter.paused
 
-                    # Format as SSE event
-                    event_data = f"data: {json.dumps(state_dict)}\n\n"
-                    yield event_data
+                # Format as SSE event with event type
+                event_data = f"event: stateUpdate\ndata: {json.dumps(state_dict)}\n\n"
+                yield event_data
 
-                    # Sleep to maintain target FPS
-                    time.sleep(FRAME_TIME)
+                # Sleep to maintain target FPS
+                time.sleep(FRAME_TIME)
 
-                except GeneratorExit:
-                    # Client disconnected
-                    break
-                except Exception as e:
-                    print("Error in stream_state:", e)
-                    # Log error but continue streaming with keepalive
-                    yield ": keepalive\n\n"
-                    time.sleep(FRAME_TIME)
-        finally:
-            pass
+            except GeneratorExit:
+                # Client disconnected
+                break
+            except Exception as e:
+                print("Error in stream_state:", e)
+                # Log error but continue streaming with keepalive
+                yield ": keepalive\n\n"
+                time.sleep(FRAME_TIME)
 
     allowed_origin = get_allowed_origin()
     response = Response(
