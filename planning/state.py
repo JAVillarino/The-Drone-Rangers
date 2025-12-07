@@ -103,12 +103,17 @@ class Job:
                 result = ts_to_iso(mu)
                 return result if result is not None else ""
         
+        # Handle both drone_count and drones for backward compatibility
+        drone_count_value = getattr(self, 'drone_count', None)
+        if drone_count_value is None:
+            drone_count_value = getattr(self, 'drones', 1)
+        
         return {
             "id": str(self.id),
             "target": self.target.to_dict() if self.target is not None else None,
             "remaining_time": self.remaining_time,
             "is_active": self.is_active,
-            "drone_count": self.drone_count,
+            "drone_count": drone_count_value,
             "status": self.status,
             "start_at": ts_to_iso(self.start_at),
             "completed_at": ts_to_iso(self.completed_at),

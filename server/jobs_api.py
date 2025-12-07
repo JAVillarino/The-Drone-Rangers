@@ -455,7 +455,6 @@ def create_jobs_blueprint(world_lock, jobs_cache, get_backend_adapter) -> Bluepr
             return jsonify({"error": f"Invalid job ID: {e}"}), 400
 
         data = request.get_json(silent=True) or {}
-        print(data)
         updates_db = {}
         updates_mem = {}
 
