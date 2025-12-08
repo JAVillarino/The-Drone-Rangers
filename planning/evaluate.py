@@ -182,7 +182,6 @@ if __name__ == "__main__":
                   [0.0, 5.0]])
     ]
 
-    # TODO: These shoul be way farther from the start.
     initial_target_position = np.array([240.0, 240.0])
     target_positions = [initial_target_position * i for i in range(1, 6)]
     

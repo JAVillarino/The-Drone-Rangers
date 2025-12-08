@@ -374,7 +374,7 @@ class ShepherdPolicy:
         Check if a specific drone should apply repulsion.
         Returns true if the drone is close to its collect point or based on cohesiveness.
         """
-        if np.isnan(target_positions).any():
+        if np.isnan(target_positions[drone_idx]).any():
             return False
 
         # If the drone is close to its collect point, then it should always apply repulsion
@@ -433,9 +433,11 @@ class ShepherdPolicy:
 
         for i, d in enumerate(world.drones):
             dist_sq = np.min(np.sum((world.flock - d)**2, axis=1))
-            if dist_sq >= too_close_sq or not apply_repulsion[i] or np.isnan(new_positions[i]).any():
+            if np.isnan(dir_unit[i]).any():
+                continue
+            if dist_sq >= too_close_sq or not apply_repulsion[i]:
                 # Only move drones that are not too close, or if they are in flyover mode
-                new_positions[i] = d + self.umax * dt * dir_unit[i]
+                new_positions[i] += self.umax * dt * dir_unit[i]
             # else: drone is too close and applying repulsion, so it stays put
 
         return DronePositions(
