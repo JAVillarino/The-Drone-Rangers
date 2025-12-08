@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Job, Target } from '../types';
 import JobStatus from './JobStatus';
-import { setJobActiveState, setJobDroneCount, deleteFarmJob } from '../api/state';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface JobStatusContainerProps {
@@ -13,6 +12,9 @@ interface JobStatusContainerProps {
   onSelectOnMap: (jobId: string) => void;
   onOpenJobChange?: (jobId: string | null) => void; // Callback when open job changes
   maxDrones: number;
+  setJobActiveState: (jobId: string, isActive: boolean) => void;
+  setJobDroneCount: (jobId: string, droneCount: number) => void;
+  deleteFarmJob: (jobId: string) => void;
 }
 
 const jobStatus = (j: Job) => {
@@ -36,7 +38,11 @@ export default function JobStatusContainer({
   onSetTarget,
   onSelectOnMap,
   onOpenJobChange,
-  maxDrones
+  maxDrones,
+  setJobActiveState,
+  setJobDroneCount,
+  deleteFarmJob,
+
 }: JobStatusContainerProps) {
   const queryClient = useQueryClient();
   const [openJobId, setOpenJobId] = useState<string | null>(null);

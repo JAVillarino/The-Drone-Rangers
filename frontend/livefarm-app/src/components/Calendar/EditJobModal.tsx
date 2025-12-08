@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FarmJob, State } from '../../types';
 import TargetMapSelector from '../MapPlot/TargetMapSelector';
-import { updateFarmJob, deleteFarmJob } from '../../api/state';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface EditJobModalProps {
@@ -13,6 +12,8 @@ interface EditJobModalProps {
   backgroundImage: string;
   onJobUpdated?: () => void;
   maxDrones: number;
+  updateFarmJob: (jobId: string, updates: Partial<FarmJob>) => Promise<FarmJob>;
+  deleteFarmJob: (jobId: string) => Promise<void>;
 }
 
 export default function EditJobModal({
@@ -23,7 +24,9 @@ export default function EditJobModal({
   worldMax,
   backgroundImage,
   onJobUpdated,
-  maxDrones
+  maxDrones,
+  updateFarmJob,
+  deleteFarmJob,
 }: EditJobModalProps) {
   const queryClient = useQueryClient();
   const [isEditMode, setIsEditMode] = useState(false);

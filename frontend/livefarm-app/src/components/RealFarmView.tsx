@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { State, FarmJob } from '../types.ts';
-import { fetchFarmJobs, createFarmJob, fetchState } from '../api/state.ts';
+import { State, FarmJob, CreateFarmJobRequest } from '../types.ts';
 import { useSSE } from '../hooks/useSSE.ts';
 import TabNavigation from './TabNavigation.tsx';
 import ScheduleTab from './Calendar/ScheduleTab.tsx';
@@ -15,8 +14,19 @@ interface RealFarmViewProps {
   onSetTarget: (targetVars: SetTargetVars) => void;
   onPlayPause: () => void;
   onRestart: () => void;
-  selectedImage?: string;
+  backgroundImage: string;
   initialTab?: 'schedule' | 'live-farm' | 'drone-management';
+  setJobActiveState: (jobId: string, isActive: boolean) => void;
+  setJobDroneCount: (jobId: string, droneCount: number) => void;
+  deleteFarmJob: (jobId: string) => Promise<void>;
+  fetchFarmJobs: (_params?: {
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+  }) => Promise<FarmJob[]>;
+  createFarmJob: (jobData: CreateFarmJobRequest) => Promise<FarmJob>;
+  fetchState: () => Promise<State>;
+  updateFarmJob: (jobId: string, updates: Partial<FarmJob>) => Promise<FarmJob>;
 }
 
 const zoomMin = 0;
@@ -27,8 +37,15 @@ export default function RealFarmView({
   onSetTarget,
   onPlayPause,
   onRestart,
-  selectedImage,
-  initialTab = 'live-farm'
+  backgroundImage,
+  initialTab = 'live-farm',
+  setJobActiveState,
+  setJobDroneCount,
+  deleteFarmJob,
+  fetchFarmJobs,
+  createFarmJob,
+  fetchState,
+  updateFarmJob,
 }: RealFarmViewProps) {
   const [activeTab, setActiveTab] = useState<'schedule' | 'live-farm' | 'drone-management'>(initialTab);
   const [scheduleView, setScheduleView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
@@ -137,15 +154,7 @@ export default function RealFarmView({
     queryClient.invalidateQueries({ queryKey: ['objects', 'real-farm'] });
   };
 
-  // Map selected image IDs to actual image paths (same as MapPlot)
-  const imageMap: { [key: string]: string } = {
-    "option1": "../../img/King_Ranch_better.jpg",
-    "option2": "../../img/HighResRanch.png"
-  };
-
-  const backgroundImage = selectedImage && imageMap[selectedImage]
-    ? imageMap[selectedImage]
-    : "../../img/HighResRanch.png";
+  
 
   return (
     <div className="real-farm-view">
@@ -190,7 +199,7 @@ export default function RealFarmView({
               onPlayPause={onPlayPause}
               onRestart={onRestart}
               onBack={onBack}
-              selectedImage={selectedImage}
+              backgroundImage={backgroundImage}
               filterValue={filterValue}
               filterUnit={filterUnit}
               onFilterChange={(value, unit) => {
@@ -198,6 +207,9 @@ export default function RealFarmView({
                 setFilterUnit(unit);
               }}
               maxDrones={numberDrones}
+              setJobActiveState={setJobActiveState}
+              setJobDroneCount={setJobDroneCount}
+              deleteFarmJob={deleteFarmJob}
             />
           )
         ) : (
@@ -236,6 +248,8 @@ export default function RealFarmView({
         backgroundImage={backgroundImage}
         onJobUpdated={handleJobUpdated}
         maxDrones={numberDrones}
+        updateFarmJob={updateFarmJob}
+        deleteFarmJob={deleteFarmJob}
       />
     </div>
   );
