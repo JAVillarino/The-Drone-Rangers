@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { fetchState, setTarget, setPlayPause, requestRestart } from './api/state'
+import { fetchState, setTarget, setPlayPause, requestRestart, setJobActiveState, setJobDroneCount, deleteFarmJob, fetchFarmJobs, createFarmJob, updateFarmJob } from './api/state'
 import { State, Target } from "./types.ts"
 import './App.css'
 import WelcomePage from "./components/WelcomePage";
@@ -26,6 +26,8 @@ function App() {
   const queryClient = useQueryClient();
 
   const [currentView, setCurrentView] = useState<'welcome' | 'live-system' | 'drone-management'>(getInitialView);
+  const [selectedImage, setSelectedImage] = useState<string>("");
+  const [numberDrones, setNumberDrones] = useState<number>(0);
 
   // Determine if we should use SSE (when live-system view is active)
   const shouldUseSSE = currentView === 'live-system';
@@ -75,6 +77,17 @@ function App() {
     }
   });
 
+  // Map selected image IDs to actual image paths (same as MapPlot)
+  const imageMap: { [key: string]: string } = {
+    "option1": "../../img/King_Ranch_better.jpg",
+    "option2": "../../../img/HighResRanch.png"
+  };
+
+  const backgroundImage = selectedImage && imageMap[selectedImage]
+    ? imageMap[selectedImage]
+    : "../../../img/HighResRanch.png";
+
+
   const [initialTab, setInitialTab] = useState<'schedule' | 'live-farm' | 'drone-management'>('live-farm');
 
   const handleNavigateToLiveSystem = async (tab: 'schedule' | 'live-farm' | 'drone-management' = 'live-farm') => {
@@ -111,12 +124,21 @@ function App() {
           onRestart={requestRestart}
           onBack={handleBackToWelcome}
           initialTab={initialTab}
+          backgroundImage={backgroundImage}
+          setJobActiveState={setJobActiveState}
+          setJobDroneCount={setJobDroneCount}
+          deleteFarmJob={deleteFarmJob}
+          fetchFarmJobs={fetchFarmJobs}
+          createFarmJob={createFarmJob}
+          fetchState={fetchState}
+          updateFarmJob={updateFarmJob}
         />
       )}
       {currentView === 'drone-management' && (
         <DroneManagementPage
           data={data!}
           onBack={handleBackFromDroneManagement}
+          setNumberDrones={setNumberDrones}
         />
       )}
     </>

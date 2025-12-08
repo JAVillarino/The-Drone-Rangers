@@ -9,10 +9,14 @@ interface LiveFarmTabProps {
   onPlayPause: () => void;
   onRestart: () => void;
   onBack?: () => void;
-  selectedImage?: string;
+  backgroundImage: string;
   filterValue: number | null;
   filterUnit: 'hours' | 'days' | 'weeks' | 'months';
   onFilterChange: (value: number | null, unit: 'hours' | 'days' | 'weeks' | 'months') => void;
+  maxDrones: number;
+  setJobActiveState: (jobId: string, isActive: boolean) => void;
+  setJobDroneCount: (jobId: string, droneCount: number) => void;
+  deleteFarmJob: (jobId: string) => void;
 }
 
 const CANVAS_SIZE = 600;
@@ -25,22 +29,17 @@ export type SetTargetVars = { jobId: string, target: Target };
 export function LiveFarmTab({
   data,
   onSetTarget,
-  selectedImage,
+  backgroundImage,
   filterValue,
   filterUnit,
-  onFilterChange
+  onFilterChange,
+  maxDrones,
+  setJobActiveState,
+  setJobDroneCount,
+  deleteFarmJob,
 }: LiveFarmTabProps) {
 
   
-    // Map selected image IDs to actual image paths
-    const imageMap: { [key: string]: string } = {
-      "option1": "../../img/King_Ranch_better.jpg",
-      "option2": "../../img/HighResRanch.png"
-  };
-
-  // Get the background image path, default to HighResRanch if no selection
-  const backgroundImage = selectedImage && imageMap[selectedImage] ? imageMap[selectedImage] : "../../img/HighResRanch.png";
-
   const { svgRef, scaleCoord, inverseScaleCoord } = usePan({ data, zoomMin, zoomMax, scale: 0.7, canvasSize: CANVAS_SIZE });
 
   // Stores the job ID that the user is currently choosing a target for.
@@ -152,6 +151,10 @@ export function LiveFarmTab({
               onSetTarget={(jobId, target) => onSetTarget({ jobId, target })}
               onSelectOnMap={(jobId) => setChoosingTarget(jobId)}
               onOpenJobChange={setOpenJobId}
+              maxDrones={maxDrones}
+              setJobActiveState={setJobActiveState}
+              setJobDroneCount={setJobDroneCount}
+              deleteFarmJob={deleteFarmJob}
             />
 
             {choosingTarget && (
