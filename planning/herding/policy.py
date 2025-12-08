@@ -235,6 +235,7 @@ class ShepherdPolicy:
         """
         Assigns each drone to collect an individual outermost sheep.
         Returns target points for all drones and the indices of the assigned sheep.
+        The target point will be NaN if there is no sheep for that drone to target.
         """
         P = world.flock                       # (N,2)
         D = world.drones                      # (N_drones, 2)
@@ -347,6 +348,9 @@ class ShepherdPolicy:
         # Calculate the standoff point for each assigned sheep
         collect_points = np.full((N_drones, 2), np.nan)
         for i, target_index in enumerate(target_sheep_indices):
+            if target_index is None:
+                continue
+
             Pj = P[target_index]
             
             # Point behind that sheep, pointing toward G
@@ -370,6 +374,9 @@ class ShepherdPolicy:
         Check if a specific drone should apply repulsion.
         Returns true if the drone is close to its collect point or based on cohesiveness.
         """
+        if np.isnan(target_positions).any():
+            return False
+
         # If the drone is close to its collect point, then it should always apply repulsion
         # The more cohesive, the more likely we just want to apply repulsion.
         repulsion_threshold = lerp_clamped(2, 5, 0.8, 1.2, self._cohesiveness(world, gcm))
@@ -409,7 +416,7 @@ class ShepherdPolicy:
         
         # Check flyover status for each drone individually
         if self.conditionally_apply_repulsion:
-            for i in range(N_drones):                
+            for i in range(N_drones):
                 # Check if the path from current drone position to its assigned collect point needs a flyover
                 apply_repulsion[i] = self._should_apply_repulsion(world, i, G, target, target_positions)
         
@@ -426,7 +433,7 @@ class ShepherdPolicy:
 
         for i, d in enumerate(world.drones):
             dist_sq = np.min(np.sum((world.flock - d)**2, axis=1))
-            if dist_sq >= too_close_sq or not apply_repulsion[i]:
+            if dist_sq >= too_close_sq or not apply_repulsion[i] or np.isnan(new_positions[i]).any():
                 # Only move drones that are not too close, or if they are in flyover mode
                 new_positions[i] = d + self.umax * dt * dir_unit[i]
             # else: drone is too close and applying repulsion, so it stays put

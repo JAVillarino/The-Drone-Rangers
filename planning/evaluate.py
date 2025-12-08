@@ -41,7 +41,6 @@ BASE_CONFIG = {
 }
 
 SPAWN_BOUNDS = (0.0, 250.0, 0.0, 250.0)
-TARGET_POS = np.array([240, 240])
 RESULTS_DIR = "./planning/results"
 
 
@@ -74,7 +73,6 @@ def run_one_trial(
         sheep_xy = spawn_line(config["N"], SPAWN_BOUNDS, seed=seed)
 
     drone_xy = config["drone_xy"]
-    target_xy = TARGET_POS
 
     # Build world with simulation parameters
     # Note: Disabling obstacles for evaluation by default (w_obs=0, etc.)
@@ -86,7 +84,6 @@ def run_one_trial(
     W = world.World(
         sheep_xy, 
         drone_xy, 
-        target_xy, 
         w_obs=0,
         w_tan=0,
         keep_out=0,
@@ -111,7 +108,8 @@ def run_one_trial(
     
     # Create a Job with a Circle target
     success_radius = config["success_radius"]
-    target = Circle(center=target_xy.copy(), radius=success_radius)
+    target = Circle(center=config["target_xy"].copy(), radius=success_radius)
+    print(target)
     current_time = time.time()
     num_drones = drone_xy.shape[0]
     jobs = [Job(
@@ -128,9 +126,8 @@ def run_one_trial(
         updated_at=current_time,
     )]
     
-    renderer = None
     if visualize:
-        renderer = Renderer(W, bounds=SPAWN_BOUNDS)
+        renderer = Renderer(W, bounds=(-20, 500.0, -20.0, 500.0))
 
     # Main simulation loop for this trial
     for t in range(config["max_steps"]):
@@ -173,16 +170,23 @@ if __name__ == "__main__":
     date_str = datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
 
     # Define evaluation parameters
-    Ns = list(range(120, 130))
-    n_values = list(range(1, 129))
+    Ns = list(range(100, 101))
+    # The default is kNN = 19.
+    kNN_values = list(range(19, 20))
     spawn_types = ["uniform"]
     seeds = range(3)
     flyovers = [True]
     drone_xy_configs = [
-        np.array([[0.0, 0.0]]),
+        np.array([[0.0, 0.0],
+                  [5.0, 0.0],
+                  [0.0, 5.0]])
     ]
+
+    # TODO: These shoul be way farther from the start.
+    initial_target_position = np.array([240.0, 240.0])
+    target_positions = [initial_target_position * i for i in range(1, 6)]
     
-    # Generate scenarios
+    # Generate scenarios: 5 targets × 3 seeds = 15 total scenarios
     scenarios_to_run = [
         {
             **BASE_CONFIG,
@@ -192,9 +196,10 @@ if __name__ == "__main__":
             "N": N,
             "spawn_type": pattern,
             "seed": seed,
+            "target_xy": target_xy,
             "success_radius": N ** (1/2) * 4
         }
-        for seed, N, pattern, flyover, n_nb, d_xy in product(seeds, Ns, spawn_types, flyovers, n_values, drone_xy_configs)
+        for N, pattern, flyover, n_nb, d_xy, target_xy, seed in product(Ns, spawn_types, flyovers, kNN_values, drone_xy_configs, target_positions, seeds)
         if n_nb < N
     ]
 
@@ -222,6 +227,8 @@ if __name__ == "__main__":
             "Completion Steps": completion_steps if success else np.nan,
             "Wall Time (s)": trial_duration,
             "Drone Count": config["drone_xy"].shape[0],
+            "Target_X": config["target_xy"][0],
+            "Target_Y": config["target_xy"][1],
             **config
         })
 
