@@ -9,6 +9,7 @@ interface ScheduleTabProps {
   jobs: FarmJob[];
   isLoading?: boolean;
   onJobClick?: (job: FarmJob) => void;
+  numberDrones: number;
 }
 
 export default function ScheduleTab({

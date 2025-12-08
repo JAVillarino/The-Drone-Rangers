@@ -13,6 +13,7 @@ interface LiveFarmTabProps {
   filterValue: number | null;
   filterUnit: 'hours' | 'days' | 'weeks' | 'months';
   onFilterChange: (value: number | null, unit: 'hours' | 'days' | 'weeks' | 'months') => void;
+  maxDrones: number;
 }
 
 const CANVAS_SIZE = 600;
@@ -28,7 +29,8 @@ export function LiveFarmTab({
   selectedImage,
   filterValue,
   filterUnit,
-  onFilterChange
+  onFilterChange,
+  maxDrones
 }: LiveFarmTabProps) {
 
   
@@ -152,6 +154,7 @@ export function LiveFarmTab({
               onSetTarget={(jobId, target) => onSetTarget({ jobId, target })}
               onSelectOnMap={(jobId) => setChoosingTarget(jobId)}
               onOpenJobChange={setOpenJobId}
+              maxDrones={maxDrones}
             />
 
             {choosingTarget && (

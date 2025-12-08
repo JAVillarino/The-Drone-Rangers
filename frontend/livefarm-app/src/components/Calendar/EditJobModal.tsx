@@ -12,6 +12,7 @@ interface EditJobModalProps {
   worldMax: number;
   backgroundImage: string;
   onJobUpdated?: () => void;
+  maxDrones: number;
 }
 
 export default function EditJobModal({
@@ -21,7 +22,8 @@ export default function EditJobModal({
   worldMin,
   worldMax,
   backgroundImage,
-  onJobUpdated
+  onJobUpdated,
+  maxDrones
 }: EditJobModalProps) {
   const queryClient = useQueryClient();
   const [isEditMode, setIsEditMode] = useState(false);
@@ -119,6 +121,11 @@ export default function EditJobModal({
 
     if (isEditMode && droneCount < 1) {
       setError('At least 1 drone is required');
+      return;
+    }
+
+    if (isEditMode && droneCount > maxDrones) {
+      setError(`Cannot exceed ${maxDrones} drone${maxDrones !== 1 ? 's' : ''} in fleet`);
       return;
     }
 
@@ -352,15 +359,34 @@ export default function EditJobModal({
               # of Drones to Allocate
             </label>
             {isEditMode ? (
-              <input
-                id="drone-count"
-                type="number"
-                min="1"
-                value={droneCount}
-                onChange={(e) => setDroneCount(parseInt(e.target.value, 10) || 1)}
-                className="form-input"
-                required
-              />
+              <>
+                <input
+                  id="drone-count"
+                  type="number"
+                  min="1"
+                  max={maxDrones}
+                  value={droneCount}
+                  onChange={(e) => {
+                    const newCount = parseInt(e.target.value, 10) || 1;
+                    setDroneCount(newCount);
+                    // Clear error if user fixes the value
+                    if (error && newCount <= maxDrones && newCount >= 1) {
+                      setError(null);
+                    }
+                  }}
+                  className="form-input"
+                  required
+                />
+                {maxDrones > 0 && (
+                  <div style={{ 
+                    fontSize: '0.875rem', 
+                    color: droneCount > maxDrones ? '#e53935' : '#666', 
+                    marginTop: '4px' 
+                  }}>
+                    Maximum: {maxDrones} drone{maxDrones !== 1 ? 's' : ''} available
+                  </div>
+                )}
+              </>
             ) : (
               <div className="read-only-value">
                 {droneCount} drone{droneCount !== 1 ? 's' : ''}
@@ -417,10 +443,10 @@ export default function EditJobModal({
               <button
                 type="submit"
                 className="modal-btn submit-btn"
-                disabled={isSubmitting || isDeleting || !hasChanges}
+                disabled={isSubmitting || isDeleting || !hasChanges || droneCount > maxDrones || droneCount < 1}
                 style={{
-                  opacity: hasChanges ? 1 : 0.5,
-                  cursor: hasChanges ? 'pointer' : 'not-allowed'
+                  opacity: hasChanges && droneCount <= maxDrones && droneCount >= 1 ? 1 : 0.5,
+                  cursor: hasChanges && droneCount <= maxDrones && droneCount >= 1 ? 'pointer' : 'not-allowed'
                 }}
               >
                 {isSubmitting ? 'Submitting...' : 'Submit Changes'}

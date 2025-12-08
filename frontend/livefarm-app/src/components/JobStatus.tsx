@@ -15,6 +15,7 @@ interface JobStatusProps {
   onCancel: () => void;
   onDronesChange: (newCount: number) => void;
   onTargetChange: (newTarget: Target) => void;
+  maxDrones: number;
 }
 
 const JobStatus: React.FC<JobStatusProps> = ({
@@ -31,6 +32,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
   onCancel,
   onDronesChange,
   onTargetChange,
+  maxDrones,
 }) => {
   // Use controlled isOpen prop if provided, otherwise fall back to local state
   const [localIsFolded, setLocalIsFolded] = useState<boolean>(false);
@@ -39,6 +41,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
   const [isKebabMenuOpen, setIsKebabMenuOpen] = useState<boolean>(false);
   // Local state for drone count input (synced with prop)
   const [localDroneCount, setLocalDroneCount] = useState<number>(droneCount);
+  const [droneCountError, setDroneCountError] = useState<string | null>(null);
   const [radiusInput, setRadiusInput] = useState<string>(() =>
     target?.type === 'circle' && typeof target.radius === 'number'
       ? target.radius.toString()
@@ -100,11 +103,17 @@ const JobStatus: React.FC<JobStatusProps> = ({
   // Handler for updating the drone count
   const handleDroneCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const count = parseInt(e.target.value, 10);
-    // Ensure the new value is at least 1 (minimum 1 drone required)
-    if (!isNaN(count) && count >= 1) {
-      setLocalDroneCount(count);
-      onDronesChange(count);
+    if (isNaN(count) || count < 1) {
+      setDroneCountError('At least 1 drone is required');
+      return;
     }
+    if (count > maxDrones) {
+      setDroneCountError(`Cannot exceed ${maxDrones} drone${maxDrones !== 1 ? 's' : ''} in fleet`);
+      return;
+    }
+    setDroneCountError(null);
+    setLocalDroneCount(count);
+    onDronesChange(count);
   };
 
   return (
@@ -196,8 +205,14 @@ const JobStatus: React.FC<JobStatusProps> = ({
               value={localDroneCount}
               onChange={handleDroneCountChange}
               min="1"
+              max={maxDrones}
               aria-label="Number of drones assigned"
             />
+            {droneCountError && (
+              <div style={{ color: '#e53935', fontSize: '0.875rem', marginTop: '4px' }}>
+                {droneCountError}
+              </div>
+            )}
           </div>
           <button 
             onClick={handlePauseToggle}

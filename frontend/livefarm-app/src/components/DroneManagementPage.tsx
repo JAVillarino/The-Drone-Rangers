@@ -11,6 +11,7 @@ interface Drone {
 export interface DroneManagementPageProps {
   data: State;
   onBack?: () => void;
+  setNumberDrones: (number: number) => void;
 }
 
 const CANVAS_SIZE = 600;
@@ -18,7 +19,7 @@ const CANVAS_SIZE = 600;
 const zoomMin = 0;
 const zoomMax = 250;
 
-export default function DroneManagementPage({ data, onBack: _onBack }: DroneManagementPageProps) {
+export default function DroneManagementPage({ data, onBack: _onBack, setNumberDrones }: DroneManagementPageProps) {
   const [drones, setDrones] = useState<Drone[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -40,7 +41,9 @@ export default function DroneManagementPage({ data, onBack: _onBack }: DroneMana
       }
       const data = await resp.json();
       const items: Array<{ id: string; make: string; model: string }> = data.items || [];
-      setDrones(items.map(d => ({ id: d.id, make: d.make, model: d.model })));
+      const newDrones = items.map(d => ({ id: d.id, make: d.make, model: d.model }));
+      setDrones(newDrones);
+      setNumberDrones(newDrones.length);
     } catch (e) {
       console.error('Failed to load drones:', e);
       setLoadError('Failed to load drones.');
@@ -61,7 +64,11 @@ export default function DroneManagementPage({ data, onBack: _onBack }: DroneMana
         const txt = await resp.text().catch(() => '');
         throw new Error(`Delete failed (${resp.status}) ${txt}`);
       }
-      setDrones(prev => prev.filter(d => d.id !== droneId));
+      setDrones(prev => {
+        const newDrones = prev.filter(d => d.id !== droneId);
+        setNumberDrones(newDrones.length);
+        return newDrones;
+      });
     } catch (e) {
       console.error('Failed to delete drone:', e);
       alert('Failed to delete drone. Please try again.');
@@ -102,7 +109,11 @@ export default function DroneManagementPage({ data, onBack: _onBack }: DroneMana
         throw new Error(`Create failed (${resp.status}) ${txt}`);
       }
       const created: { id: string; make: string; model: string } = await resp.json();
-      setDrones(prev => [...prev, { id: created.id, make: created.make, model: created.model }]);
+      setDrones(prev => {
+        const newDrones = [...prev, { id: created.id, make: created.make, model: created.model }];
+        setNumberDrones(newDrones.length);
+        return newDrones;
+      });
       setIsModalOpen(false);
     } catch (e) {
       console.error('Failed to create drone:', e);

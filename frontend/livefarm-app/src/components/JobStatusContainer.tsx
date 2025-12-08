@@ -12,6 +12,7 @@ interface JobStatusContainerProps {
   onSetTarget: (jobId: string, target: Target) => void;
   onSelectOnMap: (jobId: string) => void;
   onOpenJobChange?: (jobId: string | null) => void; // Callback when open job changes
+  maxDrones: number;
 }
 
 const jobStatus = (j: Job) => {
@@ -34,7 +35,8 @@ export default function JobStatusContainer({
   onFilterChange,
   onSetTarget,
   onSelectOnMap,
-  onOpenJobChange
+  onOpenJobChange,
+  maxDrones
 }: JobStatusContainerProps) {
   const queryClient = useQueryClient();
   const [openJobId, setOpenJobId] = useState<string | null>(null);
@@ -196,6 +198,7 @@ export default function JobStatusContainer({
               onCancel={() => handleCancel(job.id)}
               onDronesChange={(newCount: number) => setJobDroneCount(job.id, newCount)}
               onTargetChange={(newTarget: Target) => onSetTarget(job.id, newTarget)}
+              maxDrones={maxDrones}
             />
           );
         })}

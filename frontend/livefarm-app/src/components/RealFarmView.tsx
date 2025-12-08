@@ -35,6 +35,24 @@ export default function RealFarmView({
   const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false);
   const [isEditJobModalOpen, setIsEditJobModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<FarmJob | null>(null);
+  const [numberDrones, setNumberDrones] = useState<number>(0);
+
+  // Fetch initial drone count on mount
+  useEffect(() => {
+    const fetchDroneCount = async () => {
+      try {
+        const resp = await fetch('/drones');
+        if (resp.ok) {
+          const data = await resp.json();
+          const items: Array<{ id: string; make: string; model: string }> = data.items || [];
+          setNumberDrones(items.length);
+        }
+      } catch (e) {
+        console.error('Failed to fetch initial drone count:', e);
+      }
+    };
+    fetchDroneCount();
+  }, []);
 
   // Filter state - persisted across tab switches
   const [filterValue, setFilterValue] = useState<number | null>(null);
@@ -179,6 +197,7 @@ export default function RealFarmView({
                 setFilterValue(value);
                 setFilterUnit(unit);
               }}
+              maxDrones={numberDrones}
             />
           )
         ) : (
@@ -189,6 +208,7 @@ export default function RealFarmView({
           ) : (
             <DroneManagementPage
               data={data}
+              setNumberDrones={setNumberDrones}
             />
           )
         )}
@@ -201,6 +221,7 @@ export default function RealFarmView({
         worldMin={zoomMin}
         worldMax={zoomMax}
         backgroundImage={backgroundImage}
+        maxDrones={numberDrones}
       />
 
       <EditJobModal
@@ -214,6 +235,7 @@ export default function RealFarmView({
         worldMax={zoomMax}
         backgroundImage={backgroundImage}
         onJobUpdated={handleJobUpdated}
+        maxDrones={numberDrones}
       />
     </div>
   );

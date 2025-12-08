@@ -9,6 +9,7 @@ interface AddJobModalProps {
   worldMin: number;
   worldMax: number;
   backgroundImage: string;
+  maxDrones: number;
 }
 
 export default function AddJobModal({
@@ -17,7 +18,8 @@ export default function AddJobModal({
   onSubmit,
   worldMin,
   worldMax,
-  backgroundImage
+  backgroundImage,
+  maxDrones
 }: AddJobModalProps) {
   const [jobType, setJobType] = useState<'immediate' | 'scheduled'>('immediate');
   const [scheduledDateTime, setScheduledDateTime] = useState<Date | null>(null);
@@ -46,6 +48,11 @@ export default function AddJobModal({
 
     if (droneCount < 1) {
       setError('At least 1 drone is required');
+      return;
+    }
+
+    if (droneCount > maxDrones) {
+      setError(`Cannot exceed ${maxDrones} drone${maxDrones !== 1 ? 's' : ''} in fleet`);
       return;
     }
 
@@ -198,11 +205,28 @@ export default function AddJobModal({
               id="drone-count"
               type="number"
               min="1"
+              max={maxDrones}
               value={droneCount}
-              onChange={(e) => setDroneCount(parseInt(e.target.value, 10) || 1)}
+              onChange={(e) => {
+                const newCount = parseInt(e.target.value, 10) || 1;
+                setDroneCount(newCount);
+                // Clear error if user fixes the value
+                if (error && newCount <= maxDrones && newCount >= 1) {
+                  setError(null);
+                }
+              }}
               className="form-input"
               required
             />
+            {maxDrones > 0 && (
+              <div style={{ 
+                fontSize: '0.875rem', 
+                color: droneCount > maxDrones ? '#e53935' : '#666', 
+                marginTop: '4px' 
+              }}>
+                Maximum: {maxDrones} drone{maxDrones !== 1 ? 's' : ''} available
+              </div>
+            )}
           </div>
 
           {/* Form Footer */}
@@ -210,7 +234,11 @@ export default function AddJobModal({
             <button type="button" className="modal-btn cancel-btn" onClick={handleClose} disabled={isSubmitting}>
               Cancel
             </button>
-            <button type="submit" className="modal-btn submit-btn" disabled={isSubmitting}>
+            <button 
+              type="submit" 
+              className="modal-btn submit-btn" 
+              disabled={isSubmitting || droneCount > maxDrones || droneCount < 1}
+            >
               {isSubmitting ? 'Creating...' : 'Submit'}
             </button>
           </div>
