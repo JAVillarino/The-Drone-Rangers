@@ -37,6 +37,7 @@ BASE_CONFIG = {
     "max_steps": 2000,
     "boundary": "none",
     "clusters": 3,
+    "dt": 1,
 }
 
 SPAWN_BOUNDS = (0.0, 250.0, 0.0, 250.0)
@@ -176,9 +177,9 @@ if __name__ == "__main__":
     n_values = list(range(1, 129))
     spawn_types = ["uniform"]
     seeds = range(3)
-    flyovers = [False]
+    flyovers = [True]
     drone_xy_configs = [
-        np.array([[0, 0]]),
+        np.array([[0.0, 0.0]]),
     ]
     
     # Generate scenarios
@@ -211,7 +212,7 @@ if __name__ == "__main__":
             config["seed"], 
             s_idx, 
             len(scenarios_to_run), 
-            visualize=False
+            visualize=True
         )
         end_time = time.perf_counter()
         trial_duration = end_time - start_time

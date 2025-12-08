@@ -10,6 +10,13 @@
             "request": "launch",
             "program": "${workspaceFolder}/planning/run_demo.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Python Debugger: Evaluate",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/planning/evaluate.py",
+            "console": "integratedTerminal"
         }
     ]
 }
