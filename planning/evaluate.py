@@ -169,11 +169,11 @@ if __name__ == "__main__":
     date_str = datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
 
     # Define evaluation parameters
-    Ns = list(range(100, 101))
+    Ns = list(range(500, 501))
     # The default is kNN = 19.
     kNN_values = list(range(19, 20))
     spawn_types = ["uniform"]
-    seeds = range(3)
+    seeds = range(25)
     flyovers = [True]
     drone_xy_configs = [
         np.array([[0.0, 0.0],
@@ -182,7 +182,8 @@ if __name__ == "__main__":
     ]
 
     initial_target_position = np.array([240.0, 240.0])
-    target_positions = [initial_target_position * i for i in range(1, 6)]
+    # target_positions = [initial_target_position * i for i in range(1, 6)]
+    target_positions = [np.array([300.0, 300.0])]
     
     # Generate scenarios: 5 targets × 3 seeds = 15 total scenarios
     scenarios_to_run = [
