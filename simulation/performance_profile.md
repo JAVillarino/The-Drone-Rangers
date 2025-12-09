@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `simulation/test_world_perf.py` file provides comprehensive performance testing and bottleneck analysis for the drone herding simulation. It includes both benchmark testing and detailed performance profiling tools.
+The `tests/performance/test_world_perf.py` file provides comprehensive performance testing and bottleneck analysis for the drone herding simulation. It includes both benchmark testing and detailed performance profiling tools.
 
 ## Quick Start
 
@@ -11,13 +11,13 @@ The `simulation/test_world_perf.py` file provides comprehensive performance test
 source venv/bin/activate
 
 # Run all benchmarks (recommended)
-pytest simulation/test_world_perf.py --benchmark-columns=min,mean,max,rounds --benchmark-sort=mean
+pytest tests/performance/test_world_perf.py --benchmark-columns=min,mean,max,rounds --benchmark-sort=mean
 
 # Run bottleneck analysis
-pytest simulation/test_world_perf.py::test_bottleneck_analysis -v -s
+pytest tests/performance/test_world_perf.py::test_bottleneck_analysis -v -s
 
 # Run scaling analysis
-pytest simulation/test_world_perf.py::test_scaling_analysis -v -s
+pytest tests/performance/test_world_perf.py::test_scaling_analysis -v -s
 ```
 
 ## Test Components
@@ -53,7 +53,7 @@ pytest simulation/test_world_perf.py::test_scaling_analysis -v -s
 
 **Usage**:
 ```bash
-pytest simulation/test_world_perf.py::test_bottleneck_analysis -v -s
+pytest tests/performance/test_world_perf.py::test_bottleneck_analysis -v -s
 ```
 
 **Sample Output**:
@@ -81,7 +81,7 @@ Boundary handling (10 iterations): 0.0002s
 
 **Usage**:
 ```bash
-pytest simulation/test_world_perf.py::test_scaling_analysis -v -s
+pytest tests/performance/test_world_perf.py::test_scaling_analysis -v -s
 ```
 
 **Sample Output**:
@@ -135,29 +135,29 @@ To modify test parameters, edit the parametrize decorators in `test_world_step_t
 
 ```bash
 # Test only JIT-enabled runs
-pytest simulation/test_world_perf.py -k "on" --benchmark-columns=min,mean,max,rounds
+pytest tests/performance/test_world_perf.py -k "on" --benchmark-columns=min,mean,max,rounds
 
 # Test only small flock sizes
-pytest simulation/test_world_perf.py -k "64" --benchmark-columns=min,mean,max,rounds
+pytest tests/performance/test_world_perf.py -k "64" --benchmark-columns=min,mean,max,rounds
 
 # Skip slow combinations
-pytest simulation/test_world_perf.py -k "not (off and (256 or 512))" --benchmark-columns=min,mean,max,rounds
+pytest tests/performance/test_world_perf.py -k "not (off and (256 or 512))" --benchmark-columns=min,mean,max,rounds
 ```
 
 ### Benchmark Output Options
 
 ```bash
 # Basic benchmark output
-pytest simulation/test_world_perf.py --benchmark-columns=min,mean,max,rounds --benchmark-sort=mean
+pytest tests/performance/test_world_perf.py --benchmark-columns=min,mean,max,rounds --benchmark-sort=mean
 
 # Save benchmark results
-pytest simulation/test_world_perf.py --benchmark-save=my_benchmark --benchmark-columns=min,mean,max,rounds
+pytest tests/performance/test_world_perf.py --benchmark-save=my_benchmark --benchmark-columns=min,mean,max,rounds
 
 # Compare with previous results
-pytest simulation/test_world_perf.py --benchmark-compare=my_benchmark --benchmark-columns=min,mean,max,rounds
+pytest tests/performance/test_world_perf.py --benchmark-compare=my_benchmark --benchmark-columns=min,mean,max,rounds
 
 # Generate JSON output
-pytest simulation/test_world_perf.py --benchmark-json=results.json --benchmark-columns=min,mean,max,rounds
+pytest tests/performance/test_world_perf.py --benchmark-json=results.json --benchmark-columns=min,mean,max,rounds
 ```
 
 ## Troubleshooting
@@ -176,7 +176,7 @@ pytest simulation/test_world_perf.py --benchmark-json=results.json --benchmark-c
 **Problem**: JIT-related tests fail with compilation errors.
 
 **Solution**: 
-- Use JIT-enabled tests only: `pytest simulation/test_world_perf.py -k "on"`
+- Use JIT-enabled tests only: `pytest tests/performance/test_world_perf.py -k "on"`
 - Or disable JIT globally: Set `NUMBA_DISABLE_JIT=1` environment variable
 
 ### Memory Issues with Large Flocks
@@ -218,9 +218,13 @@ pytest simulation/test_world_perf.py --benchmark-json=results.json --benchmark-c
 
 ```
 simulation/
-├── test_world_perf.py          # Main performance test file
 ├── world.py                    # Simulation implementation
 └── scenarios.py               # Test scenarios
+
+tests/
+└── performance/
+    └── test_world_perf.py     # Performance regression tests
+
 
 docs/
 └── performance_testing.md     # This documentation
@@ -253,32 +257,32 @@ When adding new performance tests:
 source venv/bin/activate
 
 # 1. Run benchmarks
-pytest simulation/test_world_perf.py::test_world_step_throughput --benchmark-columns=min,mean,max,rounds --benchmark-sort=mean
+pytest tests/performance/test_world_perf.py::test_world_step_throughput --benchmark-columns=min,mean,max,rounds --benchmark-sort=mean
 
 # 2. Analyze bottlenecks
-pytest simulation/test_world_perf.py::test_bottleneck_analysis -v -s
+pytest tests/performance/test_world_perf.py::test_bottleneck_analysis -v -s
 
 # 3. Check scaling
-pytest simulation/test_world_perf.py::test_scaling_analysis -v -s
+pytest tests/performance/test_world_perf.py::test_scaling_analysis -v -s
 ```
 
 ### Quick Performance Check
 
 ```bash
 # Fast performance check (JIT only, small flocks)
-pytest simulation/test_world_perf.py -k "on and (64 or 128)" --benchmark-columns=min,mean,max,rounds
+pytest tests/performance/test_world_perf.py -k "on and (64 or 128)" --benchmark-columns=min,mean,max,rounds
 ```
 
 ### Development Workflow
 
 ```bash
 # During development - quick checks
-pytest simulation/test_world_perf.py::test_bottleneck_analysis -v -s
+pytest tests/performance/test_world_perf.py::test_bottleneck_analysis -v -s
 
 # Before commits - full benchmarks
-pytest simulation/test_world_perf.py --benchmark-columns=min,mean,max,rounds --benchmark-sort=mean
+pytest tests/performance/test_world_perf.py --benchmark-columns=min,mean,max,rounds --benchmark-sort=mean
 
 # Performance regression testing
-pytest simulation/test_world_perf.py --benchmark-compare=baseline --benchmark-columns=min,mean,max,rounds
+pytest tests/test_performance.py --benchmark-compare=baseline --benchmark-columns=min,mean,max,rounds
 ```
 EOF
