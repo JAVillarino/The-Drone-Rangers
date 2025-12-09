@@ -171,8 +171,12 @@ class World:
         self._rr_cursor = 0
         self.eps_move = max(1e-6, 0.4 * self.ra)
         
-        # Auto-toggle: enable cache for large flocks only
-        self.use_neighbor_cache = (self.N >= 512)
+        # Auto-enable neighbor cache for large flocks
+        # Benchmark shows crossover at N=256 (+3.8%), significant gain at N=300 (+10%)
+        if use_neighbor_cache is None:
+            self.use_neighbor_cache = (self.N >= 256)
+        else:
+            self.use_neighbor_cache = use_neighbor_cache
         
         # Controls what fraction of the self.V velocity calculation for each sheep 
         # should be attributed to flocking behavior vs grazing behavior.

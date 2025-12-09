@@ -28,7 +28,7 @@ from planning.plan_type import DoNothing
 # -----------------------------------------------------------------------------
 
 BOUNDS = (0.0, 250.0, 0.0, 250.0)
-DOG_START = [125, 125]
+DOG_START = np.array([[125.0, 125.0]])
 TARGET_POS = [200, 200]
 
 # Performance thresholds
@@ -355,3 +355,99 @@ def test_performance_regression_detection():
         print(f"  ✅ {name} performance acceptable!")
     
     print("\n✅ All performance regression tests passed!")
+
+
+def test_cache_impact():
+    """Benchmark neighbor cache performance across different N."""
+    print("\n=== NEIGHBOR CACHE IMPACT ANALYSIS ===")
+    print(f"{'N':<6} | {'Cache OFF (s)':<15} | {'Cache ON (s)':<15} | {'Speedup':<10}")
+    print("-" * 55)
+    
+    sizes = [300]
+    
+    world_mod = _reload_world(disable_jit=False)
+    World = world_mod.World
+    
+    for N in sizes:
+        # --- Cache ON ---
+        w_on = _make_world(World, N, with_obstacles=False)
+        w_on.use_neighbor_cache = True
+        
+        # Warm-up
+        for _ in range(10):
+            w_on.step(DoNothing())
+            
+        start = time.perf_counter()
+        steps = 100
+        for _ in range(steps):
+            w_on.step(DoNothing())
+        time_on = time.perf_counter() - start
+        
+        # --- Cache OFF ---
+        w_off = _make_world(World, N, with_obstacles=False)
+        w_off.use_neighbor_cache = False
+        
+        # Warm-up
+        for _ in range(10):
+            w_off.step(DoNothing())
+            
+        start = time.perf_counter()
+        for _ in range(steps):
+            w_off.step(DoNothing())
+        time_off = time.perf_counter() - start
+        
+        # Analysis
+        speedup = (time_off - time_on) / time_off * 100
+        print(f"{N:<6} | {time_off:<15.4f} | {time_on:<15.4f} | {speedup:>9.2f}%")
+
+    print("✅ Cache performance test complete!")
+
+
+# -----------------------------------------------------------------------------
+# Standalone Profiler
+# -----------------------------------------------------------------------------
+
+def run_profiler():
+    """Run cProfile on the simulation (standalone mode)."""
+    # Configuration from environment variables
+    disable_jit = os.environ.get("DR_PERF_NOJIT", "0") == "1"
+    steps = int(os.environ.get("DR_PERF_STEPS", "300"))
+    N = int(os.environ.get("DR_PERF_N", "256"))
+    with_obstacles = os.environ.get("DR_PERF_OBS", "1") == "1"
+    out_file = os.environ.get("DR_PERF_OUT", "profile.prof")
+
+    print(f"Profiling Configuration:")
+    print(f"  JIT Disabled: {disable_jit}")
+    print(f"  Steps:        {steps}")
+    print(f"  Agents (N):   {N}")
+    print(f"  Obstacles:    {with_obstacles}")
+    print("-" * 40)
+
+    # Load World class
+    world_mod = _reload_world(disable_jit)
+    World = world_mod.World
+    w = _make_world(World, N=N, with_obstacles=with_obstacles)
+
+    # Warm-up (JIT compilation happens here if enabled)
+    print("Warming up...")
+    for _ in range(20):
+        w.step(DoNothing())
+
+    # Profiling
+    print("Running profile...")
+    pr = cProfile.Profile()
+    pr.enable()
+    for _ in range(steps):
+        w.step(DoNothing())
+    pr.disable()
+
+    # Output results
+    pr.dump_stats(out_file)
+    s = StringIO()
+    pstats.Stats(pr, stream=s).sort_stats("cumulative").print_stats(30)
+    print(s.getvalue())
+    print(f"Saved cProfile stats to {out_file}")
+
+
+if __name__ == "__main__":
+    run_profiler()
