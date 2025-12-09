@@ -71,7 +71,6 @@ class World:
         w_align: float = 0.0,     # Alignment weight
 
         # Grazing / Noise
-        graze_alpha: float = 0.0,
         sigma: float = 0.3,       # Noise magnitude
         graze_p: float = 0.05,    # Grazing movement probability
 
@@ -131,7 +130,6 @@ class World:
         self.ra, self.rs, self.k_nn = ra, rs, k_nn
         self.dt, self.vmax, self.umax = dt, vmax, umax
         self.wr, self.wa, self.ws, self.wm, self.w_align, self.w_target = wr, wa, ws, wm, w_align, w_target
-        self.graze_alpha = graze_alpha
         self.sigma = sigma
 
         # Cache squared distances for performance
@@ -815,12 +813,6 @@ class World:
 
         V_new = np.zeros((self.N, 2))
         for i in range(self.N):
-            # Bernoulli: move with probability p while grazing
-            if self.graze_p < 1.0 and self.rng.random() > self.graze_p:
-                self.V[i] *= decay
-                self.P[i] += self.V[i] * self.dt
-                continue
-
             rnd = self.rng.normal(size=2) * 0.2
             R  = self._repel_close_vec(i)
             H = self.wr * R + rnd
