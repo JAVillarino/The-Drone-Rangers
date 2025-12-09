@@ -1,8 +1,18 @@
 # The-Drone-Rangers
 
+### Testing
+There is a suite of tests written in pytest to evaluate the end-to-end behavior of the backend. 
+
 ## Backend
 
-To run it execute `python ./server/main.py`.
+First, run `pip install -r requirements.txt` to install the necessary python packages. Then, the backend can be executed via `python ./server/main.py`.
+
+A variety of tests for the backend are available, which can be executed by
+
+1. `pytest tests/unit`
+1. `pytest tests/integration`
+1. `pytest tests/server`
+1. `pytest tests/e2e`
 
 ## Frontend
 
@@ -29,6 +39,3 @@ npm run dev
 ```
 
 The app will be available at `http://localhost:5173/` when running.
-
-## Testing
-There is a suite of tests written in pytest to evaluate the end-to-end behavior of the backend. 
