@@ -21,12 +21,12 @@ import pandas as pd
 # List of CSV files to process.
 # Can be populated manually or via glob patterns.
 CSV_PATHS = [
-    "./planning/results/paper_result.csv"
+    "./planning/results/3_drones_2000_steps.csv"
 ]
 
 # Plot settings
 FIG_SIZE = (10, 5.5)
-CMAP = "Blues_r"
+CMAP = "Greens"
 X_LIMIT = (0, 150)
 Y_LIMIT = (0, 150)
 
@@ -82,71 +82,62 @@ def load_and_process_data(paths: List[str]) -> pd.DataFrame:
 # -----------------------------------------------------------------------------
 
 def plot_results(df: pd.DataFrame):
-    """Generate and display the success rate heatmap."""
+    """Generate and display the success rate plot."""
     if df.empty:
         print("No data to plot.")
         return
 
-    # Aggregate success rate
+    # Aggregate success rate per (N, k_nn)
     agg = (df.groupby(["N", "k_nn"], as_index=False)
              .agg(success_rate=("Success", "mean"),
                   trials=("Success", "size")))
 
-    # Pivot to grid format
-    Ns = np.sort(agg["N"].unique())
-    ks = np.sort(agg["k_nn"].unique())
-    
-    if len(Ns) == 0 or len(ks) == 0:
-        print("Insufficient data dimensions for plotting.")
+    # Keep only valid combos
+    agg = agg[agg["k_nn"] < agg["N"]]
+
+    if agg.empty:
+        print("No valid (N, k_nn) pairs after filtering.")
         return
 
-    grid = (agg.pivot(index="k_nn", columns="N", values="success_rate")
-               .reindex(index=ks, columns=Ns))
-
-    # Fill upper triangle (where k > N, which is impossible/trivial) with 1.0 (or NaN)
-    # Here we set to 1.0 to match original logic, though technically k < N is required.
-    G = grid.values.copy()
-    upper_mask = (ks[:, None] >= Ns[None, :])   # rows are k, cols are N
-    G[upper_mask] = 1.0 
-
-    # Create Plot
     fig, ax = plt.subplots(figsize=FIG_SIZE)
-    im = ax.imshow(
-        np.ma.masked_invalid(G),
-        origin="lower",
-        aspect="auto",
-        extent=[Ns.min(), Ns.max(), ks.min(), ks.max()],
-        vmin=0.0, vmax=1.0,
-        cmap=CMAP
+
+    # Scatter "heatmap": one square per (N, k_nn)
+    sc = ax.scatter(
+        agg["N"],
+        agg["k_nn"],
+        c=agg["success_rate"],
+        cmap=CMAP,
+        vmin=0.0,
+        vmax=1.0,
+        s=55,           # marker size; tweak to taste
+        marker="s",     # square markers look like pixels
+        edgecolors="none"
     )
 
     # Guide curves
     N_line = np.linspace(1, 150, 500)
-    
-    # Curve 1: n = 0.53 * N
     ax.plot(N_line, 0.53 * N_line, "k-",  lw=2, zorder=3, label="n = 0.53N")
-    
-    # Curve 2: n = 3 * log(N)
-    # Avoid log(0) issue by starting linspace at 1
     ax.plot(N_line, 3.0 * np.log(N_line), "k--", lw=2, zorder=3, label="n = 3log(N)")
 
-    # Axes & Labels
-    ax.set_xlabel("Number of Sheep")
-    ax.set_ylabel("Knn")
+    # Axes & limits
+    ax.set_xlabel("No. Agents (N)")
+    ax.set_ylabel("No. Neighbors (n)")
     ax.set_xlim(X_LIMIT)
     ax.set_ylim(Y_LIMIT)
-    
+
+    # (optional) make axes aspect closer to equal so the triangle looks “true”
+    # ax.set_aspect("equal", adjustable="box")
+
     # Colorbar
-    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar = fig.colorbar(sc, ax=ax, fraction=0.046, pad=0.04)
     cbar.set_label("Proportion of Successes")
-    
+
     ax.legend(loc="upper left")
     plt.title("Proportion of Herding Tasks Completed")
     
     plt.tight_layout()
     plt.show()
 
-    # Print stats
     if "Wall Time (s)" in df.columns:
         mean_time = df.loc[df["Success"] == 1, "Wall Time (s)"].mean()
         print(f"Average time (successful runs only): {mean_time:.3f} s")
