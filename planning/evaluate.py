@@ -34,7 +34,7 @@ from simulation.scenarios import (
 # -----------------------------------------------------------------------------
 
 BASE_CONFIG = {
-    "max_steps": 2000,
+    "max_steps": 100_000,
     "boundary": "none",
     "clusters": 3,
     "dt": 1,
@@ -109,7 +109,6 @@ def run_one_trial(
     # Create a Job with a Circle target
     success_radius = config["success_radius"]
     target = Circle(center=config["target_xy"].copy(), radius=success_radius)
-    print(target)
     current_time = time.time()
     num_drones = drone_xy.shape[0]
     jobs = [Job(
@@ -216,7 +215,7 @@ if __name__ == "__main__":
             config["seed"], 
             s_idx, 
             len(scenarios_to_run), 
-            visualize=True
+            visualize=False
         )
         end_time = time.perf_counter()
         trial_duration = end_time - start_time

@@ -131,8 +131,8 @@ def plot_results(df: pd.DataFrame):
     ax.plot(N_line, 3.0 * np.log(N_line), "k--", lw=2, zorder=3, label="n = 3log(N)")
 
     # Axes & Labels
-    ax.set_xlabel("No. Agents (N)")
-    ax.set_ylabel("No. Neighbors (n)")
+    ax.set_xlabel("Number of Sheep")
+    ax.set_ylabel("Knn")
     ax.set_xlim(X_LIMIT)
     ax.set_ylim(Y_LIMIT)
     
@@ -141,7 +141,7 @@ def plot_results(df: pd.DataFrame):
     cbar.set_label("Proportion of Successes")
     
     ax.legend(loc="upper left")
-    plt.title("Proportion of Successful Shepherding Events")
+    plt.title("Proportion of Herding Tasks Completed")
     
     plt.tight_layout()
     plt.show()
