@@ -98,8 +98,6 @@ def _make_world(
 # Tests
 # -----------------------------------------------------------------------------
 
-@pytest.mark.flaky(reruns=2)
-@pytest.mark.performance
 @pytest.mark.parametrize("N", [64, 128, 256])
 @pytest.mark.parametrize("with_obstacles", [False, True])
 @pytest.mark.parametrize("jit", ["on", "off"])
@@ -134,7 +132,6 @@ def test_world_step_throughput(benchmark, N, with_obstacles, jit):
     assert np.isfinite(world.P).all()
 
 
-@pytest.mark.performance
 def test_bottleneck_analysis():
     """Detailed bottleneck analysis with proper warm-up and more steps."""
     world_mod = _reload_world(disable_jit=False)
@@ -222,7 +219,6 @@ def test_bottleneck_analysis():
     print("✅ Performance thresholds met!")
 
 
-@pytest.mark.performance
 def test_scaling_analysis():
     """Analyze how performance scales with N."""
     print("\n=== SCALING ANALYSIS ===")
@@ -266,46 +262,79 @@ def test_scaling_analysis():
     print("✅ Scaling efficiency acceptable!")
 
 
-@pytest.mark.performance
-@pytest.mark.xfail(reason="Numba reloading issues on some environments")
 def test_jit_impact():
-    """Compare JIT vs no-JIT performance."""
+    """Compare JIT vs no-JIT performance using subprocesses to avoid Numba reloading issues."""
     print("\n=== JIT IMPACT ANALYSIS ===")
     
+    import subprocess
+    import sys
+    
+    # Helper script to run a quick benchmark
+    # We pass N as an argument
+    bench_script = """
+import os
+import time
+import sys
+import numpy as np
+
+# Configure JIT before importing world
+disable_jit = sys.argv[1] == "1"
+if disable_jit:
+    os.environ["NUMBA_DISABLE_JIT"] = "1"
+else:
+    os.environ.pop("NUMBA_DISABLE_JIT", None)
+
+from planning.plan_type import DoNothing
+import simulation.world as world_mod
+
+def run():
     N = 128
-    world_mod_jit = _reload_world(disable_jit=False)
-    world_mod_nojit = _reload_world(disable_jit=True)
+    # Create world
+    rng = np.random.default_rng(0)
+    sheep_xy = rng.uniform(0, 250, size=(N, 2))
+    shepherd_xy = np.array([[125.0, 125.0]])
     
-    World_jit = world_mod_jit.World
-    World_nojit = world_mod_nojit.World
+    w = world_mod.World(
+        sheep_xy=sheep_xy,
+        shepherd_xy=shepherd_xy,
+        boundary="reflect"
+    )
     
-    # Warm-up
-    print("Warming up JIT version...")
-    world_jit = _make_world(World_jit, N, with_obstacles=False)
+    # Warmup
+    for _ in range(20):
+        w.step(DoNothing())
+        
+    # Measure
+    start = time.perf_counter()
     for _ in range(100):
-        world_jit.step(DoNothing())
+        w.step(DoNothing())
+    end = time.perf_counter()
     
-    print("Warming up no-JIT version...")
-    world_nojit = _make_world(World_nojit, N, with_obstacles=False)
-    for _ in range(50):
-        world_nojit.step(DoNothing())
+    print(end - start)
+
+if __name__ == "__main__":
+    run()
+"""
     
-    # Profiling
-    print("Profiling JIT version...")
-    start_jit = time.perf_counter()
-    for _ in range(100):
-        world_jit.step(DoNothing())
-    end_jit = time.perf_counter()
-    time_jit = end_jit - start_jit
-    print(f"JIT ON (N={N}): {time_jit:.4f}s")
+    def run_bench(disable_jit):
+        cmd = [sys.executable, "-c", bench_script, "1" if disable_jit else "0"]
+        # Ensure PYTHONPATH includes project root
+        env = os.environ.copy()
+        env["PYTHONPATH"] = REPO_ROOT
+        
+        try:
+            output = subprocess.check_output(cmd, env=env, text=True)
+            return float(output.strip())
+        except subprocess.CalledProcessError as e:
+            pytest.fail(f"Benchmark subprocess failed: {e.output}")
+
+    print("Profiling JIT version (subprocess)...")
+    time_jit = run_bench(disable_jit=False)
+    print(f"JIT ON (N=128): {time_jit:.4f}s")
     
-    print("Profiling no-JIT version...")
-    start_nojit = time.perf_counter()
-    for _ in range(100):
-        world_nojit.step(DoNothing())
-    end_nojit = time.perf_counter()
-    time_nojit = end_nojit - start_nojit
-    print(f"JIT OFF (N={N}): {time_nojit:.4f}s")
+    print("Profiling no-JIT version (subprocess)...")
+    time_nojit = run_bench(disable_jit=True)
+    print(f"JIT OFF (N=128): {time_nojit:.4f}s")
     
     if time_jit > 0:
         speedup = time_nojit / time_jit
@@ -317,8 +346,6 @@ def test_jit_impact():
     print("✅ JIT performance acceptable!")
 
 
-@pytest.mark.flaky(reruns=2)
-@pytest.mark.performance
 def test_performance_regression_detection():
     """Comprehensive performance regression detection."""
     print("\n=== PERFORMANCE REGRESSION DETECTION ===")
@@ -365,7 +392,6 @@ def test_performance_regression_detection():
     print("\n✅ All performance regression tests passed!")
 
 
-@pytest.mark.performance
 def test_cache_impact():
     """Benchmark neighbor cache performance across different N."""
     print("\n=== NEIGHBOR CACHE IMPACT ANALYSIS ===")
