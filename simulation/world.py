@@ -173,10 +173,7 @@ class World:
         
         # Auto-enable neighbor cache for large flocks
         # Benchmark shows crossover at N=256 (+3.8%), significant gain at N=300 (+10%)
-        if use_neighbor_cache is None:
-            self.use_neighbor_cache = (self.N >= 256)
-        else:
-            self.use_neighbor_cache = use_neighbor_cache
+        self.use_neighbor_cache = (self.N >= 256)
         
         # Controls what fraction of the self.V velocity calculation for each sheep 
         # should be attributed to flocking behavior vs grazing behavior.
