@@ -60,7 +60,7 @@ def test_create_scheduled_job(app_and_repo):
     
     payload = {
         "target": {"type": "circle", "center": [0,0], "radius": 10},
-        "drones": 1,
+        "drone_count": 1,
         "job_type": "scheduled",
         "scheduled_time": future_iso
     }
@@ -79,7 +79,7 @@ def test_create_scheduled_job_missing_time(app_and_repo):
     
     payload = {
         "target": {"type": "circle", "center": [0,0], "radius": 10},
-        "drones": 1,
+        "drone_count": 1,
         "job_type": "scheduled"
         # Missing scheduled_time
     }
@@ -94,7 +94,7 @@ def test_create_immediate_job_explicit(app_and_repo):
     
     payload = {
         "target": {"type": "circle", "center": [0,0], "radius": 10},
-        "drones": 1,
+        "drone_count": 1,
         "job_type": "immediate"
     }
     

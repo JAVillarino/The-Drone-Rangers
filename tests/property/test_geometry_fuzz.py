@@ -8,15 +8,14 @@ def test_norm_fuzz():
     for _ in range(100):
         # Random vector
         v = np.random.uniform(-1e6, 1e6, 2)
-        n = utils.norm(v)
         
         # Non-negative
-        assert n >= 0
+        assert np.linalg.norm(v) >= 0
         
         # Triangle inequality: |a+b| <= |a| + |b|
         a = np.random.uniform(-100, 100, 2)
         b = np.random.uniform(-100, 100, 2)
-        assert utils.norm(a + b) <= utils.norm(a) + utils.norm(b) + 1e-9
+        assert np.linalg.norm(a + b) <= np.linalg.norm(a) + np.linalg.norm(b) + 1e-9
 
 def test_smooth_push_fuzz():
     """Property: smooth_push(d, r) is continuous and bounded."""

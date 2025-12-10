@@ -86,7 +86,7 @@ def test_create_job(app_and_repo):
             "center": [100, 100],
             "radius": 10
         },
-        "drones": 2,
+        "drone_count": 2,
         "job_type": "immediate"
     }
     
@@ -97,7 +97,7 @@ def test_create_job(app_and_repo):
     data = response.get_json()
     
     assert data["status"] == "running"
-    assert data["drones"] == 2
+    assert data["drone_count"] == 2
     assert data["target"]["type"] == "circle"
     
     # Check cache updated
@@ -109,13 +109,13 @@ def test_create_job_invalid(app_and_repo):
     client = app.test_client()
     
     # Missing target
-    response = client.post("/api/jobs", json={"drones": 1})
+    response = client.post("/api/jobs", json={"drone_count": 1})
     assert response.status_code == 400
     
     # Invalid drone count
     payload = {
         "target": {"type": "circle", "center": [0,0], "radius": 5},
-        "drones": 0
+        "drone_count": 0
     }
     response = client.post("/api/jobs", json=payload)
     assert response.status_code == 400
@@ -127,7 +127,7 @@ def test_get_job(app_and_repo):
     # Create
     payload = {
         "target": {"type": "circle", "center": [100, 100], "radius": 10},
-        "drones": 1
+        "drone_count": 1
     }
     create_res = client.post("/api/jobs", json=payload)
     assert create_res.status_code == 201
@@ -145,7 +145,7 @@ def test_update_job_status(app_and_repo):
     # Create
     payload = {
         "target": {"type": "circle", "center": [100, 100], "radius": 10},
-        "drones": 1
+        "drone_count": 1
     }
     create_res = client.post("/api/jobs", json=payload)
     assert create_res.status_code == 201
@@ -164,7 +164,7 @@ def test_delete_job(app_and_repo):
     # Create
     payload = {
         "target": {"type": "circle", "center": [100, 100], "radius": 10},
-        "drones": 1
+        "drone_count": 1
     }
     create_res = client.post("/api/jobs", json=payload)
     assert create_res.status_code == 201

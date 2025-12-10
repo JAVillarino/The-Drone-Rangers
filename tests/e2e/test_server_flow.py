@@ -45,7 +45,7 @@ def test_server_e2e_flow(app_with_real_world):
     # 1. Create Job
     payload = {
         "target": {"type": "circle", "center": [150, 150], "radius": 10},
-        "drones": 1,
+        "drone_count": 1,
         "job_type": "immediate"
     }
     res = client.post("/api/jobs", json=payload)

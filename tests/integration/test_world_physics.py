@@ -45,7 +45,7 @@ def test_world_repulsion():
     drone_xy = np.array([[50.5, 50.0]])
     target_xy = np.array([100.0, 100.0])
     
-    w = world.World(sheep_xy, drone_xy, target_xy, seed=42)
+    w = world.World(sheep_xy, drone_xy, target_xy, seed=42, flock_init=1.0)
     
     # Capture initial state
     initial_pos = w.get_state().flock.copy()
