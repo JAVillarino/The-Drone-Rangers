@@ -41,6 +41,8 @@ export default function EditJobModal({
   const [droneCount, setDroneCount] = useState<number>(1);
   const [shouldCancel, setShouldCancel] = useState(false);
   const [originalTargetRadius, setOriginalTargetRadius] = useState<number | null>(null);
+  const [droneCountError, setDroneCountError] = useState<string | null>(null);
+  const [previousDroneCount, setPreviousDroneCount] = useState<number>(1);
 
   // Original values to track changes (only for editable fields)
   const [originalValues, setOriginalValues] = useState<{
@@ -71,6 +73,7 @@ export default function EditJobModal({
       setScheduledDateTime(scheduledTime);
       setTargetPosition(targetPos);
       setDroneCount(job.drone_count);
+      setPreviousDroneCount(job.drone_count);
       setOriginalTargetRadius(targetRadius);
       setShouldCancel(false);
 
@@ -366,21 +369,83 @@ export default function EditJobModal({
                 <input
                   id="drone-count"
                   type="number"
-                  min="1"
-                  max={maxDrones}
                   value={droneCount}
                   onChange={(e) => {
-                    const newCount = parseInt(e.target.value, 10) || 1;
-                    setDroneCount(newCount);
-                    // Clear error if user fixes the value
+                    const inputValue = e.target.value;
+                    const newCount = inputValue === '' ? 0 : parseInt(inputValue, 10);
+                    
+                    if (isNaN(newCount)) {
+                      setDroneCountError(null);
+                      setPreviousDroneCount(droneCount);
+                      return;
+                    }
+                    
+                    // Check if user tried to increment beyond max
+                    if (newCount > maxDrones) {
+                      setDroneCountError(`Cannot exceed ${maxDrones} drone${maxDrones !== 1 ? 's' : ''} in fleet`);
+                      setDroneCount(maxDrones);
+                      setPreviousDroneCount(maxDrones);
+                    } 
+                    // Check if user tried to decrement below 1
+                    else if (newCount < 1) {
+                      setDroneCountError('At least 1 drone is required');
+                      setDroneCount(1);
+                      setPreviousDroneCount(1);
+                    } 
+                    // Check if value didn't change but user tried to increment (hit max limit)
+                    else if (newCount === droneCount && newCount === maxDrones && previousDroneCount === maxDrones) {
+                      // User clicked up arrow at max - show error
+                      setDroneCountError(`Cannot exceed ${maxDrones} drone${maxDrones !== 1 ? 's' : ''} in fleet`);
+                    }
+                    // Check if value didn't change but user tried to decrement (hit min limit)
+                    else if (newCount === droneCount && newCount === 1 && previousDroneCount === 1) {
+                      // User clicked down arrow at min - show error
+                      setDroneCountError('At least 1 drone is required');
+                    }
+                    else {
+                      setDroneCountError(null);
+                      setDroneCount(newCount);
+                      setPreviousDroneCount(newCount);
+                    }
+                    
+                    // Clear form error if user fixes the value
                     if (error && newCount <= maxDrones && newCount >= 1) {
                       setError(null);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    // Detect arrow key presses to show errors at boundaries
+                    if (e.key === 'ArrowUp' && droneCount >= maxDrones) {
+                      setDroneCountError(`Cannot exceed ${maxDrones} drone${maxDrones !== 1 ? 's' : ''} in fleet`);
+                    } else if (e.key === 'ArrowDown' && droneCount <= 1) {
+                      setDroneCountError('At least 1 drone is required');
+                    }
+                  }}
+                  onBlur={() => {
+                    // Clear error on blur if value is valid
+                    if (droneCount >= 1 && droneCount <= maxDrones) {
+                      setDroneCountError(null);
+                    }
+                    // Ensure value is within bounds
+                    if (droneCount < 1) {
+                      setDroneCount(1);
+                    } else if (droneCount > maxDrones) {
+                      setDroneCount(maxDrones);
                     }
                   }}
                   className="form-input"
                   required
                 />
-                {maxDrones > 0 && (
+                {droneCountError && (
+                  <div style={{ 
+                    fontSize: '0.875rem', 
+                    color: '#e53935', 
+                    marginTop: '4px' 
+                  }}>
+                    {droneCountError}
+                  </div>
+                )}
+                {!droneCountError && maxDrones > 0 && (
                   <div style={{ 
                     fontSize: '0.875rem', 
                     color: droneCount > maxDrones ? '#e53935' : '#666', 

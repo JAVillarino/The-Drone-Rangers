@@ -42,6 +42,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
   // Local state for drone count input (synced with prop)
   const [localDroneCount, setLocalDroneCount] = useState<number>(droneCount);
   const [droneCountError, setDroneCountError] = useState<string | null>(null);
+  const [previousDroneCount, setPreviousDroneCount] = useState<number>(droneCount);
   const [radiusInput, setRadiusInput] = useState<string>(() =>
     target?.type === 'circle' && typeof target.radius === 'number'
       ? target.radius.toString()
@@ -52,6 +53,7 @@ const JobStatus: React.FC<JobStatusProps> = ({
   // Sync local drone count when prop changes (from SSE updates)
   useEffect(() => {
     setLocalDroneCount(droneCount);
+    setPreviousDroneCount(droneCount);
   }, [droneCount]);
 
   // Sync radiusInput when target changes from outside
@@ -102,18 +104,72 @@ const JobStatus: React.FC<JobStatusProps> = ({
 
   // Handler for updating the drone count
   const handleDroneCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const count = parseInt(e.target.value, 10);
-    if (isNaN(count) || count < 1) {
-      setDroneCountError('At least 1 drone is required');
+    const inputValue = e.target.value;
+    const count = inputValue === '' ? 0 : parseInt(inputValue, 10);
+    
+    if (isNaN(count)) {
+      setDroneCountError(null);
+      setPreviousDroneCount(localDroneCount);
       return;
     }
+    
+    // Check if user tried to increment beyond max
     if (count > maxDrones) {
       setDroneCountError(`Cannot exceed ${maxDrones} drone${maxDrones !== 1 ? 's' : ''} in fleet`);
+      setLocalDroneCount(maxDrones);
+      setPreviousDroneCount(maxDrones);
+      onDronesChange(maxDrones);
       return;
     }
-    setDroneCountError(null);
-    setLocalDroneCount(count);
-    onDronesChange(count);
+    // Check if user tried to decrement below 1
+    if (count < 1) {
+      setDroneCountError('At least 1 drone is required');
+      setLocalDroneCount(1);
+      setPreviousDroneCount(1);
+      onDronesChange(1);
+      return;
+    }
+    // Check if value didn't change but user tried to increment (hit max limit)
+    if (count === localDroneCount && count === maxDrones && previousDroneCount === maxDrones) {
+      // User clicked up arrow at max - show error
+      setDroneCountError(`Cannot exceed ${maxDrones} drone${maxDrones !== 1 ? 's' : ''} in fleet`);
+    }
+    // Check if value didn't change but user tried to decrement (hit min limit)
+    else if (count === localDroneCount && count === 1 && previousDroneCount === 1) {
+      // User clicked down arrow at min - show error
+      setDroneCountError('At least 1 drone is required');
+    }
+    else {
+      setDroneCountError(null);
+      setLocalDroneCount(count);
+      setPreviousDroneCount(count);
+      onDronesChange(count);
+    }
+  };
+  
+  // Handler for input blur to clear error if value is valid
+  const handleDroneCountBlur = () => {
+    if (localDroneCount >= 1 && localDroneCount <= maxDrones) {
+      setDroneCountError(null);
+    }
+    // Ensure value is within bounds
+    if (localDroneCount < 1) {
+      setLocalDroneCount(1);
+      onDronesChange(1);
+    } else if (localDroneCount > maxDrones) {
+      setLocalDroneCount(maxDrones);
+      onDronesChange(maxDrones);
+    }
+  };
+  
+  // Handler for arrow key presses
+  const handleDroneCountKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Detect arrow key presses to show errors at boundaries
+    if (e.key === 'ArrowUp' && localDroneCount >= maxDrones) {
+      setDroneCountError(`Cannot exceed ${maxDrones} drone${maxDrones !== 1 ? 's' : ''} in fleet`);
+    } else if (e.key === 'ArrowDown' && localDroneCount <= 1) {
+      setDroneCountError('At least 1 drone is required');
+    }
   };
 
   return (
@@ -204,8 +260,8 @@ const JobStatus: React.FC<JobStatusProps> = ({
               type="number"
               value={localDroneCount}
               onChange={handleDroneCountChange}
-              min="1"
-              max={maxDrones}
+              onBlur={handleDroneCountBlur}
+              onKeyDown={handleDroneCountKeyDown}
               aria-label="Number of drones assigned"
             />
             {droneCountError && (
