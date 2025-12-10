@@ -103,10 +103,7 @@ class Job:
                 result = ts_to_iso(mu)
                 return result if result is not None else ""
         
-        # Handle both drone_count and drones for backward compatibility
-        drone_count_value = getattr(self, 'drone_count', None)
-        if drone_count_value is None:
-            drone_count_value = getattr(self, 'drones', 1)
+        drone_count_value = getattr(self, 'drone_count', 1)
         
         return {
             "id": str(self.id),
