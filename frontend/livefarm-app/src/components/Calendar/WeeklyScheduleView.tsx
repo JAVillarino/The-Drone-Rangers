@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { FarmJob } from '../../types';
 
 interface WeeklyScheduleViewProps {
@@ -7,14 +7,21 @@ interface WeeklyScheduleViewProps {
 }
 
 export default function WeeklyScheduleView({ jobs, onJobClick }: WeeklyScheduleViewProps) {
-  const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
-  startOfWeek.setHours(0, 0, 0, 0);
+  const [selectedWeek, setSelectedWeek] = useState<Date>(new Date());
+
+  const startOfWeek = useMemo(() => {
+    const week = new Date(selectedWeek);
+    week.setDate(week.getDate() - week.getDay()); // Sunday
+    week.setHours(0, 0, 0, 0);
+    return week;
+  }, [selectedWeek]);
   
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6);
-  endOfWeek.setHours(23, 59, 59, 999);
+  const endOfWeek = useMemo(() => {
+    const end = new Date(startOfWeek);
+    end.setDate(startOfWeek.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    return end;
+  }, [startOfWeek]);
 
   // Filter jobs for this week and group by day
   const jobsByDay = useMemo(() => {
@@ -49,7 +56,29 @@ export default function WeeklyScheduleView({ jobs, onJobClick }: WeeklyScheduleV
     });
 
     return dailyJobs;
-  }, [jobs, startOfWeek, endOfWeek, now]);
+  }, [jobs, startOfWeek, endOfWeek]);
+
+  const handlePreviousWeek = () => {
+    const newWeek = new Date(selectedWeek);
+    newWeek.setDate(newWeek.getDate() - 7);
+    setSelectedWeek(newWeek);
+  };
+
+  const handleNextWeek = () => {
+    const newWeek = new Date(selectedWeek);
+    newWeek.setDate(newWeek.getDate() + 7);
+    setSelectedWeek(newWeek);
+  };
+
+  const handleThisWeek = () => {
+    setSelectedWeek(new Date());
+  };
+
+  const now = new Date();
+  const currentWeekStart = new Date(now);
+  currentWeekStart.setDate(now.getDate() - now.getDay());
+  currentWeekStart.setHours(0, 0, 0, 0);
+  const isCurrentWeek = startOfWeek.getTime() === currentWeekStart.getTime();
 
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const dayDates = Array.from({ length: 7 }, (_, i) => {
@@ -60,9 +89,56 @@ export default function WeeklyScheduleView({ jobs, onJobClick }: WeeklyScheduleV
 
   return (
     <div className="weekly-schedule-view">
-      <h3 className="schedule-view-title">
-        Week of {startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-      </h3>
+      <div className="schedule-view-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+        <button
+          onClick={handlePreviousWeek}
+          style={{
+            background: 'none',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            padding: '8px 12px',
+            cursor: 'pointer',
+            fontSize: '16px'
+          }}
+          aria-label="Previous week"
+        >
+          ←
+        </button>
+        <h3 className="schedule-view-title" style={{ margin: 0 }}>
+          Week of {startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </h3>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {!isCurrentWeek && (
+            <button
+              onClick={handleThisWeek}
+              style={{
+                background: '#f0f0f0',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                padding: '6px 12px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              This Week
+            </button>
+          )}
+          <button
+            onClick={handleNextWeek}
+            style={{
+              background: 'none',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              padding: '8px 12px',
+              cursor: 'pointer',
+              fontSize: '16px'
+            }}
+            aria-label="Next week"
+          >
+            →
+          </button>
+        </div>
+      </div>
       <div className="weekly-grid">
         {dayDates.map((date, index) => (
           <div key={index} className="day-slot">

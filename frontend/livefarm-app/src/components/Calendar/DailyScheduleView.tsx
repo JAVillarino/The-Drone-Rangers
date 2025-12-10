@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { FarmJob } from '../../types';
 
 interface DailyScheduleViewProps {
@@ -7,10 +7,12 @@ interface DailyScheduleViewProps {
 }
 
 export default function DailyScheduleView({ jobs, onJobClick }: DailyScheduleViewProps) {
-  // Filter jobs for today and group by hour
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  // Filter jobs for selected date and group by hour
   const jobsByHour = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const targetDate = new Date(selectedDate);
+    targetDate.setHours(0, 0, 0, 0);
     
     const hourlyJobs: { [hour: number]: FarmJob[] } = {};
     
@@ -29,12 +31,12 @@ export default function DailyScheduleView({ jobs, onJobClick }: DailyScheduleVie
       // Use start_at if available (scheduled jobs), otherwise use created_at (immediate jobs)
       const jobDate = job.start_at ? new Date(job.start_at) : new Date(job.created_at);
       
-      // Check if job is for today (compare dates only, ignoring time)
+      // Check if job is for selected date (compare dates only, ignoring time)
       const jobDay = new Date(jobDate);
       jobDay.setHours(0, 0, 0, 0);
       
-      // Only show jobs scheduled for today
-      if (jobDay.getTime() === today.getTime()) {
+      // Only show jobs scheduled for selected date
+      if (jobDay.getTime() === targetDate.getTime()) {
         // Use the hour from the job's scheduled/created time
         const hour = jobDate.getHours();
         if (hour >= 0 && hour < 24 && hourlyJobs[hour]) {
@@ -45,15 +47,78 @@ export default function DailyScheduleView({ jobs, onJobClick }: DailyScheduleVie
     });
 
     return hourlyJobs;
-  }, [jobs]);
+  }, [jobs, selectedDate]);
 
-  const today = new Date();
+  const handlePreviousDay = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() - 1);
+    setSelectedDate(newDate);
+  };
+
+  const handleNextDay = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + 1);
+    setSelectedDate(newDate);
+  };
+
+  const handleToday = () => {
+    setSelectedDate(new Date());
+  };
+
+  const isToday = selectedDate.toDateString() === new Date().toDateString();
 
   return (
     <div className="daily-schedule-view">
-      <h3 className="schedule-view-title">
-        {today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-      </h3>
+      <div className="schedule-view-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+        <button
+          onClick={handlePreviousDay}
+          style={{
+            background: 'none',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            padding: '8px 12px',
+            cursor: 'pointer',
+            fontSize: '16px'
+          }}
+          aria-label="Previous day"
+        >
+          ←
+        </button>
+        <h3 className="schedule-view-title" style={{ margin: 0 }}>
+          {selectedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </h3>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {!isToday && (
+            <button
+              onClick={handleToday}
+              style={{
+                background: '#f0f0f0',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                padding: '6px 12px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              Today
+            </button>
+          )}
+          <button
+            onClick={handleNextDay}
+            style={{
+              background: 'none',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              padding: '8px 12px',
+              cursor: 'pointer',
+              fontSize: '16px'
+            }}
+            aria-label="Next day"
+          >
+            →
+          </button>
+        </div>
+      </div>
       <div className="hourly-grid">
         {Array.from({ length: 24 }, (_, i) => (
           <div key={i} className="hour-slot">

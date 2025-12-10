@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { FarmJob } from '../../types';
 
 interface MonthlyScheduleViewProps {
@@ -7,9 +7,10 @@ interface MonthlyScheduleViewProps {
 }
 
 export default function MonthlyScheduleView({ jobs, onJobClick }: MonthlyScheduleViewProps) {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  
+  const year = selectedDate.getFullYear();
+  const month = selectedDate.getMonth();
   
   const firstDay = new Date(year, month, 1);
   // Note: lastDay calculated but not currently used - kept for reference
@@ -67,12 +68,78 @@ export default function MonthlyScheduleView({ jobs, onJobClick }: MonthlySchedul
     return days;
   }, [startDate, month]);
 
-  const monthName = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const handlePreviousMonth = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(newDate.getMonth() - 1);
+    setSelectedDate(newDate);
+  };
+
+  const handleNextMonth = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(newDate.getMonth() + 1);
+    setSelectedDate(newDate);
+  };
+
+  const handleThisMonth = () => {
+    setSelectedDate(new Date());
+  };
+
+  const now = new Date();
+  const isCurrentMonth = selectedDate.getMonth() === now.getMonth() && selectedDate.getFullYear() === now.getFullYear();
+
+  const monthName = selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
     <div className="monthly-schedule-view">
-      <h3 className="schedule-view-title">{monthName}</h3>
+      <div className="schedule-view-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+        <button
+          onClick={handlePreviousMonth}
+          style={{
+            background: 'none',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            padding: '8px 12px',
+            cursor: 'pointer',
+            fontSize: '16px'
+          }}
+          aria-label="Previous month"
+        >
+          ←
+        </button>
+        <h3 className="schedule-view-title" style={{ margin: 0 }}>{monthName}</h3>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {!isCurrentMonth && (
+            <button
+              onClick={handleThisMonth}
+              style={{
+                background: '#f0f0f0',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                padding: '6px 12px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              This Month
+            </button>
+          )}
+          <button
+            onClick={handleNextMonth}
+            style={{
+              background: 'none',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              padding: '8px 12px',
+              cursor: 'pointer',
+              fontSize: '16px'
+            }}
+            aria-label="Next month"
+          >
+            →
+          </button>
+        </div>
+      </div>
       <div className="calendar-grid">
         <div className="calendar-header">
           {dayNames.map(day => (
