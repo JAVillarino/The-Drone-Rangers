@@ -98,15 +98,18 @@ def _make_world(
 # Tests
 # -----------------------------------------------------------------------------
 
-@pytest.mark.parametrize("N", [64, 128, 256])
-@pytest.mark.parametrize("with_obstacles", [False, True])
-@pytest.mark.parametrize("jit", ["on", "off"])
+# Generate test cases, excluding slow JIT-off combinations for large N
+THROUGHPUT_TEST_CASES = [
+    (N, obs, jit)
+    for N in [64, 128, 256]
+    for obs in [False, True]
+    for jit in ["on", "off"]
+    if not (jit == "off" and N >= 256)
+]
+
+@pytest.mark.parametrize("N,with_obstacles,jit", THROUGHPUT_TEST_CASES)
 def test_world_step_throughput(benchmark, N, with_obstacles, jit):
     """Benchmark steps/sec for different sizes & obstacle settings."""
-    # Skip extremely slow combinations
-    if jit == "off" and N >= 256:
-        pytest.skip("Skipping slow JIT-off combinations")
-    
     world_mod = _reload_world(disable_jit=(jit == "off"))
     World = world_mod.World
     world = _make_world(World, N, with_obstacles)
