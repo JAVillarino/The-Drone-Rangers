@@ -31,23 +31,21 @@ export default function WeeklyScheduleView({ jobs, onJobClick }: WeeklyScheduleV
         return;
       }
 
+      // Determine the job's scheduled date/time
+      // Use start_at if available (scheduled jobs), otherwise use created_at (immediate jobs)
       const jobDate = job.start_at
         ? new Date(job.start_at)
         : new Date(job.created_at);
       
-      // Check if job is within this week
+      // Check if job is within this week (compare full dates, not just day of week)
       if (jobDate >= startOfWeek && jobDate <= endOfWeek) {
+        // Calculate which day of the week this job belongs to (0 = Sunday, 6 = Saturday)
         const dayIndex = jobDate.getDay();
-        if (dailyJobs[dayIndex]) {
+        if (dayIndex >= 0 && dayIndex < 7 && dailyJobs[dayIndex]) {
           dailyJobs[dayIndex].push(job);
         }
-      } else if (!job.start_at) {
-        // Immediate jobs go to today
-        const todayIndex = now.getDay();
-        if (dailyJobs[todayIndex]) {
-          dailyJobs[todayIndex].push(job);
-        }
       }
+      // Don't show jobs from outside this week, even if they're immediate jobs
     });
 
     return dailyJobs;

@@ -25,24 +25,23 @@ export default function DailyScheduleView({ jobs, onJobClick }: DailyScheduleVie
         return;
       }
 
+      // Determine the job's scheduled date/time
+      // Use start_at if available (scheduled jobs), otherwise use created_at (immediate jobs)
       const jobDate = job.start_at ? new Date(job.start_at) : new Date(job.created_at);
       
-      // Check if job is for today
+      // Check if job is for today (compare dates only, ignoring time)
       const jobDay = new Date(jobDate);
       jobDay.setHours(0, 0, 0, 0);
       
+      // Only show jobs scheduled for today
       if (jobDay.getTime() === today.getTime()) {
+        // Use the hour from the job's scheduled/created time
         const hour = jobDate.getHours();
-        if (hourlyJobs[hour]) {
+        if (hour >= 0 && hour < 24 && hourlyJobs[hour]) {
           hourlyJobs[hour].push(job);
         }
-      } else if (!job.start_at) {
-        // Immediate jobs go to current hour
-        const currentHour = new Date().getHours();
-        if (hourlyJobs[currentHour]) {
-          hourlyJobs[currentHour].push(job);
-        }
       }
+      // Don't show jobs from previous days, even if they're immediate jobs
     });
 
     return hourlyJobs;
