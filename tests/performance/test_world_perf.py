@@ -12,7 +12,7 @@ import pstats
 import sys
 import time
 from io import StringIO
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pytest
@@ -285,6 +285,7 @@ def test_jit_impact():
 
     # Helper script to run a quick benchmark
     # We pass N as an argument
+
     bench_script = """
 import os
 import time
@@ -307,23 +308,23 @@ def run():
     rng = np.random.default_rng(0)
     sheep_xy = rng.uniform(0, 250, size=(N, 2))
     shepherd_xy = np.array([[125.0, 125.0]])
-    
+
     w = world_mod.World(
         sheep_xy=sheep_xy,
         shepherd_xy=shepherd_xy,
         boundary="reflect"
     )
-    
+
     # Warmup
     for _ in range(20):
         w.step(DoNothing())
-        
+
     # Measure
     start = time.perf_counter()
     for _ in range(100):
         w.step(DoNothing())
     end = time.perf_counter()
-    
+
     print(end - start)
 
 if __name__ == "__main__":

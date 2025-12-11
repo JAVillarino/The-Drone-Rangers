@@ -37,7 +37,9 @@ def app_concurrent():
     mock_world = MockWorldAdapter()
 
     # Use real jobs cache and repo (with temp file)
-    import tempfile, os, pickle
+    import tempfile
+    import os
+    import pickle
     from pathlib import Path
 
     fd, db_path = tempfile.mkstemp()

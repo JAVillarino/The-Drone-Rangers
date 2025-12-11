@@ -1,3 +1,4 @@
+# flake8: noqa: E402
 """
 Drone Rangers Simulation Server
 
@@ -9,7 +10,7 @@ It handles:
 - CORS configuration
 """
 
-import os
+
 import sys
 from pathlib import Path
 
@@ -18,7 +19,7 @@ project_root = Path(__file__).parent.parent.resolve()
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-import json
+import json  # noqa: E402
 import random
 import threading
 import time
@@ -1079,7 +1080,8 @@ if __name__ == "__main__":
                         )
             last_rem_sync_ts = current_time
 
-        # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner. We send that back to the backend adapter.
+        # We receive the new state of the world from the backend adapter, and we compute what we should do based on the planner.
+        # We send that back to the backend adapter.
         with world_lock:
             # Sync target from active job to world, and auto-unpause if there's an active job with a target
             active_job = None
@@ -1152,7 +1154,7 @@ if __name__ == "__main__":
                 backend_adapter.step(plan)
 
             # Record metrics if collection is active
-            from server.metrics import get_collector
+            # from server.metrics import get_collector
 
             collector = get_collector()
             if collector.get_current_run() is not None:

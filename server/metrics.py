@@ -9,10 +9,8 @@ from __future__ import annotations
 
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional
 
-if TYPE_CHECKING:
-    from planning import state
 
 import numpy as np
 

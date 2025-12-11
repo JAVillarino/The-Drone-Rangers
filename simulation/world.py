@@ -115,8 +115,8 @@ class World:
         self.paused = False
 
         # Polygon obstacles
-        self.polys = []
-        self.poly_edges = []
+        self.polys: list[np.ndarray] = []
+        self.poly_edges: list[dict] = []
         if obstacles_polygons is not None:
             for poly in obstacles_polygons:
                 self.add_polygon(poly)
@@ -914,7 +914,7 @@ class World:
             d_sq = drone_distances_sq[:, j]
             d = np.sqrt(d_sq)
 
-            push = smooth_push(d, self.rs)
+            push = np.asarray(smooth_push(d, self.rs))
             inv_d = 1.0 / d
 
             vec_DP = self.P - D

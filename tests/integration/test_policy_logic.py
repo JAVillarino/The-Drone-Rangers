@@ -1,5 +1,5 @@
 import numpy as np
-import pytest
+
 from planning.herding import policy
 from planning import state, plan_type
 

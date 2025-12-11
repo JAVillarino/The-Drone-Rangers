@@ -6,7 +6,7 @@ and the number of nearest neighbors (k-NN) on the success rate of shepherding.
 Generates a heatmap and overlays theoretical guide curves.
 """
 
-import glob
+
 import os
 import sys
 from typing import List

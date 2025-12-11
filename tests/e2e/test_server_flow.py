@@ -1,7 +1,7 @@
 import pytest
-import time
+
 import numpy as np
-from flask import Flask
+
 from server import main
 from simulation import world, scenarios
 
@@ -56,7 +56,7 @@ def test_server_e2e_flow(app_with_real_world):
 
     # 2. Verify Job Active via State API
     res = client.get("/state")
-    state_data = res.get_json()
+    # state_data = res.get_json()
     # Check if job is in state (if state exposes jobs)
     # The current /state endpoint might not expose jobs list directly,
     # but we can check if drones are moving.
@@ -71,7 +71,7 @@ def test_server_e2e_flow(app_with_real_world):
     # So this test confirms that *if* a loop existed, the API would reflect changes.
     # We will simulate the loop here.
 
-    from server import jobs_api
+    # from server import jobs_api
     from planning.herding import policy
 
     # Setup policy
@@ -103,4 +103,4 @@ def test_server_e2e_flow(app_with_real_world):
     # 5. Stop Job via API
     res = client.patch(f"/api/jobs/{job_id}", json={"is_active": False})
     assert res.status_code == 200
-    assert res.get_json()["is_active"] == False
+    assert res.get_json()["is_active"] is False

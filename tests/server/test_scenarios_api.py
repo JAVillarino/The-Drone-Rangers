@@ -7,7 +7,6 @@ from flask import Flask
 from server import scenarios_api
 
 
-
 @pytest.fixture
 def app_and_repo():
     """Create a Flask app with a temporary scenarios repo."""

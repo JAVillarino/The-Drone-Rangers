@@ -72,7 +72,7 @@ def test_get_state(app_and_world):
 
     assert "flock" in data
     assert "drones" in data
-    assert data["paused"] == True
+    assert data["paused"] is True
 
 
 def test_patch_state_pause(app_and_world):
@@ -82,12 +82,12 @@ def test_patch_state_pause(app_and_world):
     # Unpause
     response = client.patch("/state", json={"pause": False})
     assert response.status_code == 200
-    assert w.paused == False
+    assert w.paused is False
 
     # Pause
     response = client.patch("/state", json={"pause": True})
     assert response.status_code == 200
-    assert w.paused == True
+    assert w.paused is True
 
 
 def test_patch_state_target(app_and_world):
@@ -122,10 +122,10 @@ def test_play_pause_toggle(app_and_world):
     # Initial: paused=True
     response = client.post("/pause")
     assert response.status_code == 200
-    assert response.get_json()["paused"] == False
-    assert w.paused == False
+    assert response.get_json()["paused"] is False
+    assert w.paused is False
 
     response = client.post("/pause")
     assert response.status_code == 200
-    assert response.get_json()["paused"] == True
-    assert w.paused == True
+    assert response.get_json()["paused"] is True
+    assert w.paused is True

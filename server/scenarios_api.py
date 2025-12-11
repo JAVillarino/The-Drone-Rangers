@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 from uuid import UUID, uuid4
 
 import numpy as np
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, jsonify, request
 
 from simulation.scenarios import (
     spawn_circle,
@@ -268,7 +268,10 @@ def _seed_presets():
         Scenario(
             id=uuid4(),
             name="City Evacuation - 40 People",
-            description="Urban evacuation at a city intersection: guide 40 people to the designated safe zone using coordinated drone robots",
+            description=(
+                "Urban evacuation at a city intersection: guide 40 people to the designated safe zone "
+                "using coordinated drone robots"
+            ),
             tags=["preset", "evacuation", "urban", "city", "intersection"],
             visibility="preset",
             seed=123,
@@ -526,10 +529,10 @@ def _spawn_entities(body: dict) -> Tuple[List[Vec2], List[Vec2], List[Vec2]]:
 
     # Drones
     drones_in = spawn.get("drones") or []
-    drones: List[Vec2] = []
+    drones_list: List[Vec2] = []
     for d in drones_in:
         if "position" in d:
-            drones.append(_finite_pair(d["position"]))
+            drones_list.append(_finite_pair(d["position"]))
         elif "around" in d and "radius" in d:
             around = _finite_pair(d["around"])
             count = int(d.get("count", 1))
@@ -538,14 +541,14 @@ def _spawn_entities(body: dict) -> Tuple[List[Vec2], List[Vec2], List[Vec2]]:
             th = rng.random(count) * 2 * np.pi
             xs = around[0] + r * np.cos(th)
             ys = around[1] + r * np.sin(th)
-            drones.extend([(float(x), float(y)) for x, y in zip(xs, ys)])
+            drones_list.extend([(float(x), float(y)) for x, y in zip(xs, ys)])
         else:
             # fallback: center
-            drones.append(((xmin + xmax) / 2.0, (ymin + ymax) / 2.0))
+            drones_list.append(((xmin + xmax) / 2.0, (ymin + ymax) / 2.0))
 
     targets = _normalize_points(spawn.get("targets") or [])
 
-    return _round_pts(sheep), _round_pts(drones), _round_pts(targets)
+    return _round_pts(sheep), _round_pts(drones_list), _round_pts(targets)
 
 
 # -----------------------------------------------------------------------------
@@ -650,7 +653,7 @@ def create_scenario() -> Any:
         obstacles=body.get("obstacles") or [],
         goals=body.get("goals") or [],
         boundary=boundary,
-        bounds=tuple(map(float, bounds)),
+        bounds=(float(bounds[0]), float(bounds[1]), float(bounds[2]), float(bounds[3])),
         # Configuration fields
         world_config=body.get("world_config"),
         policy_config=body.get("policy_config"),

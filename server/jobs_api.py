@@ -13,8 +13,7 @@ import traceback
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
-from uuid import uuid4
+from typing import List, Optional, Tuple
 
 import time
 
@@ -110,7 +109,7 @@ def _normalize_status(status: str) -> Tuple[JobStatus, Optional[str]]:
             f"Invalid status: {status}. Must be one of: {', '.join(VALID_STATUSES)}",
         )
 
-    return status, None
+    return status, None  # type: ignore
 
 
 def decide_initial_status(

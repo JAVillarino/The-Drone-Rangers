@@ -27,9 +27,6 @@ from planning.plan_type import DoNothing, DronePositions, Plan
 EPSILON = 1e-9
 
 
-
-
-
 def is_goal_satisfied(w: state.State, target: state.Target) -> bool:
     """
     Return True if every sheep in the world's flock is within the goal tolerance
@@ -135,7 +132,12 @@ class ShepherdPolicy:
             # Compute the distance to the closest point on the polygon (vectorized)
             closest_points = closest_point_on_polygon(P, target.points)
             dGoal = np.linalg.norm(P - closest_points, axis=1)
-            # If the sheep is inside the goal, set the distance to -inf so it won't be targeted.
+            # If the point is inside the polygon (or close enough), we consider it "inside"
+            # for the purpose of pushing it out.
+            # However, for the shepherd, we want to push the sheep *into* the polygon if it's outside?
+            # The logic here seems to be: if the sheep is NOT in the polygon, we want to push it towards the polygon.
+            # But the code says "if not points_inside_polygon...".
+            # Let's assume the target is to be INSIDE the polygon.
             polygon_inside = points_inside_polygon(P, target.points)
             dGoal = np.where(polygon_inside, -np.inf, dGoal)
         else:
@@ -193,7 +195,7 @@ class ShepherdPolicy:
         # Iteratively assign drones to sheep using greedy selection
         # Each drone must pick a different sheep
         # Assumes there are at least N_drones sheep in the flock
-        target_sheep_indices = [None] * N_drones
+        target_sheep_indices: List[Optional[int]] = [None] * N_drones
         assigned_sheep = set()
 
         # TODO: idk why this isn't done using a numpy function.
@@ -224,7 +226,8 @@ class ShepherdPolicy:
                 for remaining_drone_idx in range(N_drones):
                     score_matrix[best_sheep_idx, remaining_drone_idx] = -np.inf
             else:
-                # No valid assignment found (shouldn't happen if there are enough sheep), but when collection has finished this may trigger.
+                # No valid assignment found (shouldn't happen if there are enough sheep),
+                # but when collection has finished this may trigger.
                 break
 
         # Calculate the standoff point for each assigned sheep

@@ -27,7 +27,9 @@ class MockWorldAdapter:
 
 @pytest.fixture
 def app_and_repo():
-    import tempfile, os, pickle
+    import tempfile
+    import os
+    import pickle
     from pathlib import Path
 
     fd, db_path = tempfile.mkstemp()
@@ -76,7 +78,7 @@ def test_create_scheduled_job(app_and_repo):
     data = response.get_json()
 
     assert data["status"] == "scheduled"
-    assert data["is_active"] == False
+    assert data["is_active"] is False
     assert data["start_at"] is not None
 
 
@@ -111,4 +113,4 @@ def test_create_immediate_job_explicit(app_and_repo):
     data = response.get_json()
 
     assert data["status"] == "running"
-    assert data["is_active"] == True
+    assert data["is_active"] is True

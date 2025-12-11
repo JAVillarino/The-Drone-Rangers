@@ -73,7 +73,7 @@ def test_patch_state_multi_field(app_and_world):
     # Verify all effects
     assert np.array_equal(w.target, target)
     assert len(w.polys) == 1
-    assert w.paused == False
+    assert w.paused is False
 
 
 def test_patch_state_clear_and_add(app_and_world):

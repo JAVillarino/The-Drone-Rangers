@@ -1,7 +1,7 @@
 import numpy as np
-import pytest
+
 from simulation import world, scenarios
-from planning import state, herding
+from planning import state
 from planning.herding import policy
 
 

@@ -8,8 +8,6 @@ from flask import Flask
 from server import jobs_api
 
 
-
-# Mock dependencies
 class MockJobCache:
     def __init__(self):
         self.list = []
@@ -166,7 +164,7 @@ def test_update_job_status(app_and_repo):
     )
     assert response.status_code == 200
     assert response.get_json()["status"] == "pending"
-    assert response.get_json()["is_active"] == False
+    assert response.get_json()["is_active"] is False
 
 
 def test_delete_job(app_and_repo):

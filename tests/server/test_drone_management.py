@@ -8,8 +8,6 @@ from flask import Flask
 from server.drone_management import create_drones_blueprint, _generate_next_drone_id
 
 
-
-# Mock World class
 class MockWorld:
     def __init__(self):
         self.drones = np.zeros((0, 2))

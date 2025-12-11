@@ -27,7 +27,9 @@ class MockWorldAdapter:
 
 @pytest.fixture
 def app_fuzz():
-    import tempfile, os, pickle
+    import tempfile
+    import os
+    import pickle
     from pathlib import Path
 
     # Setup Jobs DB

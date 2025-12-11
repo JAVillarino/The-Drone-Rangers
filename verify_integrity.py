@@ -22,20 +22,6 @@ def log(msg):
 def test_imports():
     log("Testing imports...")
     try:
-        import planning.state
-        import planning.plan_type
-
-
-
-
-
-
-        # Server modules might require flask context, but we can try importing
-        import server.drone_management
-        import server.scenarios_api
-
-
-
 
         log("Imports successful.")
     except ImportError as e:

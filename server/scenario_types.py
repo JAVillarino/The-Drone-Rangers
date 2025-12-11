@@ -260,7 +260,7 @@ def generate_initial_layout(
         targets = [[center_x, center_y]]
 
     # --- Generate Obstacles ---
-    obstacles = []
+    obstacles: List[List[float]] = []
 
     return {
         "sheep": [[float(x), float(y)] for x, y in agents],
