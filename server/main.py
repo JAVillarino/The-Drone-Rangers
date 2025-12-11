@@ -52,8 +52,36 @@ from simulation import world
 DEFAULT_FLOCK_SIZE = 50
 DEFAULT_SHEEP_X_RANGE = (0, 200)
 DEFAULT_SHEEP_Y_RANGE = (0, 200)
-DEFAULT_FPS = 60
-FRAME_TIME = 1.0 / DEFAULT_FPS
+# -----------------------------------------------------------------------------
+# Simulation Timing & Speed Configuration
+# -----------------------------------------------------------------------------
+
+# Simulation Loop Speed (Heartbeat)
+# How many times per second the server "wakes up" to update the world.
+# - Higher (e.g. 60) = Smoother motion, more frequent updates, higher CPU usage.
+# - Lower (e.g. 30) = Choppier motion, saves CPU.
+SIMULATION_LOOP_FPS = 60
+FRAME_TIME = 1.0 / SIMULATION_LOOP_FPS
+
+# Simulation Speed Multiplier (Physics Steps per Heartbeat)
+# How much "simulation time" passes for every "heartbeat".
+#
+# Formula: Simulation Speed = (SIMULATION_LOOP_FPS * STEPS_PER_FRAME * dt) / 1 second
+#
+# - Loop FPS: 60 (wakes up 60 times/sec)
+# - Steps/Frame: 3 (does 3 physics steps each time)
+# - Physics dt: 0.07s (each step advances sim time by 0.07s)
+#
+# Result: 60 * 3 = 180 steps per real second.
+# Total Sim Time: 180 * 0.07s = 12.6 seconds of sim time per 1 real second.
+# Speed: ~12.6x real-time.
+STEPS_PER_FRAME = 3
+
+#  Broadcast Speed (Network/Rendering)
+# How many times per second we send updates to the frontend.
+# Keep this lower (e.g., 30) to save network bandwidth and frontend rendering power.
+BROADCAST_FPS = 30
+BROADCAST_FRAME_TIME = 1.0 / BROADCAST_FPS
 
 # Allowed origins for CORS (development)
 ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -306,8 +334,8 @@ def stream_state():
                 event_data = f"event: stateUpdate\ndata: {json.dumps(state_dict)}\n\n"
                 yield event_data
 
-                # Sleep to maintain target FPS
-                time.sleep(FRAME_TIME)
+                # Sleep to maintain target FPS (30Hz for network/rendering)
+                time.sleep(BROADCAST_FRAME_TIME)
 
             except GeneratorExit:
                 # Client disconnected
@@ -977,8 +1005,8 @@ if __name__ == "__main__":
         # Get current jobs from cache
         jobs = jobs_cache.list
 
-        # TODO: This sleep should be within the loop of frames.
-        time.sleep(0.05)  # 20 FPS update rate for simulation loop (original speed)
+
+        time.sleep(FRAME_TIME)
         # Update job statuses and remaining times
         jobs_to_sync = set()  # Use set to avoid duplicate syncs
         with world_lock:
@@ -1147,7 +1175,9 @@ if __name__ == "__main__":
                 if job.completed_at is not None:
                     jobs_cache.remove(job.id)
 
-            for _ in range(15):
+            # Run multiple simulation steps per frame to speed up simulation
+            # while maintaining smooth 60Hz updates
+            for _ in range(STEPS_PER_FRAME):
                 plan = policy.plan(
                     backend_adapter.get_state(), jobs, backend_adapter.dt
                 )
